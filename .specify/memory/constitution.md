@@ -43,9 +43,14 @@ sin depender de módulos de fases posteriores para ser funcional y verificable.
 
 ## Restricciones Técnicas Adicionales
 
-- **Base de datos**: el modelo relacional debe respetar las entidades y relaciones del diagrama ER
-  (`ER.png`) como fuente de verdad inicial del dominio; cualquier desviación se documenta en el `plan.md`
-  del módulo correspondiente.
+- **Base de datos**: MySQL (vía Laragon) en entorno local de desarrollo; MySQL/MariaDB en producción
+  (Hostinger). El modelo relacional debe respetar las entidades y relaciones del diagrama ER (`ER.png`)
+  como fuente de verdad inicial del dominio; cualquier desviación se documenta en el `plan.md` del módulo
+  correspondiente. No se usa SQLite ni otro motor, ni siquiera para tests — los tests corren contra MySQL
+  para evitar divergencias de comportamiento (ej. `ENUM`, colación, `lockForUpdate()`).
+- **Entorno local de desarrollo**: Laragon (Windows) — PHP, MySQL y servidor web administrados por Laragon;
+  los comandos `artisan`/`composer` del proyecto asumen los binarios que Laragon expone (ver
+  `C:\laragon\bin\...` cuando se documenten rutas explícitas en scripts).
 - **Notificaciones**: las notificaciones internas y las notificaciones automáticas al cliente por correo se
   implementan sobre el sistema de notificaciones/colas de Laravel (queued notifications/jobs), no de forma
   síncrona bloqueante.
@@ -77,4 +82,4 @@ contradiga un principio aquí definido debe justificar la excepción explícitam
 (sección de "Complexity Tracking" o equivalente) o modificar primero esta constitución mediante una nueva
 versión. Las enmiendas deben documentar qué cambió y por qué, y se reflejan en el número de versión.
 
-**Version**: 1.1.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-24
+**Version**: 1.2.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-24
