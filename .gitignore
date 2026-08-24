@@ -5,7 +5,7 @@
 .DS_Store
 Thumbs.db
 
-# Laravel (placeholder for when the app is scaffolded)
+# Laravel
 /vendor
 /node_modules
 /.env
@@ -15,3 +15,21 @@ Thumbs.db
 /public/hot
 /public/storage
 /public/build
+/bootstrap/cache/*.php
+/storage/app/*
+!/storage/app/public
+!/storage/app/.gitignore
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/testing/*
+!/storage/framework/testing/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/logs/*
+!/storage/logs/.gitignore
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
