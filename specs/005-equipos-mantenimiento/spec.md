@@ -7,7 +7,10 @@
 **Status**: Draft
 
 **Input**: Cotización SERVIREPARAR, Módulo 4 — Gestión de Equipos y Mantenimiento; Fase 3 del cronograma;
-ER: `CLIENTES`, `EQUIPOS`, `ORDENES_TRABAJO`, `EVIDENCIAS_OT`.
+ER: `CLIENTES`, `EQUIPOS`, `ORDENES_TRABAJO`, `EVIDENCIAS_OT`. El registro de Clientes se movió al
+[spec 000 — Catálogos Maestros](../000-catalogos-maestros/spec.md), priorizado antes de este módulo por ser
+prerrequisito de OT (spec 002); este spec consume Cliente por referencia y se enfoca en Equipos y su
+historial técnico.
 
 ## Clarifications
 
@@ -20,25 +23,31 @@ ER: `CLIENTES`, `EQUIPOS`, `ORDENES_TRABAJO`, `EVIDENCIAS_OT`.
   Plantilla única genérica para todas las intervenciones de mantenimiento, análoga en mecánica al checklist
   de cierre de OT (spec 002).
 
+### Session 2026-08-24 (validación contra documentos operativos reales)
+
+- Nota: el registro de Clientes se reubicó al [spec 000](../000-catalogos-maestros/spec.md), ya que OT
+  (spec 002, Fase 2) depende de Clientes antes de que este módulo (Fase 3) se implemente — evita que OT
+  quede bloqueado esperando a Equipos/Mantenimiento.
+
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Registrar clientes y sus equipos (Priority: P1)
+### User Story 1 - Registrar equipos asociados a un cliente (Priority: P1)
 
-Se registran clientes y los equipos que poseen (tipo, marca, modelo, número de serie, ubicación, estado),
-para poder asociarlos posteriormente a Órdenes de Trabajo.
+Se registran los equipos que posee un cliente ya existente (tipo, marca, modelo, número de serie,
+ubicación, estado), para poder asociarlos posteriormente a Órdenes de Trabajo.
 
-**Why this priority**: Es información base requerida por el módulo de OT (spec 002) desde su primera
-historia de usuario ("registro de cliente/equipo"); sin esto no se puede operar el flujo central.
+**Why this priority**: Es información base requerida por el módulo de OT (spec 002, campo `equipo_id`
+opcional) desde su primera historia de usuario; el registro del Cliente en sí es responsabilidad del
+[spec 000](../000-catalogos-maestros/spec.md), prerrequisito de este módulo.
 
-**Independent Test**: Se registra un cliente y un equipo asociado, y se verifica que ambos aparecen
-disponibles como opciones al crear una nueva OT.
+**Independent Test**: Con un cliente ya registrado (spec 000), se registra un equipo asociado y se verifica
+que aparece disponible como opción al crear una nueva OT para ese cliente.
 
 **Acceptance Scenarios**:
 
-1. **Given** un usuario con permisos, **When** registra un nuevo cliente con sus datos de contacto,
-   **Then** el cliente queda disponible para asociar equipos y Órdenes de Trabajo.
-2. **Given** un cliente existente, **When** se registra un nuevo equipo con tipo, marca, modelo, serie y
-   estado, **Then** el equipo queda disponible en el selector de equipos al crear una OT para ese cliente.
+1. **Given** un cliente existente (registrado vía spec 000), **When** se registra un nuevo equipo con tipo,
+   marca, modelo, serie y estado, **Then** el equipo queda disponible en el selector de equipos al crear
+   una OT para ese cliente.
 
 ---
 
@@ -115,9 +124,7 @@ queda asociado a esa intervención en el historial del equipo.
 
 ### Functional Requirements
 
-- **FR-001**: El sistema DEBE permitir registrar clientes con sus datos de contacto (nombre, teléfono,
-  correo, dirección, NIT).
-- **FR-002**: El sistema DEBE permitir registrar equipos asociados a un cliente, con tipo, marca, modelo,
+- **FR-002**: El sistema DEBE permitir registrar equipos asociados a un cliente (spec 000), con tipo, marca, modelo,
   número de serie, ubicación y estado.
 - **FR-003**: El sistema DEBE construir automáticamente el historial técnico de un equipo a partir de sus
   Órdenes de Trabajo de mantenimiento (integración con spec 002), incluyendo técnico responsable y
@@ -134,9 +141,9 @@ queda asociado a esa intervención en el historial del equipo.
 
 ### Key Entities
 
-- **Cliente** (`CLIENTES`): id, nombre, teléfono, correo, dirección, nit.
-- **Equipo** (`EQUIPOS`): id, cliente_id, nombre, marca, modelo, serie, observaciones (ubicación y estado
-  según cotización, a incorporar en el modelo final).
+- **Equipo** (`EQUIPOS`): id, cliente_id (spec 000), nombre, marca, modelo, serie, observaciones (ubicación
+  y estado según cotización, a incorporar en el modelo final).
+- Referencia a **Cliente**, propiedad del [spec 000](../000-catalogos-maestros/spec.md).
 - **Variable Técnica**: registro clave-valor (nombre, valor, unidad) asociado a una intervención de
   mantenimiento — no modelado como columnas fijas en `EQUIPOS`.
 - Relación con **Orden de Trabajo** (spec 002) para historial técnico, evidencias y checklist.
@@ -153,7 +160,7 @@ queda asociado a esa intervención en el historial del equipo.
 
 ## Assumptions
 
-- El registro de clientes de este módulo es la misma entidad `CLIENTES` usada por el módulo de OT (spec
-  002) y de Compras/Cotizaciones (spec 006) — no hay clientes duplicados por módulo.
+- Cliente es la misma entidad única definida en el [spec 000](../000-catalogos-maestros/spec.md), usada
+  también por OT (spec 002) y Compras/Cotizaciones (spec 006) — no hay clientes duplicados por módulo.
 - El mantenimiento preventivo aplica solo a equipos marcados explícitamente con periodicidad definida; no
   todos los equipos registrados requieren programación automática.

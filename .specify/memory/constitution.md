@@ -19,10 +19,15 @@ condicional ad-hoc dispersa en las vistas o controladores.
 
 ### III. Alcance Cerrado por Contrato
 Los 7 módulos funcionales de la cotización del 30/06/2026 (OT, Inventario, Personal, Equipos y
-Mantenimiento, Solicitudes de Compra, Reportes/KPIs, Notificaciones) son el límite del alcance contratado.
-Cualquier funcionalidad no descrita allí que surja durante `/speckit-clarify` o el desarrollo debe marcarse
-como fuera de alcance o pendiente de aprobación comercial — no se implementa por defecto ("Cambios
-posteriores a aprobación funcional podrán generar costos adicionales").
+Mantenimiento, Solicitudes de Compra, Reportes/KPIs, Notificaciones), más el módulo 000 de Catálogos
+Maestros (Clientes, Proveedores, Contratistas — prerrequisito de datos validado contra los procesos reales
+del cliente), son el límite del alcance contratado. Cualquier funcionalidad no descrita allí que surja
+durante `/speckit-clarify` o el desarrollo debe marcarse como fuera de alcance o pendiente de aprobación
+comercial — no se implementa por defecto ("Cambios posteriores a aprobación funcional podrán generar costos
+adicionales"). Excepción documentada: el costeo y utilidad neta por OT (spec 002, User Story 5) se aprobó
+como ampliación de alcance el 2026-08-24, a partir de evidencia de que el cliente ya lo calcula manualmente
+en su formato real de OT — cualquier otra ampliación futura debe pasar por el mismo proceso explícito de
+aprobación, no asumirse.
 
 ### IV. Trazabilidad y Auditoría
 Toda operación sobre Órdenes de Trabajo, Inventario, Compras y Cotizaciones debe quedar auditable: quién
@@ -50,6 +55,12 @@ sin depender de módulos de fases posteriores para ser funcional y verificable.
 - **Infraestructura de despliegue**: Hostinger (VPS/hosting cloud), con dominio propio, SSL y backups
   diarios, según lo cotizado — fuera del alcance de código de la aplicación pero condiciona decisiones de
   stack (ej. evitar dependencias que requieran infraestructura no disponible en ese proveedor).
+- **Datos maestros como prerrequisito**: Clientes, Proveedores y Contratistas (spec 000) deben estar
+  operativos antes de que OT (spec 002), Inventario (spec 003) o Compras/Cotizaciones (spec 006) puedan
+  registrar operaciones reales — validado contra los procesos y formatos reales de OT y de almacén
+  provistos por el cliente (documentos operativos reales, no solo la cotización comercial).
+- **Códigos de barra**: el inventario (spec 003) genera e imprime códigos Code128 por ítem; la lectura se
+  asume vía lector USB tipo teclado (HID), sin drivers ni SDK propietario.
 
 ## Flujo de Trabajo Spec-Driven
 
@@ -66,4 +77,4 @@ contradiga un principio aquí definido debe justificar la excepción explícitam
 (sección de "Complexity Tracking" o equivalente) o modificar primero esta constitución mediante una nueva
 versión. Las enmiendas deben documentar qué cambió y por qué, y se reflejan en el número de versión.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-24
+**Version**: 1.1.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-24

@@ -6,10 +6,24 @@ especificaciones funcionales de cada módulo.
 
 ## Documentos fuente
 
+**Contractuales / diseño (aportados en la planeación inicial):**
 - `Cotización 30-06-2026.pdf` — alcance contractual, cronograma, valor y forma de pago.
 - `Mockups Servireparar.pdf` — diseño gráfico inicial de los flujos de Cotizaciones (Administrador),
   Órdenes de Trabajo (Jefe de Taller) y Solicitudes de Insumos (Almacenista).
 - `ER.png` — modelo entidad-relación de referencia y cronograma del proyecto.
+
+**Operativos reales (validación de campo, aportados posteriormente):**
+- `Ordenes de Trabajo Servireparar.xlsx - DESMANTELAR ESCALERA.pdf` — formato real de OT en uso, con
+  numeración `OTSV-`, costeo de mano de obra propia/contratista/repuestos y utilidad neta.
+- `Proceso de Gestión de Órdenes de Trabajo (OT) – Taller SERVIREPARAR SAS.pdf` — proceso documentado
+  (Cartagena, 2026-09-02) con responsables y flujo real de recepción a cierre de OT.
+- `MANUAL DE ORGANIZACIÓN Y MAPA DE PROCESOS ALMACEN SERVIREPARAR.pdf` — codificación de ubicaciones,
+  categorías de inventario, código de barras y KPIs reales de almacén (Cartagena, 2026-09-25).
+- `INVENTARIO  SERVIREPARAR (1).xlsx` — inventario real por categoría (Llantas, EPP, Tuberías y Láminas,
+  Insumos, Precios, Pinturas, Herramientas, Repuestos).
+
+Estos documentos operativos reales llevaron a agregar el [spec 000](specs/000-catalogos-maestros/spec.md)
+y a ampliar los specs 002 y 003 — ver detalle en cada spec y en la constitución (principio III).
 
 ## Stack tecnológico
 
@@ -28,6 +42,7 @@ vez validados los specs con el cliente.
 
 | Spec | Módulo | Fase (cronograma) | Fechas | Hito de pago asociado |
 |------|--------|--------------------|--------|------------------------|
+| [000](specs/000-catalogos-maestros/spec.md) | Catálogos Maestros (Clientes, Proveedores, Contratistas) | Fase 1 — Inicio del Proyecto & Configuración | 13 Ago – 22 Ago 2026 | Hito 1 (40% · $7.000.000) — 13/08/2026 |
 | [001](specs/001-autenticacion-usuarios/spec.md) | Autenticación y Gestión de Usuarios | Fase 1 — Inicio del Proyecto & Configuración | 13 Ago – 22 Ago 2026 | Hito 1 (40% · $7.000.000) — 13/08/2026 |
 | [002](specs/002-ordenes-trabajo/spec.md) | Gestión de Órdenes de Trabajo (OT) | Fase 2 — Módulos Operativos Centrales | 23 Ago – 16 Sep 2026 | Hito 2 (30% · $5.250.000) — 16/09/2026 |
 | [003](specs/003-inventario-bodega/spec.md) | Gestión de Inventario (Bodega) | Fase 2 | 23 Ago – 16 Sep 2026 | Hito 2 |
@@ -45,16 +60,18 @@ entrega (hasta 12/12/2026).
 
 | Spec | Estado `/speckit-clarify` | Notas |
 |------|---------------------------|-------|
+| 000 — Catálogos Maestros | ✅ Completado (2026-08-24) | Nuevo spec agregado tras validar documentos operativos reales. Contratistas como entidad propia, distinta de Proveedores. Listo para `/speckit-plan`. |
 | 001 — Autenticación y Usuarios | ✅ Completado (2026-08-24) | Sin auto-registro público, redirección por prioridad de rol, throttle estándar de Laravel. Listo para `/speckit-plan`. |
-| 002 — Órdenes de Trabajo | ✅ Completado (2026-08-24) | Umbral de vencimiento configurable por el Administrador; rechazo de salida de equipo reabre la OT a "En curso". Listo para `/speckit-plan`. |
-| 003 — Inventario (Bodega) | ✅ Completado (2026-08-24) | Auditorías bajo demanda (sin periodicidad fija); ajustes de auditoría requieren aprobación del Administrador. Listo para `/speckit-plan`. |
+| 002 — Órdenes de Trabajo | ✅ Completado (2026-08-24) | Umbral de vencimiento configurable; rechazo de salida de equipo reabre la OT a "En curso"; ampliado con numeración `OTSV-`, mano de obra de contratistas y costeo/utilidad neta por OT (ver constitución, principio III). Listo para `/speckit-plan`. |
+| 003 — Inventario (Bodega) | ✅ Completado (2026-08-24) | Auditorías bajo demanda; ajustes requieren aprobación del Administrador; ampliado con las 7 categorías reales, ubicación física Pasillo-Estante-Nivel y códigos de barra Code128. Listo para `/speckit-plan`. |
 | 004 — Gestión de Personal | ✅ Completado (2026-08-24) | Especialidad de técnico como catálogo fijo predefinido. Listo para `/speckit-plan`. |
-| 005 — Equipos y Mantenimiento | ✅ Completado (2026-08-24) | Variables técnicas como esquema clave-valor; checklist técnico con plantilla única genérica. Listo para `/speckit-plan`. |
-| 006 — Compras y Cotizaciones | ✅ Completado (2026-08-24) | Recepción vía IMAP polling, correos fuera de hilo notifican al Administrador, "Cotización" como entidad propia (no reutiliza OT). Queda abierto (no bloqueante): matcheo automático de cliente remitente. |
+| 005 — Equipos y Mantenimiento | ✅ Completado (2026-08-24) | Variables técnicas como esquema clave-valor; checklist técnico con plantilla única genérica; registro de Cliente reubicado al spec 000. Listo para `/speckit-plan`. |
+| 006 — Compras y Cotizaciones | ✅ Completado (2026-08-24) | Recepción vía IMAP polling, correos fuera de hilo notifican al Administrador, "Cotización" como entidad propia; registro de Proveedor reubicado al spec 000. Queda abierto (no bloqueante): matcheo automático de cliente remitente. |
 | 007 — Reportes e Indicadores | ✅ Completado (2026-08-24) | Dashboard por recarga/refresco (sin polling); exportaciones de OT e Inventario primero, Compras/Personal en corte posterior. Listo para `/speckit-plan`. |
 | 008 — Notificaciones y Alertas | ✅ Sin bloqueantes | No tenía `[NEEDS CLARIFICATION]` propios; dependía de 002/005 (umbrales) y 006 (canal de correo), ya resueltos. Listo para `/speckit-plan`. |
 
-Los 8 specs quedaron clarificados y listos para pasar a `/speckit-plan`. El único punto abierto no
-bloqueante restante es el matcheo automático de cliente remitente en el spec 006, que puede resolverse
-durante el diseño técnico de ese módulo. Recomendado iniciar `/speckit-plan` siguiendo el orden del
-cronograma: 001 → 002/003/004 (Fase 2) → 005/006/007/008 (Fase 3).
+Los 9 specs (000 a 008) quedaron clarificados y listos para pasar a `/speckit-plan`. El único punto abierto
+no bloqueante restante es el matcheo automático de cliente remitente en el spec 006. Recomendado iniciar
+`/speckit-plan` siguiendo el orden real de dependencias: **000 (Catálogos Maestros) → 001 (Auth) → 002/003/
+004 (Fase 2, dependen de 000) → 005/006/007/008 (Fase 3)** — 000 debe ir primero pese a no tener fase
+propia en el cronograma comercial, porque OT (002) no puede operar sin Clientes ni Contratistas.

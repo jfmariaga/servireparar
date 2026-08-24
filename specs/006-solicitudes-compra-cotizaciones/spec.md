@@ -8,7 +8,9 @@
 
 **Input**: Cotización SERVIREPARAR, Módulo 5 — Solicitudes de Compra; Fase 3 del cronograma; Mockups
 Ilustraciones 5-11 (Flujo #1, Administrador); ER: `PROVEEDORES`, `COMPRAS`, `DETALLE_COMPRA`, `CLIENTES`,
-`EQUIPOS`.
+`EQUIPOS`. El registro de Proveedores y Clientes se movió al
+[spec 000 — Catálogos Maestros](../000-catalogos-maestros/spec.md), priorizado antes de este módulo por ser
+prerrequisito de Inventario (spec 003) y OT (spec 002); este spec los consume por referencia.
 
 ## Clarifications
 
@@ -155,8 +157,6 @@ verificando que el historial de costos queda registrado en `COMPRAS`/`DETALLE_CO
   comentarios) de cada caso de cotización, visible en una vista tipo hilo (Ilustraciones 6-11).
 - **FR-008**: El sistema DEBE gestionar solicitudes de compra a proveedores con flujo propio: recepción,
   cotización, aprobación, facturación, y registro de costos (`COMPRAS`, `DETALLE_COMPRA`).
-- **FR-009**: El sistema DEBE mantener un maestro de proveedores (`PROVEEDORES`) con nombre, NIT, correo,
-  dirección y estado.
 - **FR-010**: El sistema DEBE recibir las solicitudes de cotización mediante un job programado que consulta
   vía IMAP la cuenta de correo oficial configurada (polling), implementado detrás de una interfaz de
   "proveedor de correo entrante" para no acoplar el resto del módulo al protocolo específico.
@@ -165,8 +165,7 @@ verificando que el historial de costos queda registrado en `COMPRAS`/`DETALLE_CO
 
 ### Key Entities
 
-- **Proveedor** (`PROVEEDORES`): id, nombre, nit, correo, dirección, estado.
-- **Compra** (`COMPRAS`): id, proveedor_id, fecha, estado, observaciones.
+- **Compra** (`COMPRAS`): id, proveedor_id (spec 000), fecha, estado, observaciones.
 - **Detalle de Compra** (`DETALLE_COMPRA`): id, compra_id, inventario_id, cantidad, costo_unitario,
   valor_total.
 - **Cotización**: entidad propia e independiente de `ORDENES_TRABAJO` (no existe en el ER original — se
@@ -176,6 +175,7 @@ verificando que el historial de costos queda registrado en `COMPRAS`/`DETALLE_CO
   total — análogo a `DETALLE_COMPRA` pero orientado al cliente.
 - **Mensaje de Cotización**: cada entrada del hilo de comunicación (correo entrante/saliente o comentario
   interno) asociada a una Cotización, con autor, fecha y contenido.
+- Referencia a **Cliente** y **Proveedor**, propiedad del [spec 000](../000-catalogos-maestros/spec.md).
 
 ## Success Criteria *(mandatory)*
 

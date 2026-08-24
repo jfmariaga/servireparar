@@ -8,6 +8,10 @@
 
 **Input**: Cotización SERVIREPARAR, Módulo 2 — Gestión de Inventario (Bodega); Fase 2 del cronograma;
 Mockups Ilustraciones 17-18 (Flujo #3, Almacenista); ER: `INVENTARIO`, `MOVIMIENTOS_INVENTARIO`.
+Complementado con el "Manual de Organización y Mapa de Procesos — Almacén Taller SERVIREPARAR" (Cartagena,
+2026-09-25) y el Excel real de inventario (`INVENTARIO SERVIREPARAR.xlsx`, hojas: Llantas, EPP, Tuberías y
+Láminas, Insumos, Precios, Pinturas, Herramientas, Repuestos), documentos operativos reales provistos por
+el cliente.
 
 ## Clarifications
 
@@ -19,6 +23,19 @@ Mockups Ilustraciones 17-18 (Flujo #3, Almacenista); ER: `INVENTARIO`, `MOVIMIEN
 - Q: Cuando el conteo físico difiere del stock en sistema, ¿quién puede aprobar el ajuste? → A: Requiere
   aprobación del Administrador; el Almacenista registra el conteo pero el ajuste queda pendiente hasta que
   el Administrador lo apruebe explícitamente (doble validación).
+
+### Session 2026-08-24 (validación contra documentos operativos reales)
+
+- Q: El manual de almacén recomienda auditoría mensual; ¿se corrige la periodicidad "bajo demanda" ya
+  decidida? → A: No — se mantiene "bajo demanda, sin periodicidad fija"; la recomendación mensual del
+  manual se toma como buena práctica operativa, no como requisito estricto del sistema.
+- Q: El Excel real de inventario usa 7 categorías (Llantas, EPP, Tuberías y Láminas, Insumos, Pinturas,
+  Herramientas, Repuestos) en vez del tipo binario Herramienta/Consumible. ¿Se adoptan como base del
+  catálogo de categorías? → A: Sí — el catálogo de categorías se siembra con estas 7 categorías reales,
+  manteniendo Herramienta/Consumible como un atributo aparte (reutilizable o no) dentro de cada categoría.
+- Q: El manual pide códigos de barra Code128 por ítem para agilizar entradas/salidas. ¿Se incluye en el
+  alcance? → A: Sí — el sistema genera e imprime el código (basado en el código interno del ítem) y admite
+  lectura vía lector USB tipo teclado (sin hardware/SDK especial).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -111,6 +128,36 @@ movimiento de salida y se verifica que se genera la alerta correspondiente (ver 
    aplica el ajuste al `stock_actual` y lo deja en el historial de la auditoría; si lo rechaza, el stock no
    se modifica y queda registrado el motivo del rechazo.
 
+---
+
+### User Story 5 - Codificación, ubicación física y código de barras (Priority: P2)
+
+Cada ítem de inventario tiene una categoría (del catálogo real: Llantas, EPP, Tuberías y Láminas, Insumos,
+Pinturas, Herramientas, Repuestos), un código interno con prefijo por tipo, una ubicación física
+(Pasillo-Estante-Nivel) y un código de barras generado por el sistema para agilizar sus movimientos.
+
+**Why this priority**: Es el esquema de organización física y de codificación que el almacén ya usa en la
+práctica (Manual de Almacén); digitalizarlo reduce tiempos de búsqueda y errores de digitación en entradas/
+salidas.
+
+**Independent Test**: Se registra un ítem nuevo de categoría "Repuestos", se le asigna ubicación
+`A-01-01`, se verifica que el sistema genera su código interno con prefijo `REP-` y un código de barras
+imprimible, y que ese código puede usarse para buscar el ítem mediante un lector USB.
+
+**Acceptance Scenarios**:
+
+1. **Given** un ítem nuevo, **When** se registra seleccionando su categoría del catálogo (Llantas, EPP,
+   Tuberías y Láminas, Insumos, Pinturas, Herramientas, Repuestos), **Then** el sistema asigna
+   automáticamente un código interno con el prefijo correspondiente al tipo (`REP-`, `HER-`, `CON-`,
+   `ACC-`) y un consecutivo único.
+2. **Given** un ítem con código interno asignado, **When** se registra su ubicación física, **Then** el
+   sistema valida el formato `PASILLO-ESTANTE-NIVEL` (ej. `A-01-01`).
+3. **Given** un ítem registrado, **When** el Almacenista solicita su etiqueta, **Then** el sistema genera un
+   código de barras Code128 imprimible basado en su código interno.
+4. **Given** un lector de código de barras USB (modo teclado) conectado, **When** se escanea el código de
+   un ítem en un formulario de movimiento, **Then** el sistema identifica el ítem automáticamente sin
+   necesidad de búsqueda manual.
+
 ### Edge Cases
 
 - ¿Qué ocurre si dos solicitudes concurrentes intentan reservar el mismo stock limitado de un consumible?
@@ -121,13 +168,21 @@ movimiento de salida y se verifica que se genera la alerta correspondiente (ver 
   inicia bajo demanda (ver Clarifications).
 - Aprobación de ajustes de auditoría: requiere doble validación — el Almacenista registra el conteo, el
   Administrador aprueba antes de que impacte el `stock_actual` (ver Clarifications).
+- ¿Qué pasa si dos ítems distintos quedan asignados a la misma ubicación física por error? El sistema debe
+  advertir la colisión de ubicación al momento de asignarla, sin bloquear (puede haber más de un ítem por
+  nivel/estante en la práctica).
+- Categorías y prefijos de código no son exhaustivos del Excel real (ej. "Precios" y "Pinturas" no tienen
+  prefijo propio documentado) — se normalizan en `/speckit-plan` mapeando cada categoría real a uno de los
+  4 prefijos base (`REP-`, `HER-`, `CON-`, `ACC-`) según corresponda.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: El sistema DEBE clasificar cada ítem del inventario como Herramienta (reutilizable) o
-  Consumible (uso único), según `INVENTARIO.tipo`.
+- **FR-001**: El sistema DEBE clasificar cada ítem del inventario en una categoría de un catálogo
+  configurable, sembrado inicialmente con las categorías reales del taller (Llantas, EPP, Tuberías y
+  Láminas, Insumos, Pinturas, Herramientas, Repuestos), manteniendo además el atributo Herramienta
+  (reutilizable) / Consumible (uso único) independiente de la categoría.
 - **FR-002**: El sistema DEBE gestionar el ciclo de estado de las herramientas (Disponible, En uso, Dañada,
   En mantenimiento) y su historial de uso.
 - **FR-003**: El sistema DEBE descontar automáticamente el stock de consumibles al registrar una salida
@@ -150,13 +205,26 @@ movimiento de salida y se verifica que se genera la alerta correspondiente (ver 
   disponible es insuficiente.
 - **FR-010**: El sistema DEBE mantener asignación y responsable de cada herramienta prestada mientras esté
   en estado "En uso".
+- **FR-011**: El sistema DEBE asignar automáticamente a cada ítem nuevo un código interno con prefijo por
+  tipo (`REP-`, `HER-`, `CON-`, `ACC-`) y un consecutivo único.
+- **FR-012**: El sistema DEBE permitir registrar la ubicación física de cada ítem en formato
+  `PASILLO-ESTANTE-NIVEL` (ej. `A-01-01`), advirtiendo (sin bloquear) si dos ítems distintos comparten
+  ubicación.
+- **FR-013**: El sistema DEBE generar e imprimir un código de barras Code128 por ítem, basado en su código
+  interno, y DEBE permitir identificar un ítem en formularios de movimiento mediante lectura de ese código
+  con un lector USB en modo teclado (sin requerir hardware o SDK especial).
+- **FR-014**: Los movimientos de entrada de inventario DEBEN registrar el Proveedor (spec 000) que
+  suministró el ítem.
 
 ### Key Entities
 
-- **Inventario** (`INVENTARIO`): id, código, nombre, tipo (Herramienta/Consumible), categoria_id,
-  stock_actual, stock_minimo, unidad_medida, activo.
+- **Inventario** (`INVENTARIO`): id, código (con prefijo por tipo), nombre, tipo (Herramienta/Consumible),
+  categoria_id, ubicacion (Pasillo-Estante-Nivel), codigo_barras, stock_actual, stock_minimo,
+  unidad_medida, activo.
+- **Categoría de Inventario**: catálogo configurable — Llantas, EPP, Tuberías y Láminas, Insumos, Pinturas,
+  Herramientas, Repuestos (semilla inicial basada en el Excel real).
 - **Movimiento de Inventario** (`MOVIMIENTOS_INVENTARIO`): id, inventario_id, tipo_mov (Entrada/Salida/
-  Devolución), cantidad, fecha, motivo, referencia, usuario_id.
+  Devolución), cantidad, fecha, motivo, referencia, usuario_id, proveedor_id (spec 000, en entradas).
 
 ## Success Criteria *(mandatory)*
 
@@ -172,9 +240,11 @@ movimiento de salida y se verifica que se genera la alerta correspondiente (ver 
 
 ## Assumptions
 
-- Existe un catálogo de categorías de inventario (`categoria_id`) mantenido por el Administrador/
-  Almacenista, aunque no está detallado como módulo propio en la cotización.
+- El catálogo de categorías de inventario (`categoria_id`) es mantenido por el Administrador/Almacenista y
+  se siembra inicialmente con las 7 categorías reales del taller (ver Clarifications).
 - El costo unitario de los insumos usados en solicitudes manuales sin OT se toma del maestro de inventario
   vigente al momento de la salida.
-- Las auditorías son un proceso manual asistido por el sistema (no hay integración con hardware de conteo
-  como lectores de código de barras en el alcance actual).
+- Las auditorías son un proceso manual asistido por el sistema; la lectura de código de barras (User Story
+  5) agiliza el registro de movimientos y conteos, pero no reemplaza el conteo físico humano.
+- Los lectores de código de barras se asumen tipo "USB HID" (actúan como teclado), sin necesidad de drivers
+  ni SDK propietario — compatible con cualquier formulario web estándar.
