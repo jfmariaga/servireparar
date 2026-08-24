@@ -9,6 +9,16 @@
 **Input**: Cotización SERVIREPARAR, Módulo 6 — Reportes e Indicadores (KPIs); Fase 3 del cronograma;
 Mockups Ilustraciones 5, 12 (dashboards de Administrador y Jefe de Taller como precedente visual).
 
+## Clarifications
+
+### Session 2026-08-24
+
+- Q: ¿Qué tan "en tiempo real" debe ser el dashboard de KPIs para el primer corte funcional? → A: Recarga
+  al navegar/refrescar — los indicadores se recalculan por consulta directa a base de datos cada vez que el
+  usuario entra o refresca la página, sin polling ni websockets.
+- Q: ¿Qué exportaciones son prioritarias para el primer corte funcional del módulo? → A: OT e Inventario
+  primero (Fase 2, módulos centrales); Compras/Cotizaciones y Personal se exportan en un corte posterior.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Dashboard en tiempo real con indicadores clave (Priority: P1)
@@ -25,8 +35,9 @@ cada rol refleja las cifras correctas (ej. "OT vencidas: 2" coincide con el cont
 
 **Acceptance Scenarios**:
 
-1. **Given** el Jefe de Taller autenticado, **When** ingresa al sistema, **Then** ve OT activas, próximas a
-   vencer y vencidas, actualizadas en tiempo real (o casi real) respecto al estado actual de las OT.
+1. **Given** el Jefe de Taller autenticado, **When** ingresa al sistema o refresca la página, **Then** ve
+   OT activas, próximas a vencer y vencidas, calculadas por consulta directa al estado actual de las OT (sin
+   necesidad de actualización automática en segundo plano).
 2. **Given** el Administrador autenticado, **When** ingresa al sistema, **Then** ve cotizaciones activas,
    próximas a vencer y herramientas dañadas pendientes de gestión.
 3. **Given** el Almacenista autenticado, **When** ingresa al sistema, **Then** ve solicitudes pendientes,
@@ -79,11 +90,9 @@ archivo generado refleja exactamente el subconjunto filtrado en pantalla.
 
 - ¿Qué pasa si el volumen de datos histórico crece significativamente? Los reportes deben paginar/limitar
   sin degradar el rendimiento del dashboard en tiempo real.
-- Prioridad de exportaciones y filtros mínimos requeridos para el primer corte: [NEEDS CLARIFICATION: la
-  cotización no especifica qué reportes son prioritarios entre OT, inventario, compras y cotizaciones para
-  la primera entrega funcional del módulo — definir con el cliente cuáles son must-have vs. nice-to-have].
-- ¿"Tiempo real" implica actualización automática (polling/websockets) o basta con recarga al navegar entre
-  pantallas? [NEEDS CLARIFICATION: no está definido el nivel de "tiempo real" esperado por el cliente].
+- Prioridad de exportaciones: OT e Inventario en el primer corte; Compras/Cotizaciones y Personal en un
+  corte posterior (ver Clarifications).
+- Nivel de "tiempo real": recarga al navegar/refrescar, sin polling ni websockets (ver Clarifications).
 
 ## Requirements *(mandatory)*
 
@@ -98,9 +107,14 @@ archivo generado refleja exactamente el subconjunto filtrado en pantalla.
   métricas individuales por técnico (spec 004).
 - **FR-005**: El sistema DEBE calcular el indicador de estado del inventario (disponible, en uso, dañado,
   en mantenimiento, stock bajo).
-- **FR-006**: El sistema DEBE permitir exportar los listados/reportes a Excel y a PDF.
+- **FR-006**: El sistema DEBE permitir exportar a Excel y PDF los listados de Órdenes de Trabajo e
+  Inventario en el primer corte funcional; las exportaciones de Compras/Cotizaciones y Personal se
+  implementan en un corte posterior.
 - **FR-007**: El sistema DEBE permitir aplicar filtros avanzados (fecha, cliente, técnico, estado, tipo de
   servicio) a los listados antes de exportar o visualizar.
+- **FR-008**: Los indicadores del dashboard y de reportes agregados DEBEN calcularse mediante consulta
+  directa a la base de datos en cada carga/refresco de página, sin requerir mecanismos de actualización
+  automática en segundo plano (polling/websockets) en el alcance contratado.
 
 ### Key Entities
 
@@ -111,8 +125,8 @@ Este módulo no introduce entidades propias; consume y agrega datos de `ORDENES_
 
 ### Measurable Outcomes
 
-- **SC-001**: Los indicadores del dashboard reflejan el estado real del sistema con un desfase máximo
-  aceptable [NEEDS CLARIFICATION: definir umbral concreto una vez resuelto el punto de "tiempo real"].
+- **SC-001**: Los indicadores del dashboard reflejan el estado real del sistema en el momento exacto de
+  carga/refresco de la página (sin desfase, al calcularse por consulta directa, no por caché o polling).
 - **SC-002**: Un usuario puede generar una exportación filtrada (Excel o PDF) en menos de 30 segundos para
   volúmenes de datos típicos de la operación.
 - **SC-003**: El 100% de los indicadores mostrados coinciden con el conteo manual/consulta directa a base

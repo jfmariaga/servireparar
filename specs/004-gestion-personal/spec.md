@@ -9,6 +9,14 @@
 **Input**: Cotización SERVIREPARAR, Módulo 3 — Gestión de Personal; Fase 2 del cronograma; ER: `TECNICOS`,
 `USUARIOS`, `ROLES`, `ORDENES_TRABAJO`.
 
+## Clarifications
+
+### Session 2026-08-24
+
+- Q: El campo "especialidad" del técnico, ¿debe ser un catálogo fijo o texto libre? → A: Catálogo fijo
+  predefinido, gestionado en el sistema, para permitir filtrar/reportar técnicos por especialidad de forma
+  consistente.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Registrar y configurar trabajadores (Priority: P1)
@@ -76,16 +84,15 @@ se verifica que refleja tiempos reales vs. estimados y cantidad de OT en las que
   aunque el técnico ya no esté activo.
 - Un usuario puede tener rol Técnico y simultáneamente otro rol (ej. Jefe de Taller que también ejecuta
   tareas): la ficha de `TECNICOS` debe poder coexistir con múltiples roles del mismo usuario (ver spec 001).
-- ¿Se requiere un catálogo de especialidades predefinido o es texto libre? [NEEDS CLARIFICATION: la
-  cotización no detalla si "especialidad" es un catálogo fijo (ej. eléctrico, mecánico, refrigeración) o
-  campo libre].
+- Especialidad: catálogo fijo predefinido, mantenido en el sistema (ver Clarifications), no texto libre.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
 - **FR-001**: El sistema DEBE permitir registrar un trabajador vinculado a un usuario existente, con
-  especialidad y estado activo/inactivo (`TECNICOS`).
+  especialidad (seleccionada de un catálogo fijo predefinido, mantenido por el Administrador) y estado
+  activo/inactivo (`TECNICOS`).
 - **FR-002**: El sistema DEBE ofrecer únicamente técnicos activos como opciones de asignación de tareas en
   el módulo de OT.
 - **FR-003**: El sistema DEBE calcular y exponer, por técnico, tiempos de ejecución (real vs. estimado),
@@ -99,7 +106,9 @@ se verifica que refleja tiempos reales vs. estimados y cantidad de OT en las que
 
 ### Key Entities
 
-- **Técnico** (`TECNICOS`): id, usuario_id (FK a `USUARIOS`), especialidad, activo.
+- **Técnico** (`TECNICOS`): id, usuario_id (FK a `USUARIOS`), especialidad_id (FK a catálogo de
+  especialidades), activo.
+- **Especialidad**: catálogo fijo predefinido (nombre) mantenido por el Administrador.
 - Relación indirecta con **Orden de Trabajo** / **Detalle de OT** (spec 002) para el cálculo de desempeño.
 
 ## Success Criteria *(mandatory)*

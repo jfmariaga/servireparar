@@ -10,6 +10,16 @@
 Mockups Ilustraciones 12-16 (Flujo #2, Jefe de Taller); ER: `ORDENES_TRABAJO`, `DETALLE_OT`, `EVIDENCIAS_OT`,
 `CHECKLIST_OT`, `ESTADOS_OT`, `PRIORIDADES`, `CLIENTES`, `EQUIPOS`, `TECNICOS`.
 
+## Clarifications
+
+### Session 2026-08-24
+
+- Q: ¿Cuál debe ser el umbral para marcar una OT como "próxima a vencer" respecto a su tiempo estimado? →
+  A: Configurable por el Administrador (almacenado en `CONFIGURACIONES`, ajustable sin cambios de código).
+- Q: Cuando el Administrador rechaza la solicitud de salida de un equipo, ¿qué pasa con el estado de la
+  OT? → A: Vuelve a "En curso"; el Jefe de Taller ve el motivo del rechazo como comentario y corrige antes
+  de volver a solicitar la salida.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Crear una Orden de Trabajo estructurada (Priority: P1)
@@ -83,6 +93,9 @@ checklist completo (debe permitir avanzar a flujo de entrega).
    sistema requiere aprobación administrativa antes de permitir el registro de entrega.
 3. **Given** una OT aprobada para salida, **When** se confirma la entrega, **Then** la OT pasa a estado
    "Entregada" y el cliente recibe notificación automática (ver spec 008).
+4. **Given** una solicitud de salida de equipo pendiente, **When** el Administrador la rechaza, **Then** la
+   OT vuelve al estado "En curso" con el motivo del rechazo registrado como comentario, permitiendo al Jefe
+   de Taller corregir antes de volver a solicitar la salida.
 
 ---
 
@@ -110,12 +123,10 @@ cambio queda registrado en el historial/comentarios de la OT sin perder el estad
   impedirse o requerir reasignación previa.
 - ¿Qué pasa con una OT cuyo tiempo estimado vence y aún tiene tareas pendientes? Debe generar alerta (ver
   spec 008) sin bloquear la ejecución.
-- Umbral exacto para "próxima a vencer" vs. "vencida": [NEEDS CLARIFICATION: la cotización pide "alertas por
-  vencimiento" pero no define el umbral (ej. 24h antes del tiempo estimado); se requiere definición con el
-  cliente].
-- Flujo de aprobación administrativa para salida de equipo: [NEEDS CLARIFICATION: ¿quién puede aprobar
-  (solo rol Administrador) y qué pasa si se rechaza la salida — vuelve la OT a "Finalizada" en espera, o se
-  reabre?].
+- Umbral exacto para "próxima a vencer" vs. "vencida": configurable por el Administrador vía
+  `CONFIGURACIONES` (ver Clarifications), no fijo en código.
+- Flujo de aprobación administrativa para salida de equipo: solo el rol Administrador puede aprobar/
+  rechazar; si rechaza, la OT vuelve a "En curso" con el motivo registrado (ver Clarifications).
 - ¿Puede una OT tener más de un equipo asociado, o es siempre 0 o 1 equipo por OT? El ER modela
   `equipo_id` como FK simple en `ORDENES_TRABAJO`, sugiriendo 0..1.
 
@@ -144,11 +155,15 @@ cambio queda registrado en el historial/comentarios de la OT sin perder el estad
   (tareas, responsables, insumos) preservando el historial de cambios y sin perder evidencias/tareas ya
   completadas.
 - **FR-010**: El sistema DEBE generar una alerta cuando una OT esté próxima a vencer o vencida respecto a
-  su tiempo estimado [NEEDS CLARIFICATION: umbral de "próxima a vencer"].
+  su tiempo estimado, usando un umbral (horas o porcentaje del tiempo estimado) almacenado en
+  `CONFIGURACIONES` y ajustable por el Administrador sin cambios de código.
 - **FR-011**: El sistema DEBE notificar automáticamente al cliente por correo en los hitos relevantes del
   flujo (creación, entrega) — detalle del mecanismo en spec 008.
 - **FR-012**: El sistema DEBE permitir consultar y filtrar el tablero de OT por estado, cliente, tipo de
   servicio, fechas y responsable (Ilustración 16).
+- **FR-013**: El sistema DEBE permitir únicamente al rol Administrador aprobar o rechazar una solicitud de
+  salida de equipo. Si la rechaza, la OT DEBE volver al estado "En curso" con el motivo del rechazo
+  registrado en su trazabilidad.
 
 ### Key Entities
 

@@ -46,13 +46,15 @@ entrega (hasta 12/12/2026).
 | Spec | Estado `/speckit-clarify` | Notas |
 |------|---------------------------|-------|
 | 001 — Autenticación y Usuarios | ✅ Completado (2026-08-24) | Sin auto-registro público, redirección por prioridad de rol, throttle estándar de Laravel. Listo para `/speckit-plan`. |
-| 002 — Órdenes de Trabajo | Pendiente | Abierto: umbral exacto de "próxima a vencer", flujo de rechazo de aprobación de salida de equipo. |
-| 003 — Inventario (Bodega) | Pendiente | Abierto: periodicidad/responsable de auditorías, aprobación de ajustes de auditoría. |
-| 004 — Gestión de Personal | Pendiente | Abierto: catálogo fijo vs. texto libre para "especialidad". |
-| 005 — Equipos y Mantenimiento | Pendiente | Abierto: modelo de variables técnicas (fijas vs. clave-valor), alcance del checklist técnico digital. |
+| 002 — Órdenes de Trabajo | ✅ Completado (2026-08-24) | Umbral de vencimiento configurable por el Administrador; rechazo de salida de equipo reabre la OT a "En curso". Listo para `/speckit-plan`. |
+| 003 — Inventario (Bodega) | ✅ Completado (2026-08-24) | Auditorías bajo demanda (sin periodicidad fija); ajustes de auditoría requieren aprobación del Administrador. Listo para `/speckit-plan`. |
+| 004 — Gestión de Personal | ✅ Completado (2026-08-24) | Especialidad de técnico como catálogo fijo predefinido. Listo para `/speckit-plan`. |
+| 005 — Equipos y Mantenimiento | ✅ Completado (2026-08-24) | Variables técnicas como esquema clave-valor; checklist técnico con plantilla única genérica. Listo para `/speckit-plan`. |
 | 006 — Compras y Cotizaciones | ✅ Completado (2026-08-24) | Recepción vía IMAP polling, correos fuera de hilo notifican al Administrador, "Cotización" como entidad propia (no reutiliza OT). Queda abierto (no bloqueante): matcheo automático de cliente remitente. |
-| 007 — Reportes e Indicadores | Pendiente | Abierto: prioridad de exportaciones/filtros del primer corte, nivel de "tiempo real" del dashboard. |
-| 008 — Notificaciones y Alertas | Pendiente | Depende de umbrales definidos en 002/005 y del canal de correo definido en 006 (ya resuelto). |
+| 007 — Reportes e Indicadores | ✅ Completado (2026-08-24) | Dashboard por recarga/refresco (sin polling); exportaciones de OT e Inventario primero, Compras/Personal en corte posterior. Listo para `/speckit-plan`. |
+| 008 — Notificaciones y Alertas | ✅ Sin bloqueantes | No tenía `[NEEDS CLARIFICATION]` propios; dependía de 002/005 (umbrales) y 006 (canal de correo), ya resueltos. Listo para `/speckit-plan`. |
 
-Recomendado seguir el orden del cronograma: continuar `/speckit-clarify` con 002 y 003 (Fase 2) antes de
-pasar cualquiera de los dos ya completados (001, 006) a `/speckit-plan`.
+Los 8 specs quedaron clarificados y listos para pasar a `/speckit-plan`. El único punto abierto no
+bloqueante restante es el matcheo automático de cliente remitente en el spec 006, que puede resolverse
+durante el diseño técnico de ese módulo. Recomendado iniciar `/speckit-plan` siguiendo el orden del
+cronograma: 001 → 002/003/004 (Fase 2) → 005/006/007/008 (Fase 3).

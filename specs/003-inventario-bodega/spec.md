@@ -9,6 +9,17 @@
 **Input**: Cotización SERVIREPARAR, Módulo 2 — Gestión de Inventario (Bodega); Fase 2 del cronograma;
 Mockups Ilustraciones 17-18 (Flujo #3, Almacenista); ER: `INVENTARIO`, `MOVIMIENTOS_INVENTARIO`.
 
+## Clarifications
+
+### Session 2026-08-24
+
+- Q: ¿Con qué periodicidad y quién es responsable de las auditorías de conteo físico vs. sistema? → A: Sin
+  periodicidad fija; se inician bajo demanda, a criterio operativo del taller, sin recordatorio automático
+  obligatorio.
+- Q: Cuando el conteo físico difiere del stock en sistema, ¿quién puede aprobar el ajuste? → A: Requiere
+  aprobación del Administrador; el Almacenista registra el conteo pero el ajuste queda pendiente hasta que
+  el Administrador lo apruebe explícitamente (doble validación).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Atender solicitudes de insumos generadas desde una OT (Priority: P1)
@@ -93,9 +104,12 @@ movimiento de salida y se verifica que se genera la alerta correspondiente (ver 
 
 1. **Given** un consumible cuyo `stock_actual` cae por debajo de `stock_minimo` tras un movimiento de
    salida, **When** se guarda el movimiento, **Then** el sistema dispara una alerta de stock bajo.
-2. **Given** un proceso de auditoría iniciado, **When** el responsable registra el conteo físico y difiere
-   del stock en sistema, **Then** el sistema permite registrar un ajuste controlado con motivo, dejando
-   historial del ajuste y de la auditoría.
+2. **Given** un proceso de auditoría iniciado, **When** el Almacenista registra el conteo físico y difiere
+   del stock en sistema, **Then** el sistema registra el ajuste propuesto en estado "Pendiente de
+   aprobación" con el motivo, sin modificar aún el `stock_actual`.
+3. **Given** un ajuste de auditoría pendiente, **When** el Administrador lo aprueba, **Then** el sistema
+   aplica el ajuste al `stock_actual` y lo deja en el historial de la auditoría; si lo rechaza, el stock no
+   se modifica y queda registrado el motivo del rechazo.
 
 ### Edge Cases
 
@@ -103,12 +117,10 @@ movimiento de salida y se verifica que se genera la alerta correspondiente (ver 
   Debe evitarse sobregiro de stock (descuentos atómicos).
 - ¿Puede un ítem del catálogo cambiar de categoría (herramienta ↔ consumible) una vez tiene movimientos
   históricos? Debería restringirse o requerir justificación.
-- Periodicidad y responsable de las auditorías de conteo físico: [NEEDS CLARIFICATION: la cotización
-  menciona "Auditoría: conteo físico vs sistema" pero no define frecuencia (mensual/trimestral) ni si es
-  responsabilidad del Almacenista, Administrador, o ambos].
-- ¿Quién puede aprobar/autorizar los "ajustes controlados" de auditoría? [NEEDS CLARIFICATION: ¿requiere
-  doble validación (Almacenista registra, Administrador aprueba) o el Almacenista puede ajustar
-  directamente?].
+- Periodicidad y responsable de las auditorías de conteo físico: sin periodicidad fija; el Almacenista las
+  inicia bajo demanda (ver Clarifications).
+- Aprobación de ajustes de auditoría: requiere doble validación — el Almacenista registra el conteo, el
+  Administrador aprueba antes de que impacte el `stock_actual` (ver Clarifications).
 
 ## Requirements *(mandatory)*
 
@@ -128,8 +140,12 @@ movimiento de salida y se verifica que se genera la alerta correspondiente (ver 
   salida, devolución) con tipo, cantidad, fecha, motivo/referencia y usuario responsable.
 - **FR-007**: El sistema DEBE generar una alerta cuando el `stock_actual` de un consumible caiga por debajo
   de su `stock_minimo`.
-- **FR-008**: El sistema DEBE permitir registrar procesos de auditoría (conteo físico vs. sistema) con
-  ajustes controlados y su historial.
+- **FR-008**: El sistema DEBE permitir al Almacenista iniciar un proceso de auditoría (conteo físico vs.
+  sistema) en cualquier momento, sin periodicidad obligatoria, registrando los ajustes propuestos con
+  motivo.
+- **FR-008a**: Todo ajuste propuesto en una auditoría DEBE quedar en estado "Pendiente de aprobación" y
+  requerir aprobación explícita del Administrador antes de modificar el `stock_actual`; el sistema DEBE
+  conservar el historial completo (propuesto, aprobado/rechazado, por quién y cuándo).
 - **FR-009**: El sistema DEBE impedir que una solicitud de insumo se apruebe/entregue si el stock
   disponible es insuficiente.
 - **FR-010**: El sistema DEBE mantener asignación y responsable de cada herramienta prestada mientras esté

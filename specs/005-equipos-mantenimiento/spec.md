@@ -9,6 +9,17 @@
 **Input**: Cotización SERVIREPARAR, Módulo 4 — Gestión de Equipos y Mantenimiento; Fase 3 del cronograma;
 ER: `CLIENTES`, `EQUIPOS`, `ORDENES_TRABAJO`, `EVIDENCIAS_OT`.
 
+## Clarifications
+
+### Session 2026-08-24
+
+- Q: ¿Cómo deben modelarse las "variables técnicas" (temperatura, presión, etc.) registradas por
+  intervención? → A: Esquema clave-valor flexible (nombre_variable, valor, unidad) asociado a la
+  intervención, sin requerir cambios de esquema por tipo de equipo.
+- Q: El checklist técnico digital, ¿es una plantilla única o varía por tipo de equipo/servicio? → A:
+  Plantilla única genérica para todas las intervenciones de mantenimiento, análoga en mecánica al checklist
+  de cierre de OT (spec 002).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Registrar clientes y sus equipos (Priority: P1)
@@ -95,11 +106,10 @@ queda asociado a esa intervención en el historial del equipo.
   actualización manteniendo el historial técnico previo intacto.
 - ¿Puede un equipo estar asociado a más de un cliente a la vez (ej. arrendamiento)? El ER modela
   `cliente_id` como FK simple en `EQUIPOS`, sugiriendo un único propietario a la vez.
-- Variables técnicas configurables vs. fijas: [NEEDS CLARIFICATION: el ER no modela columnas propias para
-  "variables técnicas (temperatura, presión, etc.)"; se requiere definir si son campos fijos por tipo de
-  equipo o un esquema configurable clave-valor].
-- Checklist técnico digital: [NEEDS CLARIFICATION: ¿es una plantilla única global o varía según tipo de
-  equipo/servicio? La cotización no lo especifica].
+- Variables técnicas: se modelan como esquema clave-valor flexible por intervención, no como columnas fijas
+  (ver Clarifications).
+- Checklist técnico digital: plantilla única genérica, no varía por tipo de equipo/servicio (ver
+  Clarifications).
 
 ## Requirements *(mandatory)*
 
@@ -113,18 +123,22 @@ queda asociado a esa intervención en el historial del equipo.
   Órdenes de Trabajo de mantenimiento (integración con spec 002), incluyendo técnico responsable y
   evidencias.
 - **FR-004**: El sistema DEBE permitir registrar variables técnicas asociadas a cada intervención de
-  mantenimiento sobre un equipo.
+  mantenimiento sobre un equipo mediante un esquema clave-valor (nombre, valor, unidad), sin requerir un
+  esquema de base de datos distinto por tipo de equipo.
 - **FR-005**: El sistema DEBE programar automáticamente la próxima fecha de mantenimiento preventivo tras
   completar un mantenimiento, según la periodicidad configurada para el equipo.
 - **FR-006**: El sistema DEBE generar una alerta cuando un mantenimiento preventivo esté próximo a vencer.
-- **FR-007**: El sistema DEBE permitir completar un checklist técnico digital durante una intervención de
-  mantenimiento, asociado al historial del equipo.
+- **FR-007**: El sistema DEBE permitir completar, durante una intervención de mantenimiento, un checklist
+  técnico digital basado en una única plantilla genérica (no varía por tipo de equipo/servicio), asociado
+  al historial del equipo.
 
 ### Key Entities
 
 - **Cliente** (`CLIENTES`): id, nombre, teléfono, correo, dirección, nit.
 - **Equipo** (`EQUIPOS`): id, cliente_id, nombre, marca, modelo, serie, observaciones (ubicación y estado
   según cotización, a incorporar en el modelo final).
+- **Variable Técnica**: registro clave-valor (nombre, valor, unidad) asociado a una intervención de
+  mantenimiento — no modelado como columnas fijas en `EQUIPOS`.
 - Relación con **Orden de Trabajo** (spec 002) para historial técnico, evidencias y checklist.
 
 ## Success Criteria *(mandatory)*
