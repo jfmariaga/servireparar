@@ -8,26 +8,26 @@
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Configurar `config/auth.php` (guard `web`, provider `users`) y `config/sanctum.php`
+- [x] T001 Configurar `config/auth.php` (guard `web`, provider `users`) y `config/sanctum.php`
   (stateful domains para el entorno de desarrollo/producción)
-- [ ] T002 [P] Configurar driver de correo en `.env` (`log` en dev, SMTP real en staging/producción —
+- [x] T002 [P] Configurar driver de correo en `.env` (`log` en dev, SMTP real en staging/producción —
   reutilizado luego por spec 006/008)
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
 **⚠️ CRITICAL**: Bloquea todos los demás módulos (todos requieren usuario autenticado)
 
-- [ ] T003 Migración `xxxx_add_estado_to_users_table.php` (añade `estado`, `telefono` a la tabla `users`
+- [x] T003 Migración `xxxx_add_estado_to_users_table.php` (añade `estado`, `telefono` a la tabla `users`
   base de Laravel)
-- [ ] T004 Modelo `app/Models/User.php`: `implements Authenticatable`, trait `HasRoles` (spatie), casts de
+- [x] T004 Modelo `app/Models/User.php`: `implements Authenticatable`, trait `HasRoles` (spatie), casts de
   `estado`
-- [ ] T005 Seeder `database/seeders/RolesSeeder.php`: crea los 4 roles (Administrador, Jefe de Taller,
+- [x] T005 Seeder `database/seeders/RolesSeeder.php`: crea los 4 roles (Administrador, Jefe de Taller,
   Almacenista, Técnico) y permisos base por rol
-- [ ] T006 Seeder `database/seeders/AdminUserSeeder.php`: crea el primer Administrador (bootstrap del
+- [x] T006 Seeder `database/seeders/AdminUserSeeder.php`: crea el primer Administrador (bootstrap del
   sistema)
-- [ ] T007 Definir constante/enum de prioridad de roles para redirección multi-rol (FR-010) — ej.
+- [x] T007 Definir constante/enum de prioridad de roles para redirección multi-rol (FR-010) — ej.
   `app/Enums/RolPrioridad.php`
-- [ ] T008 Configurar `RouteServiceProvider`/middleware `throttle` estándar de Laravel para el login
+- [x] T008 Configurar `RouteServiceProvider`/middleware `throttle` estándar de Laravel para el login
   (Clarifications: sin bloqueo adicional)
 
 **Checkpoint**: Roles, usuario admin inicial y throttle listos — las historias pueden implementarse
@@ -43,16 +43,16 @@ credenciales inválidas y usuario inactivo
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Feature test `tests/Feature/Auth/LoginTest.php`: éxito, credenciales inválidas
+- [x] T009 [P] [US1] Feature test `tests/Feature/Auth/LoginTest.php`: éxito, credenciales inválidas
   (mensaje genérico), usuario inactivo rechazado
-- [ ] T010 [P] [US1] Feature test: redirección post-login según prioridad de rol (multi-rol)
+- [x] T010 [P] [US1] Feature test: redirección post-login según prioridad de rol (multi-rol)
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Componente Volt `app/Livewire/Auth/Login.php` (Ilustración 1)
-- [ ] T012 [US1] Lógica de redirección post-login usando `RolPrioridad` (T007)
-- [ ] T013 [US1] Ruta `/login`, `/logout` en `routes/web.php`
-- [ ] T014 [US1] Middleware/gate que rechaza login si `estado = inactivo`
+- [x] T011 [US1] Componente Volt `app/Livewire/Auth/Login.php` (Ilustración 1)
+- [x] T012 [US1] Lógica de redirección post-login usando `RolPrioridad` (T007)
+- [x] T013 [US1] Ruta `/login`, `/logout` en `routes/web.php`
+- [x] T014 [US1] Middleware/gate que rechaza login si `estado = inactivo`
 
 **Checkpoint**: Login funcional de forma independiente — ya se puede entrar al sistema
 
@@ -108,17 +108,17 @@ credenciales inválidas y usuario inactivo
 
 ### Tests for User Story 4
 
-- [ ] T023 [P] [US4] Feature test `tests/Feature/Admin/UsuariosTest.php`: creación, edición, cambio de rol,
+- [x] T023 [P] [US4] Feature test `tests/Feature/Admin/UsuariosTest.php`: creación, edición, cambio de rol,
   activar/inactivar
-- [ ] T024 [P] [US4] Feature test: impide inactivar/eliminar al último Administrador activo (FR-008)
-- [ ] T025 [P] [US4] Policy test: usuario con rol Técnico recibe 403 en rutas de Administrador
+- [x] T024 [P] [US4] Feature test: impide inactivar/eliminar al último Administrador activo (FR-008)
+- [x] T025 [P] [US4] Policy test: usuario con rol Técnico recibe 403 en rutas de Administrador
 
 ### Implementation for User Story 4
 
-- [ ] T026 [US4] `app/Policies/UserPolicy.php` (manage-users, `canDeactivate()` valida último Admin)
-- [ ] T027 [US4] Componente Volt `app/Livewire/Admin/Usuarios/Index.php` (listado + filtro rol/estado)
-- [ ] T028 [US4] Componente Volt `app/Livewire/Admin/Usuarios/Form.php` (crear/editar + asignar roles)
-- [ ] T029 [US4] Ruta `/usuarios` protegida por `UserPolicy`
+- [x] T026 [US4] `app/Policies/UserPolicy.php` (manage-users, `canDeactivate()` valida último Admin)
+- [x] T027 [US4] Componente Volt `app/Livewire/Admin/Usuarios/Index.php` (listado + filtro rol/estado)
+- [x] T028 [US4] Componente Volt `app/Livewire/Admin/Usuarios/Form.php` (crear/editar + asignar roles)
+- [x] T029 [US4] Ruta `/usuarios` protegida por `UserPolicy`
 
 **Checkpoint**: Las 4 historias de usuario son funcionales de forma independiente
 
@@ -130,7 +130,7 @@ credenciales inválidas y usuario inactivo
   demás módulos del sistema
 - [ ] T031 Documentar en `AuthServiceProvider` el registro de todas las Policies del sistema (patrón a
   seguir por los demás specs)
-- [ ] T032 Ejecutar `php artisan test --filter=Auth` y `--filter=Usuarios` en verde
+- [x] T032 Ejecutar `php artisan test --filter=Auth` y `--filter=Usuarios` en verde
 
 ---
 

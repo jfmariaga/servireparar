@@ -9,23 +9,23 @@ selectores, activo/inactivo) que ameritan feature tests.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Verificar `composer.json` (Laravel 11, Livewire 3.6.4, Volt 1.7, Sanctum 4.0,
+- [x] T001 Verificar `composer.json` (Laravel 11, Livewire 3.6.4, Volt 1.7, Sanctum 4.0,
   spatie/laravel-permission 6.9) y correr `composer install`
-- [ ] T002 Configurar conexión MySQL/MariaDB en `.env` (local + staging) y confirmar `php artisan migrate`
+- [x] T002 Configurar conexión MySQL/MariaDB en `.env` (local + staging) y confirmar `php artisan migrate`
   corre sin errores sobre una base vacía
-- [ ] T003 [P] Publicar migraciones de spatie/laravel-permission (`php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"`)
+- [x] T003 [P] Publicar migraciones de spatie/laravel-permission (`php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"`)
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
 **⚠️ CRITICAL**: Sin esto, ninguna historia de usuario puede implementarse
 
-- [ ] T004 Crear migración `xxxx_create_clientes_table.php` según Data Model del plan.md
-- [ ] T005 [P] Crear migración `xxxx_create_proveedores_table.php`
-- [ ] T006 [P] Crear migración `xxxx_create_contratistas_table.php`
-- [ ] T007 Crear modelo `app/Models/Cliente.php` (fillable, casts `estado`)
-- [ ] T008 [P] Crear modelo `app/Models/Proveedor.php`
-- [ ] T009 [P] Crear modelo `app/Models/Contratista.php`
-- [ ] T010 Crear `app/Policies/ClientePolicy.php`, `ProveedorPolicy.php`, `ContratistaPolicy.php`
+- [x] T004 Crear migración `xxxx_create_clientes_table.php` según Data Model del plan.md
+- [x] T005 [P] Crear migración `xxxx_create_proveedores_table.php`
+- [x] T006 [P] Crear migración `xxxx_create_contratistas_table.php`
+- [x] T007 Crear modelo `app/Models/Cliente.php` (fillable, casts `estado`)
+- [x] T008 [P] Crear modelo `app/Models/Proveedor.php`
+- [x] T009 [P] Crear modelo `app/Models/Contratista.php`
+- [x] T010 Crear `app/Policies/ClientePolicy.php`, `ProveedorPolicy.php`, `ContratistaPolicy.php`
   (permiso base: solo Administrador y Jefe de Taller gestionan; registrar en `AuthServiceProvider`)
 
 **Checkpoint**: Migraciones + modelos + policies listos — las historias de usuario pueden implementarse
@@ -41,18 +41,18 @@ consuma (aislado con un selector de prueba si specs 002/006 aún no existen)
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Feature test: creación de cliente válida en `tests/Feature/Catalogos/ClienteTest.php`
-- [ ] T012 [P] [US1] Feature test: advertencia (no bloqueo) al registrar NIT/correo duplicado
-- [ ] T013 [P] [US1] Feature test: cliente inactivo no aparece en selectores activos (FR-005)
+- [x] T011 [P] [US1] Feature test: creación de cliente válida en `tests/Feature/Catalogos/ClienteTest.php`
+- [x] T012 [P] [US1] Feature test: advertencia (no bloqueo) al registrar NIT/correo duplicado
+- [x] T013 [P] [US1] Feature test: cliente inactivo no aparece en selectores activos (FR-005)
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Componente Volt `app/Livewire/Catalogos/Clientes/Index.php` (listado + filtro
+- [x] T014 [US1] Componente Volt `app/Livewire/Catalogos/Clientes/Index.php` (listado + filtro
   activo/inactivo)
-- [ ] T015 [US1] Componente Volt `app/Livewire/Catalogos/Clientes/Form.php` (crear/editar, valida
+- [x] T015 [US1] Componente Volt `app/Livewire/Catalogos/Clientes/Form.php` (crear/editar, valida
   duplicado sin bloquear)
-- [ ] T016 [US1] Ruta `Volt::route('/clientes', ...)` en `routes/web.php`, protegida por `ClientePolicy`
-- [ ] T017 [US1] Vista Blade/Volt del formulario (nombre, NIT, teléfono, correo, dirección, estado)
+- [x] T016 [US1] Ruta `Volt::route('/clientes', ...)` en `routes/web.php`, protegida por `ClientePolicy`
+- [x] T017 [US1] Vista Blade/Volt del formulario (nombre, NIT, teléfono, correo, dirección, estado)
 
 **Checkpoint**: User Story 1 funcional de forma independiente
 
@@ -66,14 +66,14 @@ consuma (aislado con un selector de prueba si specs 002/006 aún no existen)
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] Feature test en `tests/Feature/Catalogos/ProveedorTest.php` (creación, duplicado,
+- [x] T018 [P] [US2] Feature test en `tests/Feature/Catalogos/ProveedorTest.php` (creación, duplicado,
   activo/inactivo)
 
 ### Implementation for User Story 2
 
-- [ ] T019 [P] [US2] Componente Volt `app/Livewire/Catalogos/Proveedores/Index.php`
-- [ ] T020 [US2] Componente Volt `app/Livewire/Catalogos/Proveedores/Form.php`
-- [ ] T021 [US2] Ruta `/proveedores` protegida por `ProveedorPolicy`
+- [x] T019 [P] [US2] Componente Volt `app/Livewire/Catalogos/Proveedores/Index.php`
+- [x] T020 [US2] Componente Volt `app/Livewire/Catalogos/Proveedores/Form.php`
+- [x] T021 [US2] Ruta `/proveedores` protegida por `ProveedorPolicy`
 
 **Checkpoint**: User Stories 1 y 2 funcionan de forma independiente
 
@@ -87,14 +87,14 @@ consuma (aislado con un selector de prueba si specs 002/006 aún no existen)
 
 ### Tests for User Story 3
 
-- [ ] T022 [P] [US3] Feature test en `tests/Feature/Catalogos/ContratistaTest.php` (creación, duplicado,
+- [x] T022 [P] [US3] Feature test en `tests/Feature/Catalogos/ContratistaTest.php` (creación, duplicado,
   activo/inactivo, campo especialidad texto libre)
 
 ### Implementation for User Story 3
 
-- [ ] T023 [P] [US3] Componente Volt `app/Livewire/Catalogos/Contratistas/Index.php`
-- [ ] T024 [US3] Componente Volt `app/Livewire/Catalogos/Contratistas/Form.php`
-- [ ] T025 [US3] Ruta `/contratistas` protegida por `ContratistaPolicy`
+- [x] T023 [P] [US3] Componente Volt `app/Livewire/Catalogos/Contratistas/Index.php`
+- [x] T024 [US3] Componente Volt `app/Livewire/Catalogos/Contratistas/Form.php`
+- [x] T025 [US3] Ruta `/contratistas` protegida por `ContratistaPolicy`
 
 **Checkpoint**: Los 3 catálogos maestros son funcionales de forma independiente
 
@@ -102,11 +102,11 @@ consuma (aislado con un selector de prueba si specs 002/006 aún no existen)
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T026 [P] Seeder `database/seeders/CatalogosMaestrosSeeder.php` con datos de ejemplo (clientes,
+- [x] T026 [P] Seeder `database/seeders/CatalogosMaestrosSeeder.php` con datos de ejemplo (clientes,
   proveedores, contratistas de prueba)
-- [ ] T027 Añadir navegación de los 3 catálogos al layout principal (menú, visible solo para roles
+- [x] T027 Añadir navegación de los 3 catálogos al layout principal (menú, visible solo para roles
   autorizados)
-- [ ] T028 Ejecutar y verificar `php artisan test --filter=Catalogos` en verde
+- [x] T028 Ejecutar y verificar `php artisan test --filter=Catalogos` en verde
 
 ---
 
