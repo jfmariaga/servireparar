@@ -1,0 +1,17 @@
+# Claude Code local settings (may contain credentials/tokens)
+.claude/settings.local.json
+
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# Laravel (placeholder for when the app is scaffolded)
+/vendor
+/node_modules
+/.env
+/.env.*
+!/.env.example
+/storage/*.key
+/public/hot
+/public/storage
+/public/build
