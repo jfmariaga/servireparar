@@ -41,14 +41,18 @@ vez validados los specs con el cliente.
 Duración total: 60 días calendario (13/08/2026 – 12/10/2026). Soporte y garantía: 2 meses posteriores a la
 entrega (hasta 12/12/2026).
 
-## Puntos abiertos a resolver antes de `/speckit-plan`
+## Estado de clarificación por spec
 
-Cada spec deja explícitos sus `[NEEDS CLARIFICATION]`. Los más críticos, por bloquear diseño técnico de
-otros módulos:
+| Spec | Estado `/speckit-clarify` | Notas |
+|------|---------------------------|-------|
+| 001 — Autenticación y Usuarios | ✅ Completado (2026-08-24) | Sin auto-registro público, redirección por prioridad de rol, throttle estándar de Laravel. Listo para `/speckit-plan`. |
+| 002 — Órdenes de Trabajo | Pendiente | Abierto: umbral exacto de "próxima a vencer", flujo de rechazo de aprobación de salida de equipo. |
+| 003 — Inventario (Bodega) | Pendiente | Abierto: periodicidad/responsable de auditorías, aprobación de ajustes de auditoría. |
+| 004 — Gestión de Personal | Pendiente | Abierto: catálogo fijo vs. texto libre para "especialidad". |
+| 005 — Equipos y Mantenimiento | Pendiente | Abierto: modelo de variables técnicas (fijas vs. clave-valor), alcance del checklist técnico digital. |
+| 006 — Compras y Cotizaciones | ✅ Completado (2026-08-24) | Recepción vía IMAP polling, correos fuera de hilo notifican al Administrador, "Cotización" como entidad propia (no reutiliza OT). Queda abierto (no bloqueante): matcheo automático de cliente remitente. |
+| 007 — Reportes e Indicadores | Pendiente | Abierto: prioridad de exportaciones/filtros del primer corte, nivel de "tiempo real" del dashboard. |
+| 008 — Notificaciones y Alertas | Pendiente | Depende de umbrales definidos en 002/005 y del canal de correo definido en 006 (ya resuelto). |
 
-- **Spec 006**: mecanismo técnico de integración de correo (IMAP / Gmail API / webhook transaccional) —
-  condiciona también la spec 008 (notificaciones al cliente) y el modelo de datos de "Caso de Cotización",
-  que no está modelado de forma independiente en el ER original.
-- **Spec 002 / 005**: umbrales exactos de alertas de vencimiento (OT y mantenimiento preventivo) —
-  condicionan spec 008.
-- **Spec 001**: alcance del auto-registro público de usuarios visto en el mockup (Ilustración 2).
+Recomendado seguir el orden del cronograma: continuar `/speckit-clarify` con 002 y 003 (Fase 2) antes de
+pasar cualquiera de los dos ya completados (001, 006) a `/speckit-plan`.

@@ -44,9 +44,9 @@ sin depender de módulos de fases posteriores para ser funcional y verificable.
 - **Notificaciones**: las notificaciones internas y las notificaciones automáticas al cliente por correo se
   implementan sobre el sistema de notificaciones/colas de Laravel (queued notifications/jobs), no de forma
   síncrona bloqueante.
-- **Integración de correo** (Solicitudes de Compra y Cotizaciones): el mecanismo técnico exacto
-  (IMAP/Gmail API/proveedor transaccional con webhooks) es una decisión abierta que se resuelve en el
-  `/speckit-clarify` del spec 006, no se asume en la constitución.
+- **Integración de correo** (Solicitudes de Compra y Cotizaciones): recepción vía IMAP polling (job
+  programado) y envío vía SMTP estándar de Laravel, sobre una interfaz de "proveedor de correo" desacoplada
+  del protocolo — decisión tomada en `/speckit-clarify` del spec 006 (2026-08-24).
 - **Infraestructura de despliegue**: Hostinger (VPS/hosting cloud), con dominio propio, SSL y backups
   diarios, según lo cotizado — fuera del alcance de código de la aplicación pero condiciona decisiones de
   stack (ej. evitar dependencias que requieran infraestructura no disponible en ese proveedor).

@@ -10,6 +10,18 @@
 Mockups Ilustraciones 1-4 (Login, Registro, Recuperación de contraseña, Perfil de usuario); ER: `USUARIOS`,
 `ROLES`, `USUARIO_ROL`, `TECNICOS`.
 
+## Clarifications
+
+### Session 2026-08-24
+
+- Q: El mockup muestra una pantalla de "Regístrate" pública. ¿Esta funcionalidad de auto-registro debe
+  implementarse de verdad, o el alta de usuarios es siempre interna? → A: Solo alta interna por el
+  Administrador; el mockup de registro no se implementa como auto-registro público.
+- Q: Si un usuario tiene más de un rol asignado, ¿a qué tablero se le redirige tras iniciar sesión? → A:
+  Prioridad fija por rol: Administrador > Jefe de Taller > Almacenista > Técnico.
+- Q: ¿Qué tan estricta debe ser la protección contra intentos repetidos de login fallido? → A: Throttle
+  estándar de Laravel (límite de intentos por minuto con backoff), sin bloqueo adicional.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar sesión en el sistema (Priority: P1)
@@ -102,8 +114,8 @@ usuario puede iniciar sesión y solo ve las funcionalidades permitidas a su rol.
   activo del sistema? El sistema debe impedir quedar sin ningún Administrador activo.
 - ¿Qué ocurre si un usuario tiene más de un rol asignado (ej. Jefe de Taller y Técnico)? El sistema debe
   combinar permisos y definir un dashboard por defecto (ver FR-010).
-- Intentos repetidos de login fallido: [NEEDS CLARIFICATION: ¿se requiere bloqueo temporal / rate limiting
-  tras N intentos fallidos, o basta con el throttle estándar de Laravel?]
+- Intentos repetidos de login fallido: se maneja con el throttle estándar de Laravel (límite de intentos
+  por minuto con backoff); no se requiere bloqueo temporal adicional ni intervención del Administrador.
 - Un Técnico registrado en `USUARIOS`/`USUARIO_ROL` debe existir también en `TECNICOS` (con especialidad y
   estado "activo") para poder ser asignado a tareas de OT — ver dependencia con spec 004 (Gestión de
   Personal).
@@ -130,12 +142,12 @@ usuario puede iniciar sesión y solo ve las funcionalidades permitidas a su rol.
   eliminado.
 - **FR-009**: Las contraseñas DEBEN almacenarse con hash seguro (estándar de Laravel) y nunca exponerse en
   texto plano en ninguna vista, log o notificación.
-- **FR-010**: El sistema DEBE definir a qué tablero se redirige un usuario tras el login cuando tiene más
-  de un rol asignado [NEEDS CLARIFICATION: ¿prioridad fija por rol, selección manual, o un tablero unificado
-  para multi-rol?].
-- **FR-011**: El registro público de nuevos usuarios (Ilustración 2 del mockup, "Regístrate") DEBE
-  [NEEDS CLARIFICATION: la cotización no describe auto-registro abierto; ¿el registro es solo interno vía
-  Administrador, o existe también un formulario de auto-registro público para clientes/técnicos externos?].
+- **FR-010**: Cuando un usuario tiene más de un rol asignado, el sistema DEBE redirigirlo tras el login al
+  tablero del rol de mayor prioridad que tenga asignado, según el orden fijo: Administrador > Jefe de
+  Taller > Almacenista > Técnico.
+- **FR-011**: El sistema NO DEBE ofrecer auto-registro público de usuarios; toda alta de usuario es
+  realizada exclusivamente por el Administrador (FR-004). La pantalla "Regístrate" del mockup no se
+  implementa como flujo de auto-registro real.
 
 ### Key Entities
 
@@ -162,5 +174,4 @@ usuario puede iniciar sesión y solo ve las funcionalidades permitidas a su rol.
   que se defina para notificaciones (ver spec 008), no un proveedor distinto.
 - Los 4 roles del catálogo son fijos para el alcance contratado; no se requiere un editor de roles/permisos
   dinámico por parte del Administrador (los permisos por rol se configuran en código/seed, no en UI).
-- El registro de nuevos usuarios en el día a día es responsabilidad exclusiva del Administrador (a
-  confirmar en FR-011).
+- El registro de nuevos usuarios en el día a día es responsabilidad exclusiva del Administrador (FR-011).

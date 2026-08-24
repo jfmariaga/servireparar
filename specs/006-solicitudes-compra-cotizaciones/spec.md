@@ -10,6 +10,20 @@
 Ilustraciones 5-11 (Flujo #1, Administrador); ER: `PROVEEDORES`, `COMPRAS`, `DETALLE_COMPRA`, `CLIENTES`,
 `EQUIPOS`.
 
+## Clarifications
+
+### Session 2026-08-24
+
+- Q: ¿Qué mecanismo técnico se usará para recibir automáticamente las solicitudes de cotización que llegan
+  al correo oficial? → A: IMAP polling — el sistema se conecta periódicamente vía IMAP a la cuenta oficial
+  con un job programado, independiente del proveedor de correo (Gmail, Hostinger, Outlook).
+- Q: El cliente responde una cotización fuera del hilo original (correo nuevo, no un "Responder"). ¿Qué
+  debe hacer el sistema? → A: Genera una notificación interna al Administrador para revisión/vinculación
+  manual, en vez de descartar el correo silenciosamente.
+- Q: ¿Cómo se debe modelar el "Caso de Cotización" en la base de datos? → A: Entidad propia e independiente
+  ("Cotizaciones" + detalle + mensajes del hilo), separada de `ORDENES_TRABAJO`, dado que su ciclo de vida
+  (recepción por correo, envío, aceptación, facturación) es distinto al de una OT operativa.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Recepción y registro de solicitudes de cotización desde correo (Priority: P1)
@@ -28,10 +42,9 @@ verifica que aparece como nuevo caso "En revisión" en el tablero de cotizacione
 1. **Given** un correo oficial configurado en el sistema, **When** llega un nuevo correo de solicitud de
    cotización, **Then** el sistema crea automáticamente un caso de cotización en estado "En revisión",
    asociado al cliente remitente si es identificable (Ilustración 5, "Cotizaciones Activas").
-2. **Given** un correo entrante que no sigue el formato de la plantilla esperada, **When** se recibe,
-   **Then** el sistema [NEEDS CLARIFICATION: ¿lo registra igualmente para revisión manual, o lo descarta y
-   requiere registro 100% manual? La cotización solo advierte que "de lo contrario se tendrá que documentar
-   manualmente"].
+2. **Given** un correo entrante que no sigue el formato de la plantilla esperada o no pertenece a ningún
+   hilo/caso reconocido, **When** se recibe (vía IMAP polling), **Then** el sistema genera una notificación
+   interna al Administrador para revisión y registro manual, sin descartar el correo silenciosamente.
 3. **Given** un caso de cotización recibido, **When** el Administrador lo abre, **Then** puede ver la
    información general (cliente, equipo, tipo de servicio, adjunto original) según Ilustración 6.
 
@@ -83,9 +96,8 @@ el estado del caso cambia a "Aceptada" automáticamente y sin edición manual de
 3. **Given** una cotización entregada, **When** el Administrador gestiona la facturación, **Then** el
    estado avanza a "Facturada" y el caso queda cerrado con historial completo consultable.
 4. **Given** un cliente que responde fuera del hilo original (correo nuevo, no una respuesta), **When** el
-   sistema recibe ese mensaje, **Then** [NEEDS CLARIFICATION: la cotización indica que en ese caso "se
-   tendrá que documentar manualmente"; definir si el sistema al menos notifica al Administrador de un
-   correo no vinculable a un hilo existente, o si queda completamente fuera del alcance automatizado].
+   sistema recibe ese mensaje, **Then** genera una notificación interna al Administrador indicando que hay
+   un correo no vinculable a un hilo existente, para que lo documente manualmente (ver Clarifications).
 
 ---
 
@@ -116,12 +128,12 @@ verificando que el historial de costos queda registrado en `COMPRAS`/`DETALLE_CO
   debe permitir reabrir/editar la cotización desde "Cotizada" sin perder el historial de versiones previas.
 - ¿Se permite tener más de una cuenta de correo oficial monitoreada simultáneamente, o solo una (según nota
   3 de la cotización, "al menos una cuenta de correo electrónico oficial")?
-- Mecanismo técnico de recepción/envío de correo: [NEEDS CLARIFICATION: la cotización exige integración con
-  correo pero no define el proveedor ni protocolo — evaluar IMAP/SMTP genérico, Gmail API, o un proveedor
-  transaccional con webhooks entrantes (ej. Mailgun/Postmark/SES) en la fase `/speckit-clarify` de este
-  módulo antes de pasar a `/speckit-plan`].
+- Mecanismo técnico de recepción/envío de correo: resuelto — IMAP polling (ver Clarifications). El envío
+  saliente usa SMTP estándar de Laravel (Mail), consistente con el proveedor de correo de la cuenta
+  oficial.
 - Identificación automática del cliente remitente: [NEEDS CLARIFICATION: ¿se matchea por dominio/correo
-  exacto contra `CLIENTES.correo`, o requiere selección manual si el remitente no está registrado?].
+  exacto contra `CLIENTES.correo`, o requiere selección manual si el remitente no está registrado? — punto
+  aún abierto, no crítico para bloquear `/speckit-plan`, puede resolverse durante el diseño técnico].
 
 ## Requirements *(mandatory)*
 
@@ -145,9 +157,11 @@ verificando que el historial de costos queda registrado en `COMPRAS`/`DETALLE_CO
   cotización, aprobación, facturación, y registro de costos (`COMPRAS`, `DETALLE_COMPRA`).
 - **FR-009**: El sistema DEBE mantener un maestro de proveedores (`PROVEEDORES`) con nombre, NIT, correo,
   dirección y estado.
-- **FR-010**: El sistema DEBE registrar el mecanismo de correo utilizado como un servicio desacoplado
-  (interfaz de "proveedor de correo entrante/saliente"), de forma que la decisión técnica de
-  [NEEDS CLARIFICATION: IMAP/Gmail API/webhook] no condicione el diseño del resto del módulo.
+- **FR-010**: El sistema DEBE recibir las solicitudes de cotización mediante un job programado que consulta
+  vía IMAP la cuenta de correo oficial configurada (polling), implementado detrás de una interfaz de
+  "proveedor de correo entrante" para no acoplar el resto del módulo al protocolo específico.
+- **FR-011**: El sistema DEBE notificar internamente al Administrador cuando reciba un correo que no
+  corresponda a ningún hilo/caso de cotización existente, en lugar de descartarlo.
 
 ### Key Entities
 
@@ -155,9 +169,13 @@ verificando que el historial de costos queda registrado en `COMPRAS`/`DETALLE_CO
 - **Compra** (`COMPRAS`): id, proveedor_id, fecha, estado, observaciones.
 - **Detalle de Compra** (`DETALLE_COMPRA`): id, compra_id, inventario_id, cantidad, costo_unitario,
   valor_total.
-- **Caso de Cotización** (a modelar en `/speckit-plan`; no tiene tabla propia explícita en el ER provisto —
-  candidato natural es reutilizar/extender `ORDENES_TRABAJO` o crear una entidad "Cotización" dedicada,
-  decisión a tomar en el plan técnico dado que el ER actual no la modela de forma independiente).
+- **Cotización**: entidad propia e independiente de `ORDENES_TRABAJO` (no existe en el ER original — se
+  incorpora en `/speckit-plan`). Representa el caso comercial completo: cliente, equipo (opcional), estado
+  (En revisión, Cotizada, Aceptada/Rechazada, Entregada, Facturada), correo original, e ítems cotizados.
+- **Detalle de Cotización**: ítems (servicios/insumos) de una Cotización, con cantidad, costo unitario y
+  total — análogo a `DETALLE_COMPRA` pero orientado al cliente.
+- **Mensaje de Cotización**: cada entrada del hilo de comunicación (correo entrante/saliente o comentario
+  interno) asociada a una Cotización, con autor, fecha y contenido.
 
 ## Success Criteria *(mandatory)*
 
@@ -175,7 +193,8 @@ verificando que el historial de costos queda registrado en `COMPRAS`/`DETALLE_CO
 ## Assumptions
 
 - Existe (o existirá antes del desarrollo de este módulo) al menos una cuenta de correo electrónico oficial
-  dedicada, según lo exige la nota 3 de la cotización.
+  dedicada, según lo exige la nota 3 de la cotización, con credenciales IMAP/SMTP disponibles para el
+  sistema (no depende de que sea Gmail Workspace ni de un proveedor transaccional específico).
 - El cliente responde dentro del mismo hilo de correo en la mayoría de los casos; el flujo manual descrito
   en la cotización es el mecanismo de respaldo para el resto.
 - La maestra de servicios/insumos usada para cotizaciones puede reutilizar el catálogo de `INVENTARIO`
