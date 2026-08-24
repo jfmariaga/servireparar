@@ -70,8 +70,24 @@ entrega (hasta 12/12/2026).
 | 007 — Reportes e Indicadores | ✅ Completado (2026-08-24) | Dashboard por recarga/refresco (sin polling); exportaciones de OT e Inventario primero, Compras/Personal en corte posterior. Listo para `/speckit-plan`. |
 | 008 — Notificaciones y Alertas | ✅ Sin bloqueantes | No tenía `[NEEDS CLARIFICATION]` propios; dependía de 002/005 (umbrales) y 006 (canal de correo), ya resueltos. Listo para `/speckit-plan`. |
 
-Los 9 specs (000 a 008) quedaron clarificados y listos para pasar a `/speckit-plan`. El único punto abierto
-no bloqueante restante es el matcheo automático de cliente remitente en el spec 006. Recomendado iniciar
-`/speckit-plan` siguiendo el orden real de dependencias: **000 (Catálogos Maestros) → 001 (Auth) → 002/003/
-004 (Fase 2, dependen de 000) → 005/006/007/008 (Fase 3)** — 000 debe ir primero pese a no tener fase
-propia en el cronograma comercial, porque OT (002) no puede operar sin Clientes ni Contratistas.
+Los 9 specs (000 a 008) quedaron clarificados. El único punto abierto no bloqueante restante es el matcheo
+automático de cliente remitente en el spec 006.
+
+## Estado de `/speckit-plan`
+
+| Spec | Estado `/speckit-plan` |
+|------|-------------------------|
+| [000 — Catálogos Maestros](specs/000-catalogos-maestros/plan.md) | ✅ Completado (2026-08-24) |
+| [001 — Autenticación y Usuarios](specs/001-autenticacion-usuarios/plan.md) | ✅ Completado (2026-08-24) |
+| [002 — Órdenes de Trabajo](specs/002-ordenes-trabajo/plan.md) | ✅ Completado (2026-08-24) |
+| [003 — Inventario (Bodega)](specs/003-inventario-bodega/plan.md) | ✅ Completado (2026-08-24) |
+| [004 — Gestión de Personal](specs/004-gestion-personal/plan.md) | ✅ Completado (2026-08-24) |
+| 005 — Equipos y Mantenimiento | Pendiente |
+| 006 — Compras y Cotizaciones | Pendiente |
+| 007 — Reportes e Indicadores | Pendiente |
+| 008 — Notificaciones y Alertas | Pendiente |
+
+Los planes técnicos de 000-004 (Fase 1 + Fase 2, el núcleo dependiente) ya están listos para
+`/speckit-tasks`. Recomendado seguir con `/speckit-plan` de 005/006/007/008 (Fase 3) antes de generar
+tareas ejecutables, para mantener consistencia de diseño entre módulos relacionados (ej. spec 007 consume
+`DesempenoTecnicoService` de spec 004 y `CosteoOtService` de spec 002).
