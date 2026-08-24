@@ -103,5 +103,29 @@ módulos:
   nativas), `webklex/php-imap` (006, sin requerir `ext-imap`), `barryvdh/laravel-dompdf` y
   `maatwebsite/excel` (006/007, exportaciones).
 
-Siguiente paso: `/speckit-tasks` módulo por módulo, en el mismo orden de dependencias (000 → 001 → 002/003/
-004 → 005/006 → 007 → 008), para generar las tareas ejecutables de implementación.
+## Estado de `/speckit-tasks`
+
+| Spec | Estado `/speckit-tasks` | MVP (primer incremento) |
+|------|--------------------------|---------------------------|
+| [000 — Catálogos Maestros](specs/000-catalogos-maestros/tasks.md) | ✅ Completado (2026-08-24) | User Story 1 (Cliente) |
+| [001 — Autenticación y Usuarios](specs/001-autenticacion-usuarios/tasks.md) | ✅ Completado (2026-08-24) | US1 (Login) + US4 (Admin usuarios) |
+| [002 — Órdenes de Trabajo](specs/002-ordenes-trabajo/tasks.md) | ✅ Completado (2026-08-24) | US1 + US2 (crear y ejecutar OT) |
+| [003 — Inventario (Bodega)](specs/003-inventario-bodega/tasks.md) | ✅ Completado (2026-08-24) | US1 (solicitudes desde OT) |
+| [004 — Gestión de Personal](specs/004-gestion-personal/tasks.md) | ✅ Completado (2026-08-24) | US1 (ficha de técnico) |
+| [005 — Equipos y Mantenimiento](specs/005-equipos-mantenimiento/tasks.md) | ✅ Completado (2026-08-24) | US1 (registro de equipos) |
+| [006 — Compras y Cotizaciones](specs/006-solicitudes-compra-cotizaciones/tasks.md) | ✅ Completado (2026-08-24) | US1 + US2 (recepción + construcción/envío) |
+| [007 — Reportes e Indicadores](specs/007-reportes-kpis/tasks.md) | ✅ Completado (2026-08-24) | US1 (dashboards por rol) |
+| [008 — Notificaciones y Alertas](specs/008-notificaciones-alertas/tasks.md) | ✅ Completado (2026-08-24) | US1 + US2 (campana + alertas automáticas) |
+
+Los 9 módulos tienen tareas ejecutables organizadas por historia de usuario, con tests-first, checkpoints
+de independencia y orden de dependencias explícito en cada `tasks.md`. El ciclo completo de Spec-Driven
+Development (`/speckit-specify` → `/speckit-clarify` → `/speckit-plan` → `/speckit-tasks`) está cerrado
+para los 9 specs — el proyecto está listo para `/speckit-implement`.
+
+**Entorno de desarrollo local**: Laragon (Windows) con MySQL — mismo motor que producción (Hostinger), sin
+SQLite ni en tests, para evitar divergencias de comportamiento (ver constitución v1.2.0).
+
+Orden de implementación recomendado (respeta dependencias reales, no solo el orden de fases comercial):
+**000 → 001 → 002/003/004 (paralelizable entre sí tras 000+001) → 005/006 (paralelizable tras 000+002/
+003/004) → 007 (requiere 002/003/004/006) → 008 (requiere eventos de 002/003/005/006, pero su mecanismo
+interno puede desarrollarse en paralelo desde el inicio)**.
