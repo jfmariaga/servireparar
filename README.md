@@ -82,12 +82,26 @@ automático de cliente remitente en el spec 006.
 | [002 — Órdenes de Trabajo](specs/002-ordenes-trabajo/plan.md) | ✅ Completado (2026-08-24) |
 | [003 — Inventario (Bodega)](specs/003-inventario-bodega/plan.md) | ✅ Completado (2026-08-24) |
 | [004 — Gestión de Personal](specs/004-gestion-personal/plan.md) | ✅ Completado (2026-08-24) |
-| 005 — Equipos y Mantenimiento | Pendiente |
-| 006 — Compras y Cotizaciones | Pendiente |
-| 007 — Reportes e Indicadores | Pendiente |
-| 008 — Notificaciones y Alertas | Pendiente |
+| [005 — Equipos y Mantenimiento](specs/005-equipos-mantenimiento/plan.md) | ✅ Completado (2026-08-24) |
+| [006 — Compras y Cotizaciones](specs/006-solicitudes-compra-cotizaciones/plan.md) | ✅ Completado (2026-08-24) |
+| [007 — Reportes e Indicadores](specs/007-reportes-kpis/plan.md) | ✅ Completado (2026-08-24) |
+| [008 — Notificaciones y Alertas](specs/008-notificaciones-alertas/plan.md) | ✅ Completado (2026-08-24) |
 
-Los planes técnicos de 000-004 (Fase 1 + Fase 2, el núcleo dependiente) ya están listos para
-`/speckit-tasks`. Recomendado seguir con `/speckit-plan` de 005/006/007/008 (Fase 3) antes de generar
-tareas ejecutables, para mantener consistencia de diseño entre módulos relacionados (ej. spec 007 consume
-`DesempenoTecnicoService` de spec 004 y `CosteoOtService` de spec 002).
+Los 9 planes técnicos (000-008) están completos. Decisiones de diseño transversales que atraviesan varios
+módulos:
+
+- **Servicios reutilizables**: `CosteoOtService` (002) y `DesempenoTecnicoService` (004) se aíslan de la UI
+  para que spec 007 los reutilice sin duplicar lógica de cálculo.
+- **Desacoplamiento por eventos**: 002 (OT), 003 (Inventario) y 005 (Equipos) disparan eventos de dominio
+  propios (`OtProximaAVencer`, stock bajo, mantenimiento preventivo) sin conocer a spec 008 — éste se
+  suscribe vía `Listeners`, manteniendo la dependencia en una sola dirección.
+- **Correo desacoplado del protocolo**: spec 006 define `ProveedorCorreoEntrante`/`ProveedorCorreoSaliente`
+  como interfaces (implementadas con IMAP polling + SMTP), permitiendo testear con fakes y cambiar de
+  proveedor sin tocar la lógica de negocio de Cotizaciones.
+- **Librerías añadidas** (todas como utilidad puntual detrás de una interfaz o wrapper propio, no como
+  reemplazo del stack base): `picqer/php-barcode-generator` (003, códigos Code128 sin dependencias
+  nativas), `webklex/php-imap` (006, sin requerir `ext-imap`), `barryvdh/laravel-dompdf` y
+  `maatwebsite/excel` (006/007, exportaciones).
+
+Siguiente paso: `/speckit-tasks` módulo por módulo, en el mismo orden de dependencias (000 → 001 → 002/003/
+004 → 005/006 → 007 → 008), para generar las tareas ejecutables de implementación.
