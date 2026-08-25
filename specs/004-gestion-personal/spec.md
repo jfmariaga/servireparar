@@ -17,6 +17,20 @@
   predefinido, gestionado en el sistema, para permitir filtrar/reportar técnicos por especialidad de forma
   consistente.
 
+### Session 2026-08-25
+
+- Q: ¿La gestión de técnicos (`TECNICOS`) debe tener su propia pantalla ("Empleados") separada de la
+  pantalla de Usuarios (spec 001)? → A: No. Debe vivir en la misma pantalla de Usuarios: el Administrador
+  filtra ahí por rol (incluyendo Técnico) y por estado activo/inactivo, y edita los campos propios del
+  técnico (especialidad, estado en `TECNICOS`) dentro del mismo formulario cuando el usuario tiene el rol
+  Técnico asignado. No debe existir una pantalla ni un menú de navegación separados para "Empleados".
+- Q: "Catálogo fijo predefinido, gestionado en el sistema" (sesión 2026-08-24) — ¿significa sembrado una
+  vez por un seeder/desarrollador, o el Administrador debe poder mantenerlo desde la interfaz? → A: Desde
+  la interfaz. Un catálogo que solo se edita por seeder es exactamente el riesgo que se quería evitar
+  (nombres distintos para lo mismo por error de digitación al no poder corregirlo sin intervención técnica).
+  El Administrador crea/edita/inactiva especialidades desde una pantalla propia; inactivar una especialidad
+  no afecta a los técnicos que ya la tienen asignada, solo deja de ofrecerse para asignaciones nuevas.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Registrar y configurar trabajadores (Priority: P1)
@@ -103,6 +117,14 @@ se verifica que refleja tiempos reales vs. estimados y cantidad de OT en las que
   cada técnico disponible.
 - **FR-006**: El sistema DEBE conservar las métricas históricas de un técnico aunque posteriormente sea
   inactivado.
+- **FR-007**: El sistema NO DEBE presentar una pantalla ni un ítem de menú de navegación separados
+  ("Empleados") para gestionar técnicos. El alta, edición y consulta de datos de `TECNICOS` (especialidad,
+  activo) DEBE hacerse desde la pantalla de gestión de Usuarios (spec 001, User Story 4), filtrando por
+  rol Técnico y por estado activo/inactivo.
+- **FR-008**: El sistema DEBE permitir al Administrador crear, editar e inactivar entradas del catálogo de
+  Especialidad desde una pantalla propia (no un seeder ni intervención técnica), evitando nombres distintos
+  para la misma especialidad por error de digitación. Inactivar una especialidad NO DEBE afectar a los
+  técnicos que ya la tienen asignada; solo deja de ofrecerse como opción para asignaciones nuevas.
 
 ### Key Entities
 

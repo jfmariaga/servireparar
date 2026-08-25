@@ -17,7 +17,7 @@ class AdminUserSeeder extends Seeder
         $admin = User::firstOrCreate(
             ['email' => 'admin@servireparar.com'],
             [
-                'name' => 'Administrador SERVIOPS',
+                'name' => 'Administrador ServiReparar',
                 'password' => 'password',
                 'estado' => 'activo',
             ]

@@ -66,15 +66,17 @@ credenciales inválidas y usuario inactivo
 
 ### Tests for User Story 2
 
-- [ ] T015 [P] [US2] Feature test `tests/Feature/Auth/PasswordResetTest.php`: envío de enlace, reseteo
+- [X] T015 [P] [US2] Feature test `tests/Feature/Auth/PasswordResetTest.php`: envío de enlace, reseteo
   exitoso, enlace expirado/usado rechazado
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Componente Volt `app/Livewire/Auth/ForgotPassword.php` (Ilustración 3)
-- [ ] T017 [US2] Componente Volt `app/Livewire/Auth/ResetPassword.php`
-- [ ] T018 [US2] Rutas `/forgot-password`, `/reset-password/{token}`
-- [ ] T019 [US2] Configurar TTL de expiración en `config/auth.php` (`passwords.users.expire`)
+- [X] T016 [US2] Componente Volt `auth.forgot-password` (Ilustración 3) — implementado como Volt de archivo
+  único en `resources/views/livewire/auth/forgot-password.blade.php`, mismo patrón que `auth.login`
+- [X] T017 [US2] Componente Volt `auth.reset-password` — `resources/views/livewire/auth/reset-password.blade.php`
+- [X] T018 [US2] Rutas `/forgot-password`, `/reset-password/{token}`
+- [X] T019 [US2] Configurar TTL de expiración en `config/auth.php` (`passwords.users.expire`, ahora
+  configurable vía `AUTH_PASSWORD_RESET_EXPIRE`)
 
 **Checkpoint**: Login + recuperación de contraseña funcionan de forma independiente
 
@@ -88,13 +90,14 @@ credenciales inválidas y usuario inactivo
 
 ### Tests for User Story 3
 
-- [ ] T020 [P] [US3] Feature test `tests/Feature/Auth/ProfileTest.php`: ver perfil, cambio de contraseña
+- [X] T020 [P] [US3] Feature test `tests/Feature/Auth/ProfileTest.php`: ver perfil, cambio de contraseña
   con contraseña actual requerida
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] Componente Volt `app/Livewire/Auth/Profile.php` (Ilustración 4)
-- [ ] T022 [US3] Ruta `/perfil`
+- [X] T021 [US3] Componente Volt `auth.profile` (Ilustración 4) — `resources/views/livewire/auth/profile.blade.php`;
+  edita nombre/teléfono/contraseña, roles solo de lectura (no auto-modificables)
+- [X] T022 [US3] Ruta `/perfil`
 
 **Checkpoint**: US1+US2+US3 funcionan de forma independiente
 
@@ -126,10 +129,14 @@ credenciales inválidas y usuario inactivo
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T030 [P] Middleware global de autorización por rol reutilizable (`EnsureRole` o similar) para los
-  demás módulos del sistema
-- [ ] T031 Documentar en `AuthServiceProvider` el registro de todas las Policies del sistema (patrón a
-  seguir por los demás specs)
+- [X] T030 [P] Middleware global de autorización por rol reutilizable para los demás módulos del sistema —
+  se reutiliza el `RoleMiddleware` nativo de spatie/laravel-permission (alias `role`, `permission`,
+  `role_or_permission` registrados en `bootstrap/app.php`) en vez de escribir uno propio, consistente con
+  la Constitución (Principio I); aplicado como ejemplo a `/dashboard/{rol}` — ver
+  `tests/Feature/Auth/RoleMiddlewareTest.php`
+- [X] T031 Documentar en `AuthServiceProvider` el registro de todas las Policies del sistema (patrón a
+  seguir por los demás specs) — `app/Providers/AuthServiceProvider.php`, registrado en
+  `bootstrap/providers.php`
 - [x] T032 Ejecutar `php artisan test --filter=Auth` y `--filter=Usuarios` en verde
 
 ---

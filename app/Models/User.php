@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -53,5 +54,13 @@ class User extends Authenticatable
     public function isActivo(): bool
     {
         return $this->estado === 'activo';
+    }
+
+    /**
+     * Ficha de técnico (spec 004) — solo existe cuando el usuario tiene rol Técnico.
+     */
+    public function tecnico(): HasOne
+    {
+        return $this->hasOne(Tecnico::class, 'usuario_id');
     }
 }

@@ -11,24 +11,23 @@ de mantenimiento reales
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Confirmar que existen Clientes (spec 000) y OT finalizadas de tipo mantenimiento (spec 002) de
-  prueba en el entorno local
+- [X] T001 Confirmar que existen Clientes (spec 000) de prueba en el entorno local — OT (spec 002) todavía
+  no existe; ver nota de alcance debajo de Fase 3
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
 **⚠️ CRITICAL**: Bloquea las 4 historias de usuario
 
-- [ ] T002 Migración `xxxx_create_equipos_table.php` (`cliente_id`, `periodicidad_mantenimiento_dias`)
-- [ ] T003 [P] Migración `xxxx_create_variables_tecnicas_table.php` (esquema clave-valor, `ot_id`,
-  `equipo_id` denormalizado)
-- [ ] T004 [P] Migración `xxxx_create_mantenimientos_preventivos_table.php`
-- [ ] T005 [P] Migración `xxxx_create_checklist_mantenimiento_table.php` (plantilla única — seed de ítems
-  fijos)
-- [ ] T006 Modelos Eloquent: `Equipo`, `VariableTecnica`, `MantenimientoPreventivo`,
-  `ChecklistMantenimiento`
-- [ ] T007 Evento `app/Events/MantenimientoPreventivoProximoAVencer.php` (consumido por spec 008)
-- [ ] T008 `app/Policies/EquipoPolicy.php` (registro: Administrador/Jefe de Taller; consulta de historial:
-  también Técnico, solo lectura)
+- [X] T002 Migración `create_equipos_table` (`cliente_id`, `periodicidad_mantenimiento_dias`)
+- [ ] T003 [P] ~~Migración `create_variables_tecnicas_table`~~ — diferida (FK a `ordenes_trabajo`, spec 002
+  inexistente; ver nota de alcance)
+- [X] T004 [P] Migración `create_mantenimientos_preventivos_table` — sin FK a OT, no bloqueada
+- [ ] T005 [P] ~~Migración `create_checklist_mantenimiento_table`~~ — diferida (FK a `ordenes_trabajo`)
+- [X] T006 Modelos Eloquent: `Equipo`, `MantenimientoPreventivo` (`VariableTecnica`/`ChecklistMantenimiento`
+  diferidos junto con sus migraciones)
+- [X] T007 Evento `app/Events/MantenimientoPreventivoProximoAVencer.php` (consumido por spec 008)
+- [X] T008 `app/Policies/EquipoPolicy.php` (registro: Administrador/Jefe de Taller, vía permiso
+  `manage-equipos`; la habilidad de solo-lectura para Técnico se agrega junto con US2/historial)
 
 **Checkpoint**: Modelo de datos listo — las historias de usuario pueden implementarse
 
@@ -43,19 +42,26 @@ selector de equipos al crear una OT
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Feature test `tests/Feature/Equipos/RegistrarEquipoTest.php`: creación válida
-  vinculada a cliente existente, disponible en selector de OT
+- [X] T009 [P] [US1] Feature test `tests/Feature/Equipos/RegistrarEquipoTest.php`: creación válida
+  vinculada a cliente existente (la disponibilidad en el selector de OT se verifica cuando spec 002 exista)
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Componente Volt `app/Livewire/Equipos/Index.php` (listado + form crear/editar)
-- [ ] T011 [US1] Ruta `/equipos` protegida por `EquipoPolicy`
+- [X] T010 [US1] Componente Volt `equipos.index` (listado + form crear/editar) —
+  `resources/views/livewire/equipos/index.blade.php`
+- [X] T011 [US1] Ruta `/equipos` protegida por `EquipoPolicy`
 
-**Checkpoint**: Registro de equipos funcional — MVP del módulo
+**Checkpoint**: Registro de equipos funcional — MVP del módulo ✅
+
+> **Nota de alcance (2026-08-25)**: Fase 4 (US2, historial técnico) y Fase 6 (US4, checklist) requieren
+> `ordenes_trabajo`/`detalle_ot`/`evidencias_ot` (spec 002), que todavía no existen. Construirlas ahora
+> significaría adivinar el esquema de spec 002 y muy probablemente rehacerlas después — mismo criterio
+> aplicado en spec 004 con `detalle_ot`. Se difieren hasta que spec 002 esté implementada. Fase 5 (US3,
+> mantenimiento preventivo) SÍ es independiente de spec 002 — se implementó completa en esta pasada.
 
 ---
 
-## Phase 4: User Story 2 - Consultar historial técnico de un equipo (Priority: P1)
+## Phase 4: User Story 2 - Consultar historial técnico de un equipo (Priority: P1) — DIFERIDA
 
 **Goal**: Historial reconstruido por consulta (OT + evidencias + variables técnicas + checklist)
 
@@ -82,7 +88,7 @@ verificar que ambas aparecen con técnico, fecha y evidencias
 
 ---
 
-## Phase 5: User Story 3 - Programar mantenimiento preventivo (Priority: P2)
+## Phase 5: User Story 3 - Programar mantenimiento preventivo (Priority: P2) ✅
 
 **Goal**: Cálculo automático de próxima fecha tras completar un mantenimiento, con alerta de vencimiento
 
@@ -91,23 +97,23 @@ calculada; forzar vencimiento y verificar disparo de alerta
 
 ### Tests for User Story 3
 
-- [ ] T018 [P] [US3] Feature test `tests/Feature/Equipos/MantenimientoPreventivoTest.php`: cálculo de
+- [X] T018 [P] [US3] Feature test `tests/Feature/Equipos/MantenimientoPreventivoTest.php`: cálculo de
   próxima fecha = última + periodicidad
-- [ ] T019 [P] [US3] Feature test: evento `MantenimientoPreventivoProximoAVencer` disparado al vencer
+- [X] T019 [P] [US3] Feature test: evento `MantenimientoPreventivoProximoAVencer` disparado al vencer
   (`Event::fake()`, SC-002)
 
 ### Implementation for User Story 3
 
-- [ ] T020 [US3] `app/Services/Equipos/MantenimientoPreventivoService.php` (calcula próxima fecha, marca
+- [X] T020 [US3] `app/Services/Equipos/MantenimientoPreventivoService.php` (calcula próxima fecha, marca
   `alerta_disparada`)
-- [ ] T021 [US3] `app/Console/Commands/RevisarMantenimientosPreventivos.php`, registrado en el Scheduler
-  (diario)
+- [X] T021 [US3] `app/Console/Commands/RevisarMantenimientosPreventivos.php`, registrado en el Scheduler
+  (diario) — `routes/console.php`
 
-**Checkpoint**: US1-US3 funcionan de forma independiente
+**Checkpoint**: US1 y US3 funcionan de forma independiente ✅ (US2 diferida, ver nota arriba)
 
 ---
 
-## Phase 6: User Story 4 - Checklist técnico digital (Priority: P2)
+## Phase 6: User Story 4 - Checklist técnico digital (Priority: P2) — DIFERIDA
 
 **Goal**: Completar checklist de plantilla única durante una intervención de mantenimiento
 
@@ -130,8 +136,9 @@ historial del equipo
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T025 Índice en `detalle_ot`/`ordenes_trabajo.equipo_id` para reconstrucción rápida del historial
-- [ ] T026 Ejecutar `php artisan test --filter=Equipos` en verde
+- [ ] T025 Índice en `detalle_ot`/`ordenes_trabajo.equipo_id` para reconstrucción rápida del historial —
+  diferido junto con spec 002
+- [X] T026 Ejecutar `php artisan test --filter=Equipos` en verde (7/7 — US1 + US3)
 
 ---
 

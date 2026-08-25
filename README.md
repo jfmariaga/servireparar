@@ -1,4 +1,4 @@
-# SERVIOPS — Sistema de Gestión Operativa SERVIREPARAR S.A.S
+# Sistema de Gestión Operativa — SERVIREPARAR S.A.S
 
 Proyecto planeado bajo metodología **Spec-Driven Development** ([GitHub Spec Kit](https://github.com/github/spec-kit)).
 Esta etapa es de **planeación**: aún no hay código de aplicación, solo la constitución del proyecto y las

@@ -1,3 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+@import './select.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    body {
+        @apply bg-slate-100 text-slate-800 font-sans dark:bg-slate-950 dark:text-slate-100;
+    }
+
+    h1, h2, h3, .font-brand {
+        @apply font-display;
+    }
+}
+
+[x-cloak] {
+    display: none !important;
+}

@@ -27,6 +27,13 @@ class RolesSeeder extends Seeder
             'manage-contratistas',
             // Usuarios (spec 001)
             'manage-usuarios',
+            // Personal / técnicos (spec 004)
+            'manage-tecnicos',
+            // Equipos (spec 005)
+            'manage-equipos',
+            // Inventario / Bodega (spec 003)
+            'manage-inventario',
+            'approve-auditorias-inventario',
         ];
 
         foreach ($permisos as $permiso) {
@@ -39,6 +46,10 @@ class RolesSeeder extends Seeder
 
         /** @var Role $jefeDeTaller */
         $jefeDeTaller = Role::findByName(RolPrioridad::JefeDeTaller->value);
-        $jefeDeTaller->syncPermissions(['manage-clientes', 'manage-proveedores', 'manage-contratistas']);
+        $jefeDeTaller->syncPermissions(['manage-clientes', 'manage-proveedores', 'manage-contratistas', 'manage-equipos']);
+
+        /** @var Role $almacenista */
+        $almacenista = Role::findByName(RolPrioridad::Almacenista->value);
+        $almacenista->syncPermissions(['manage-inventario']);
     }
 }

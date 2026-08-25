@@ -1,0 +1,58 @@
+/* Tema propio de Tom Select (sin su CSS por defecto) para que los selects
+   con búsqueda se vean como el resto de controles Tailwind de la app. */
+
+.ts-wrapper {
+    @apply relative w-full text-sm;
+}
+
+.ts-wrapper .ts-control {
+    @apply w-full min-h-[38px] flex items-center flex-wrap gap-1 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 bg-white rounded-lg px-3 py-1.5 cursor-text;
+}
+
+.ts-wrapper.single .ts-control {
+    @apply cursor-pointer;
+}
+
+.ts-wrapper.focus .ts-control {
+    @apply border-brand-blue ring-1 ring-brand-blue;
+}
+
+.ts-wrapper.disabled .ts-control {
+    @apply opacity-60 cursor-not-allowed bg-slate-50 dark:bg-slate-900;
+}
+
+.ts-control input {
+    @apply bg-transparent outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400;
+}
+
+.ts-control > div.item {
+    @apply text-slate-800 dark:text-slate-100;
+}
+
+.ts-wrapper .ts-dropdown {
+    @apply absolute left-0 right-0 z-50 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden;
+}
+
+.ts-dropdown .ts-dropdown-content {
+    @apply max-h-64 overflow-y-auto py-1;
+}
+
+.ts-dropdown .option {
+    @apply px-3.5 py-2 text-slate-700 dark:text-slate-200 cursor-pointer;
+}
+
+.ts-dropdown .option.active {
+    @apply bg-brand-blue-tint text-brand-blue dark:bg-slate-700 dark:text-white;
+}
+
+.ts-dropdown .option.selected {
+    @apply font-semibold;
+}
+
+.ts-dropdown .no-results {
+    @apply px-3.5 py-2 text-slate-400;
+}
+
+.ts-hidden-accessible {
+    @apply sr-only;
+}

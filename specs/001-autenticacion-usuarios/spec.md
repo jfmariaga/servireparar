@@ -118,7 +118,9 @@ usuario puede iniciar sesión y solo ve las funcionalidades permitidas a su rol.
   por minuto con backoff); no se requiere bloqueo temporal adicional ni intervención del Administrador.
 - Un Técnico registrado en `USUARIOS`/`USUARIO_ROL` debe existir también en `TECNICOS` (con especialidad y
   estado "activo") para poder ser asignado a tareas de OT — ver dependencia con spec 004 (Gestión de
-  Personal).
+  Personal). Esta gestión NO tiene una pantalla propia ("Empleados"): los campos de `TECNICOS`
+  (especialidad, activo) se editan desde esta misma pantalla de Usuarios cuando el rol Técnico está
+  asignado (ver spec 004, FR-007).
 
 ## Requirements *(mandatory)*
 
@@ -148,6 +150,10 @@ usuario puede iniciar sesión y solo ve las funcionalidades permitidas a su rol.
 - **FR-011**: El sistema NO DEBE ofrecer auto-registro público de usuarios; toda alta de usuario es
   realizada exclusivamente por el Administrador (FR-004). La pantalla "Regístrate" del mockup no se
   implementa como flujo de auto-registro real.
+- **FR-012**: La pantalla de gestión de Usuarios DEBE permitir filtrar por rol (incluyendo Técnico) y por
+  estado activo/inactivo, y DEBE ser el único punto de la interfaz para gestionar los datos propios de
+  Técnico de spec 004 (especialidad, estado en `TECNICOS`); el sistema NO DEBE tener una pantalla separada
+  de "Empleados" para este propósito.
 
 ### Key Entities
 

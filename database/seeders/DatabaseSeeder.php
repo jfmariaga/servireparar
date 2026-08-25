@@ -15,6 +15,9 @@ class DatabaseSeeder extends Seeder
             RolesSeeder::class,
             AdminUserSeeder::class,
             CatalogosMaestrosSeeder::class,
+            EspecialidadesSeeder::class,
+            CategoriasInventarioSeeder::class,
+            UnidadesMedidaSeeder::class,
         ]);
     }
 }

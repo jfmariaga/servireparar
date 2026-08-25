@@ -1,4 +1,4 @@
-# SERVIOPS (SERVIREPARAR S.A.S) Constitution
+# SERVIREPARAR S.A.S Constitution
 <!-- Sistema web de gestión operativa: OT, inventario, personal, equipos/mantenimiento, compras, KPIs y notificaciones -->
 
 ## Core Principles

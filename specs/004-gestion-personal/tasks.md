@@ -10,19 +10,21 @@
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Confirmar que existen usuarios con rol Técnico de prueba (spec 001) en el entorno local
+- [X] T001 Confirmar que existen usuarios con rol Técnico de prueba (spec 001) en el entorno local — el rol
+  ya está sembrado por `RolesSeeder` (spec 001) y usado en `tests/Feature/Personal/TecnicoTest.php`
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
 **⚠️ CRITICAL**: Bloquea las 3 historias de usuario
 
-- [ ] T002 Migración `xxxx_create_especialidades_table.php`
-- [ ] T003 [P] Migración `xxxx_create_tecnicos_table.php` (`usuario_id` unique, `especialidad_id`,
+- [X] T002 Migración `create_especialidades_table`
+- [X] T003 [P] Migración `create_tecnicos_table` (`usuario_id` unique, `especialidad_id`,
   `tarifa_hora`, `activo`)
-- [ ] T004 Seeder `database/seeders/EspecialidadesSeeder.php` (catálogo fijo inicial: Eléctrico, Mecánico,
-  Refrigeración, etc. — a validar lista final con el cliente en implementación)
-- [ ] T005 Modelos Eloquent: `Tecnico`, `Especialidad`
-- [ ] T006 `app/Policies/TecnicoPolicy.php` (gestión restringida a Administrador)
+- [X] T004 Seeder `database/seeders/EspecialidadesSeeder.php` (catálogo fijo inicial: Eléctrico, Mecánico,
+  Refrigeración y aire acondicionado, Electrónico, Estructuras y soldadura, General)
+- [X] T005 Modelos Eloquent: `Tecnico`, `Especialidad`
+- [X] T006 `app/Policies/TecnicoPolicy.php` (gestión restringida a Administrador vía permiso
+  `manage-tecnicos`)
 
 **Checkpoint**: Modelo de datos listo — las historias de usuario pueden implementarse
 
@@ -37,18 +39,33 @@ selector de operario de OT (o un selector de prueba si spec 002 aún no existe)
 
 ### Tests for User Story 1
 
-- [ ] T007 [P] [US1] Feature test `tests/Feature/Personal/TecnicoTest.php`: creación válida vinculada a
+- [X] T007 [P] [US1] Feature test `tests/Feature/Personal/TecnicoTest.php`: creación válida vinculada a
   usuario existente
-- [ ] T008 [P] [US1] Feature test: técnico inactivo excluido de selectores de asignación (FR-002)
+- [X] T008 [P] [US1] Feature test: técnico inactivo excluido de selectores de asignación (FR-002) — cubierto
+  por `Tecnico::scopeDisponibles()` y su test dedicado
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Componente Volt `app/Livewire/Personal/Tecnicos.php` (listado + form crear/editar/activo)
-- [ ] T010 [US1] Ruta `/personal/tecnicos` protegida por `TecnicoPolicy`
+- [X] T009 [US1] ~~Componente Volt `app/Livewire/Personal/Tecnicos.php`~~ — **decisión de diseño (spec 001
+  FR-012 / spec 004 FR-007, 2026-08-25): sin pantalla separada de "Empleados"**. La ficha de técnico
+  (especialidad, tarifa, activo) se integró directamente en `admin.usuarios.index`
+  (`resources/views/livewire/admin/usuarios/index.blade.php`): aparece solo cuando el rol Técnico está
+  marcado, con `especialidad_id` obligatorio en ese caso; la tabla de Usuarios muestra la especialidad como
+  columna adicional
+- [X] T010 [US1] ~~Ruta `/personal/tecnicos`~~ — no aplica (ver T009); protegida por `TecnicoPolicy::manage`
+  (`Gate::authorize('manage', Tecnico::class)`) dentro de `guardar()`, además del `UserPolicy` ya existente
+  en la ruta `/usuarios`
 
 **Checkpoint**: Ficha de técnico funcional — MVP del módulo (prerrequisito de spec 002)
 
 ---
+
+> **Estado (2026-08-25)**: Fases 4 y 5 (US2, US3) se difieren deliberadamente hasta que spec 002 exista.
+> Construir `Tecnico::tareasActivasCount()` o `DesempenoTecnicoService` contra un `detalle_ot`/
+> `ordenes_trabajo` que todavía no existe obligaría a adivinar el esquema de spec 002 ahora y muy
+> probablemente reescribirlo después — más riesgo que valor. `Tecnico::scopeDisponibles()` (T008, ya
+> implementado) es el único contrato que spec 002 necesita de este módulo para su selector de operario;
+> el resto se retoma cuando spec 002 tenga `detalle_ot` real.
 
 ## Phase 4: User Story 2 - Asignación de trabajadores a Órdenes de Trabajo (Priority: P1)
 
@@ -97,9 +114,14 @@ estimado vs. real y conteo de OT
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T018 Verificar que las métricas de un técnico inactivado se conservan (no se filtran del histórico,
-  solo de selectores de asignación — FR-006)
-- [ ] T019 Ejecutar `php artisan test --filter=Personal` en verde
+- [X] T018 Verificar que las métricas de un técnico inactivado se conservan (no se filtran del histórico,
+  solo de selectores de asignación — FR-006) — verificado a nivel de ficha (el registro `Tecnico` y su
+  `tarifa_hora` sobreviven la inactivación); la verificación completa contra métricas de desempeño de OT
+  queda pendiente junto con US3
+- [X] T019 Ejecutar `php artisan test --filter=Personal` en verde (5/5)
+- [X] T020 (añadida 2026-08-25, FR-008) Pantalla propia de gestión del catálogo de Especialidad
+  (`personal.especialidades`, ruta `/especialidades`) — crear/editar/inactivar, sin afectar técnicos ya
+  asignados; añadida migración `activo` a `especialidades`. Tests: `EspecialidadesTest.php` (5/5)
 
 ---
 

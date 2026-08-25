@@ -37,6 +37,45 @@ el cliente.
   alcance? → A: Sí — el sistema genera e imprime el código (basado en el código interno del ítem) y admite
   lectura vía lector USB tipo teclado (sin hardware/SDK especial).
 
+### Session 2026-08-25
+
+- Q: Categoría de Inventario y Unidad de Medida — ¿catálogos sembrados una sola vez, o el Almacenista/
+  Administrador debe poder mantenerlos desde la interfaz? → A: Desde la interfaz, por la misma razón que
+  la especialidad de técnico (spec 004): un catálogo editable solo por seeder es el riesgo que se quería
+  evitar (categorías o unidades de medida con nombres distintos para lo mismo por error de digitación).
+  `unidad_medida` deja de ser texto libre y pasa a ser un catálogo propio (`UNIDADES_MEDIDA`) con la misma
+  pantalla de gestión que Categoría. Inactivar una categoría o unidad no afecta a los ítems que ya la usan,
+  solo deja de ofrecerse para ítems nuevos.
+
+### Session 2026-08-25 (costeo de entradas, cancelación de auditoría y dashboard)
+
+- Q: Si una herramienta/consumible ya tiene stock a un costo y llega una nueva entrada a un costo distinto,
+  ¿cómo se mantiene el costo real para que spec 002 pueda costear una OT correctamente? → A (dos rechazos
+  antes de la decisión final, el mismo día): (1) se probó un costeo por promedio ponderado sobre un único
+  campo del maestro — el usuario lo rechazó porque diluye el precio real pagado en cada compra; (2) se
+  probó reemplazar ese único campo por el costo de la entrada más reciente — el usuario también lo rechazó,
+  porque sigue perdiendo la trazabilidad de lo que costó cada entrada anterior y no sirve para saber el
+  costo exacto de lo que realmente se consume en una OT. Decisión final: **costeo por lotes con consumo
+  FIFO**. Cada movimiento de tipo entrada es su propio lote (cantidad + costo real de esa compra,
+  `cantidad_disponible` que se va descontando). Una salida consume primero el lote más antiguo con saldo
+  disponible; si cruza más de un lote, el costo de esa salida es el promedio ponderado únicamente de los
+  lotes que efectivamente salieron (no de todo el inventario, no del último precio). El campo
+  `Inventario.costo_unitario` queda solo como referencia rápida del costo de la última entrada — el valor
+  real del ítem (`valorTotal()`) se calcula sumando sus lotes con saldo, nunca ese campo.
+- Q: ¿El costo unitario del ítem se sigue editando a mano en el catálogo? → A: No — se deriva únicamente de
+  sus entradas de compra (ver punto anterior); editarlo a mano lo desincronizaría de esa trazabilidad. El
+  campo se retiró del formulario de catálogo (junto con la leyenda explicativa que tenía — sobraba). El
+  listado de catálogo muestra en su lugar el valor total del ítem, calculado por lotes, que es lo útil de
+  ver ítem a ítem (ver spec 009, FR-005).
+- Q: ¿Qué pasa si una auditoría se inicia por error y hay que descartarla? → A: Se agrega "Cancelar
+  auditoría", distinta de "Cerrar": la auditoría queda en estado `cancelada` (no `cerrada`) y cualquier
+  ajuste que estuviera pendiente de aprobación queda automáticamente `rechazado` (con el motivo anotado),
+  sin tocar el `stock_actual`.
+- Q: ¿Cómo se ve "de un vistazo" el estado del almacén? → A: Un dashboard propio (`/inventario`, antes
+  ocupado por el catálogo) con tarjetas de ítems activos, valor real del inventario, ítems bajo stock
+  mínimo y herramientas por estado, más una tabla de ítems más críticos por stock bajo y valor por
+  categoría. El catálogo se movió a `/inventario/catalogo`.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Atender solicitudes de insumos generadas desde una OT (Priority: P1)
@@ -215,16 +254,44 @@ imprimible, y que ese código puede usarse para buscar el ítem mediante un lect
   con un lector USB en modo teclado (sin requerir hardware o SDK especial).
 - **FR-014**: Los movimientos de entrada de inventario DEBEN registrar el Proveedor (spec 000) que
   suministró el ítem.
+- **FR-015**: El sistema DEBE permitir crear, editar e inactivar categorías de inventario y unidades de
+  medida desde una pantalla propia (no un seeder ni intervención técnica), evitando nombres distintos para
+  lo mismo por error de digitación. Inactivar una categoría o unidad NO DEBE afectar a los ítems que ya la
+  usan; solo deja de ofrecerse como opción para ítems nuevos.
+- **FR-016**: El sistema DEBE llevar el costeo de inventario por lotes con consumo FIFO: cada movimiento de
+  entrada es su propio lote (cantidad y costo real de esa compra, con una cantidad disponible que se
+  descuenta a medida que se consume). Una salida DEBE consumir primero el lote más antiguo con saldo
+  disponible; si una salida cruza más de un lote, su costo unitario registrado DEBE ser el promedio
+  ponderado únicamente de los lotes efectivamente consumidos en esa salida (nunca un promedio de todo el
+  inventario, ni el costo de la compra más reciente aplicado a stock que costó distinto). Un ajuste de
+  auditoría (FR-008a) que reduzca el stock DEBE consumir lotes de la misma forma; uno que lo aumente DEBE
+  crear un lote nuevo al costo de referencia del ítem. El costo unitario del ítem (`Inventario.costo_unitario`)
+  es solo una referencia informativa del costo de su última entrada — NO se edita manualmente desde el
+  catálogo y NO es la fuente del valor total del ítem (ver FR-018).
+- **FR-017**: El sistema DEBE permitir cancelar una auditoría abierta (distinto de cerrarla): la auditoría
+  queda en estado `cancelada` y todo ajuste que estuviera pendiente de aprobación en ella queda
+  automáticamente `rechazado`, sin modificar el `stock_actual`.
+- **FR-018**: El sistema DEBE ofrecer un panel/dashboard de inventario con el valor real del inventario
+  (Σ del valor de los lotes con saldo disponible de cada ítem, ver FR-016), conteo de ítems bajo su stock
+  mínimo, estado de herramientas (disponibles/en uso/dañadas) y valor por categoría, como vista de entrada
+  al módulo.
 
 ### Key Entities
 
 - **Inventario** (`INVENTARIO`): id, código (con prefijo por tipo), nombre, tipo (Herramienta/Consumible),
   categoria_id, ubicacion (Pasillo-Estante-Nivel), codigo_barras, stock_actual, stock_minimo,
-  unidad_medida, activo.
+  unidad_medida_id (FK a `UNIDADES_MEDIDA`, ver FR-015), costo_unitario (solo referencia informativa de la
+  última entrada, ver FR-016 — no editable a mano, no es la fuente del valor total), activo.
+- **Unidad de Medida** (`UNIDADES_MEDIDA`): catálogo configurable — id, nombre, abreviatura, activo (ver
+  FR-015).
 - **Categoría de Inventario**: catálogo configurable — Llantas, EPP, Tuberías y Láminas, Insumos, Pinturas,
   Herramientas, Repuestos (semilla inicial basada en el Excel real).
 - **Movimiento de Inventario** (`MOVIMIENTOS_INVENTARIO`): id, inventario_id, tipo_mov (Entrada/Salida/
-  Devolución), cantidad, fecha, motivo, referencia, usuario_id, proveedor_id (spec 000, en entradas).
+  Devolución), cantidad, cantidad_disponible (solo en entradas — saldo del lote sin consumir, ver FR-016),
+  costo_unitario (en entradas: costo real de ese lote; en salidas: costo exacto de los lotes consumidos por
+  esa salida), fecha, motivo, referencia, usuario_id, proveedor_id (spec 000, en entradas).
+- **Auditoría de Inventario** (`AUDITORIAS_INVENTARIO`): id, iniciada_por, fecha_inicio, fecha_cierre,
+  estado (`abierta` / `cerrada` / `cancelada`, ver FR-017).
 
 ## Success Criteria *(mandatory)*
 
@@ -237,13 +304,20 @@ imprimible, y que ese código puede usarse para buscar el ítem mediante un lect
   percibida < 1 minuto).
 - **SC-004**: El 100% de las devoluciones de herramientas quedan con un estado final explícito (Disponible,
   Dañada o En mantenimiento), sin quedar en estado ambiguo "En uso" tras la devolución.
+- **SC-005**: La suma de `cantidad_disponible` de los lotes (movimientos de entrada) de un ítem siempre
+  coincide con su `stock_actual` — verificable en cualquier momento comparando ambos valores; ninguna
+  salida ni ajuste de auditoría rompe esa igualdad.
+- **SC-006**: El costo de una salida que consume más de un lote es exactamente el promedio ponderado de los
+  lotes que salieron en esa operación (verificable recalculándolo a mano desde los lotes tocados), nunca un
+  promedio de todo el inventario ni el costo de la compra más reciente.
 
 ## Assumptions
 
 - El catálogo de categorías de inventario (`categoria_id`) es mantenido por el Administrador/Almacenista y
   se siembra inicialmente con las 7 categorías reales del taller (ver Clarifications).
-- El costo unitario de los insumos usados en solicitudes manuales sin OT se toma del maestro de inventario
-  vigente al momento de la salida.
+- El costo unitario de los insumos usados en solicitudes manuales sin OT es el costo real de los lotes
+  consumidos por FIFO en esa salida (ver FR-016); si el ítem no tiene lotes registrados (stock cargado
+  antes de este costeo), se usa el costo de referencia del maestro como respaldo.
 - Las auditorías son un proceso manual asistido por el sistema; la lectura de código de barras (User Story
   5) agiliza el registro de movimientos y conteos, pero no reemplaza el conteo físico humano.
 - Los lectores de código de barras se asumen tipo "USB HID" (actúan como teclado), sin necesidad de drivers

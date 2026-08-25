@@ -29,19 +29,21 @@ class UsuariosTest extends TestCase
 
     public function test_administrador_puede_crear_usuario_con_rol(): void
     {
+        // Rol Almacenista (no Técnico): la ficha de técnico con especialidad obligatoria
+        // se cubre en tests/Feature/Personal/TecnicoTest.php (spec 004).
         Volt::actingAs($this->administrador())
             ->test('admin.usuarios.index')
             ->call('nuevo')
-            ->set('name', 'Nuevo Técnico')
-            ->set('email', 'tecnico2@servireparar.com')
+            ->set('name', 'Nuevo Almacenista')
+            ->set('email', 'almacenista2@servireparar.com')
             ->set('password', 'password123')
-            ->set('roles', [RolPrioridad::Tecnico->value])
+            ->set('roles', [RolPrioridad::Almacenista->value])
             ->call('guardar')
             ->assertSet('mostrarForm', false);
 
-        $creado = User::where('email', 'tecnico2@servireparar.com')->first();
+        $creado = User::where('email', 'almacenista2@servireparar.com')->first();
         $this->assertNotNull($creado);
-        $this->assertTrue($creado->hasRole(RolPrioridad::Tecnico->value));
+        $this->assertTrue($creado->hasRole(RolPrioridad::Almacenista->value));
     }
 
     public function test_no_permite_inactivar_al_ultimo_administrador_activo(): void
