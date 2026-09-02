@@ -45,7 +45,9 @@ class TecnicoTest extends TestCase
             ->set('password', 'password123')
             ->set('roles', [RolPrioridad::Tecnico->value])
             ->set('especialidadId', $especialidad->id)
-            ->set('tarifaHora', '25000')
+            ->set('sueldo', '2400000')
+            ->set('cargo', 'Técnico de taller')
+            ->set('tipoContrato', 'indefinido')
             ->call('guardar')
             ->assertSet('mostrarForm', false)
             ->assertHasNoErrors();
@@ -57,7 +59,10 @@ class TecnicoTest extends TestCase
         $tecnico = Tecnico::where('usuario_id', $usuario->id)->first();
         $this->assertNotNull($tecnico);
         $this->assertSame($especialidad->id, $tecnico->especialidad_id);
-        $this->assertEquals(25000, $tecnico->tarifa_hora);
+        $this->assertSame('Técnico de taller', $tecnico->cargo);
+        $this->assertSame('indefinido', $tecnico->tipo_contrato);
+        $this->assertEquals(2400000, $tecnico->sueldoVigente());
+        $this->assertEquals(80000, $tecnico->valorDia()); // 2.400.000 / 30
         $this->assertTrue($tecnico->activo);
     }
 
@@ -104,11 +109,11 @@ class TecnicoTest extends TestCase
 
     public function test_metricas_de_tecnico_inactivado_se_conservan_en_su_ficha(): void
     {
-        $tecnico = Tecnico::factory()->create(['activo' => true, 'tarifa_hora' => 30000]);
+        $tecnico = Tecnico::factory()->conSueldo(3000000)->create(['activo' => true]);
 
         $tecnico->update(['activo' => false]);
 
-        $this->assertSame(30000.0, (float) $tecnico->fresh()->tarifa_hora);
+        $this->assertEquals(3000000, $tecnico->fresh()->sueldoVigente());
         $this->assertNotNull(Tecnico::find($tecnico->id));
     }
 }

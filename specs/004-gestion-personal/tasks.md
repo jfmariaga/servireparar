@@ -125,6 +125,46 @@ estimado vs. real y conteo de OT
 
 ---
 
+## Phase 7: Revisión 2026-09-01 - Sueldo historizado, valor día y hoja de vida (FR-009 a FR-013)
+
+**Goal**: Costeo de mano de obra propia por día desde el sueldo mensual (historizado), datos laborales y
+hoja de vida de solo lectura.
+
+**Independent Test**: Crear un técnico con sueldo 2.400.000 → valor día `$ 80.000`; subirle el sueldo con
+vigencia futura → se guarda una fila nueva, el sueldo vigente hoy no cambia; abrir su hoja de vida y ver
+sueldo actual, valor día, datos laborales e histórico, todo de solo lectura.
+
+- [x] T021 `config/personal.php` — `dias_mes` => 30 (env `PERSONAL_DIAS_MES`).
+- [x] T022 Migración `create_sueldos_tecnico_table` (`tecnico_id` cascade, `sueldo` decimal(12,2),
+  `vigente_desde` date, `registrado_por` FK users nullable, timestamps; índice `(tecnico_id, vigente_desde)`).
+- [x] T023 Migración `add_datos_laborales_to_tecnicos_table` — agrega `fecha_ingreso` (date nullable),
+  `cargo` (string(120) nullable), `tipo_contrato` (enum `termino_fijo`/`indefinido`/`prestacion_servicios`
+  nullable) y **elimina** `tarifa_hora`.
+- [x] T024 Modelo `app/Models/SueldoTecnico.php`; `Tecnico` +`sueldos()`, `sueldoVigente(?fecha)`,
+  `valorDia(?fecha)`, accessors `sueldo_actual` / `valor_dia_actual`, `registrarSueldo($valor,$vigenteDesde,$por)`;
+  quitar `tarifa_hora` de fillable/casts; agregar `fecha_ingreso`(date)/`cargo`/`tipo_contrato`.
+- [x] T025 `TecnicoFactory` — quitar `tarifa_hora`; agregar datos laborales; state `conSueldo($valor)` que
+  crea la fila en `sueldos_tecnico`.
+- [x] T026 [FR-009/FR-010/FR-012] `admin/usuarios/index.blade.php` — en "Ficha de técnico": quitar "Tarifa
+  por hora"; agregar Sueldo mensual + Vigente desde (default hoy) + valor día (solo lectura, `Moneda::cop`)
+  + Fecha de ingreso + Cargo + Tipo de contrato. `guardar()`: upsert de `Tecnico` con los datos laborales
+  y `registrarSueldo(...)` si el sueldo cambió.
+- [x] T027 [FR-013] Hoja de vida — acción `verHojaVida($userId)` + panel de solo lectura en
+  `admin/usuarios/index.blade.php` (datos, especialidad, estado, sueldo actual + valor día, datos
+  laborales, tabla del histórico de sueldos, bloque "Resumen operativo" con aviso de dependencia de spec
+  002). Botón "Hoja de vida" solo en filas de usuarios con rol Técnico.
+- [x] T028 [P] Tests `tests/Feature/Personal/`: actualizar `TecnicoTest.php` (`tarifaHora`→sueldo/valor
+  día); nuevo `SueldoTecnicoTest.php` (histórico: `sueldoVigente` por fecha, `valorDia = sueldo/30`, subir
+  sueldo crea fila y no altera el vigente anterior); `HojaVidaTest.php` (panel visible solo para técnicos,
+  de solo lectura, muestra histórico).
+- [x] T029 Actualizar `README.md` (estado de clarify/plan/tasks de specs 004 y 002) y `php artisan test
+  --filter=Personal` en verde.
+
+**Checkpoint**: Contrato `Tecnico::valorDia($fecha)` listo y probado para que spec 002 lo use al costear
+`detalle_ot.dias_trabajados`; hoja de vida operativa (sin la parte de carga/desempeño, que llega con 002).
+
+---
+
 ## Dependencies & Execution Order
 
 - **Setup + Foundational** bloquean todo.

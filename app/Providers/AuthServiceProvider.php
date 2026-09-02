@@ -9,6 +9,7 @@ use App\Models\Contratista;
 use App\Models\Equipo;
 use App\Models\Inventario;
 use App\Models\Proveedor;
+use App\Models\SolicitudDespacho;
 use App\Models\Tecnico;
 use App\Models\User;
 use App\Policies\AuditoriaPolicy;
@@ -17,6 +18,7 @@ use App\Policies\ContratistaPolicy;
 use App\Policies\EquipoPolicy;
 use App\Policies\InventarioPolicy;
 use App\Policies\ProveedorPolicy;
+use App\Policies\SolicitudDespachoPolicy;
 use App\Policies\TecnicoPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
@@ -44,6 +46,7 @@ class AuthServiceProvider extends ServiceProvider
         Inventario::class => InventarioPolicy::class,
         AuditoriaInventario::class => AuditoriaPolicy::class,
         AjusteAuditoria::class => AuditoriaPolicy::class,
+        SolicitudDespacho::class => SolicitudDespachoPolicy::class,
     ];
 
     public function boot(): void

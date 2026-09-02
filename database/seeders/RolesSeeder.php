@@ -10,7 +10,8 @@ use Spatie\Permission\Models\Role;
 class RolesSeeder extends Seeder
 {
     /**
-     * Crea los 4 roles fijos del sistema (spec 001) y permisos base por módulo.
+     * Crea los 5 roles fijos del sistema (spec 001; Vendedor añadido 2026-09-01
+     * para el canal de venta sin OT del spec 003, US6) y permisos base por módulo.
      * Los permisos son deliberadamente amplios en esta etapa inicial; se afinan
      * módulo por módulo a medida que se implementan (spec 000, 002, 003, ...).
      */
@@ -34,6 +35,8 @@ class RolesSeeder extends Seeder
             // Inventario / Bodega (spec 003)
             'manage-inventario',
             'approve-auditorias-inventario',
+            // Despachos / venta mostrador sin OT (spec 003, US6)
+            'manage-despachos',
         ];
 
         foreach ($permisos as $permiso) {
@@ -50,6 +53,10 @@ class RolesSeeder extends Seeder
 
         /** @var Role $almacenista */
         $almacenista = Role::findByName(RolPrioridad::Almacenista->value);
-        $almacenista->syncPermissions(['manage-inventario']);
+        $almacenista->syncPermissions(['manage-inventario', 'manage-despachos']);
+
+        /** @var Role $vendedor */
+        $vendedor = Role::findByName(RolPrioridad::Vendedor->value);
+        $vendedor->syncPermissions(['manage-despachos']);
     }
 }

@@ -138,7 +138,7 @@ reutilizarla desde spec 007 (Reportes/KPIs), que consume estos mismos cálculos.
 | estado_id | FK → `estados_ot` | Solo modificado por `EstadoOtService` |
 | tipo_servicio | enum('taller','domicilio') | |
 | descripcion | text | |
-| tiempo_estimado_horas | decimal | Base para el umbral de vencimiento (spec 008, `CONFIGURACIONES`) |
+| tiempo_estimado_dias | decimal | Estimación en días; base para el umbral de vencimiento (spec 008, `CONFIGURACIONES`) |
 | fecha_creacion | timestamp | |
 | fecha_finalizacion | timestamp nullable | |
 | valor_proyecto | decimal(12,2) nullable default null | Valor cobrado al cliente; puede quedar sin definir (ver Edge Cases del spec) |
@@ -160,7 +160,7 @@ reutilizarla desde spec 007 (Reportes/KPIs), que consume estos mismos cálculos.
 | estado_tarea | enum('pendiente','en_curso','finalizada') | Alimenta `EstadoOtService` |
 | fecha_inicio | timestamp nullable | |
 | fecha_fin | timestamp nullable | |
-| horas_trabajadas | decimal nullable | Base del costeo de mano de obra propia |
+| dias_trabajados | decimal nullable | Días trabajados por el técnico en la tarea; base del costeo de mano de obra propia (× valor día del técnico, spec 004) |
 
 ### OtManoObraContratista (`ot_mano_obra_contratista`) — nueva
 
@@ -211,7 +211,10 @@ reutilizarla desde spec 007 (Reportes/KPIs), que consume estos mismos cálculos.
 ### Cálculo de costeo (`CosteoOtService`, no persistido como tabla — calculado on-demand o cacheado)
 
 ```
-costo_mano_obra_propia = Σ (horas_trabajadas × tarifa_hora_tecnico)  [tarifa desde spec 004]
+costo_mano_obra_propia = Σ (dias_trabajados × valor_dia_tecnico)
+                         [valor_dia = sueldo_mensual / 30 del sueldo del técnico VIGENTE a la fecha de
+                          referencia de la OT (fecha_finalizacion, o hoy si sigue abierta); histórico de
+                          sueldos en spec 004 (FR-009..FR-011) — una OT cerrada no se recostea]
 costo_contratistas      = Σ ot_mano_obra_contratista.valor
 costo_repuestos         = Σ (detalle_ot.cantidad_insumo × inventario.costo_unitario)  [spec 003]
 costo_total             = costo_mano_obra_propia + costo_contratistas + costo_repuestos

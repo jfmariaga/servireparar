@@ -40,6 +40,16 @@ documentos operativos reales provistos por el cliente.
   "Recepción/Asesor técnico" y "Calidad/Entrega" son responsabilidades que asume el Jefe de Taller (o el
   Administrador) dentro del sistema; no se crean roles adicionales en spatie-permission.
 
+### Session 2026-09-01 (mano de obra propia por día, resuelto desde spec 004)
+
+- Q: El modelo de tarifa del técnico interno quedó abierto ("por hora" vs. "por días/salario mensual"). Se
+  resuelve. → A: **Por día**. El técnico tiene un **sueldo mensual** (historizado, spec 004); su **valor
+  día** = `sueldo / 30` (divisor configurable). El `DETALLE_OT` registra **días trabajados** por técnico
+  (`dias_trabajados`), no horas, y la estimación de la tarea pasa a **días** (`tiempo_estimado_dias`); el
+  umbral de vencimiento (FR-010, spec 008) se expresa en días. El costo de mano de obra propia usa el
+  valor día del **sueldo vigente a la fecha de referencia de la OT** (su fecha de cierre, o hoy si sigue
+  abierta) — una OT cerrada no se recostea si luego cambia el sueldo del técnico (ver spec 004, FR-011).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Crear una Orden de Trabajo estructurada (Priority: P1)
@@ -147,22 +157,24 @@ cambio queda registrado en el historial/comentarios de la OT sin perder el estad
 ### User Story 5 - Costeo y utilidad neta por OT (Priority: P2)
 
 El sistema calcula automáticamente el costo total y la utilidad neta de cada OT, combinando el costo de
-mano de obra propia (técnicos, según horas/tarifa), mano de obra de contratistas externos (spec 000) y
-repuestos/insumos utilizados, comparado contra el valor cobrado al cliente.
+mano de obra propia (técnicos, según **días trabajados × valor día**, con el valor día derivado del sueldo
+mensual del técnico — spec 004), mano de obra de contratistas externos (spec 000) y repuestos/insumos
+utilizados, comparado contra el valor cobrado al cliente.
 
 **Why this priority**: Ampliación de alcance acordada con el cliente (ver Clarifications) a partir del
 formato real de OT, que ya calcula "COSTO TOTAL DEL PROYECTO" y "UTILIDAD NETA DEL PROYECTO" manualmente en
 Excel. Automatizarlo da visibilidad de rentabilidad por orden, valor central para la gestión del negocio.
 
-**Independent Test**: Se crea una OT con mano de obra propia (horas x tarifa), un contratista (valor fijo) y
-repuestos (cantidad x costo unitario), se define el valor cobrado al cliente, y se verifica que el sistema
-calcula correctamente costo total y utilidad neta (valor cliente − costo total).
+**Independent Test**: Se crea una OT con mano de obra propia (días trabajados × valor día), un contratista
+(valor fijo) y repuestos (cantidad x costo unitario), se define el valor cobrado al cliente, y se verifica
+que el sistema calcula correctamente costo total y utilidad neta (valor cliente − costo total).
 
 **Acceptance Scenarios**:
 
-1. **Given** una OT con tareas ejecutadas por técnicos propios con horas registradas, **When** se consulta
-   el costeo de la OT, **Then** el sistema calcula el costo de mano de obra propia según horas y tarifa/
-   salario del técnico.
+1. **Given** una OT con tareas ejecutadas por técnicos propios con días trabajados registrados, **When** se
+   consulta el costeo de la OT, **Then** el sistema calcula el costo de mano de obra propia como
+   `Σ (dias_trabajados × valor_día)`, donde el valor día = `sueldo_mensual / 30` del sueldo del técnico
+   vigente a la fecha de referencia de la OT (spec 004, FR-011).
 2. **Given** una OT con mano de obra de uno o más contratistas, **When** se registra su participación con
    cantidad y valor, **Then** el sistema suma ese costo al costo total de la OT.
 3. **Given** una OT con repuestos/insumos consumidos (integrados desde spec 003), **When** se consulta el
@@ -187,9 +199,9 @@ calcula correctamente costo total y utilidad neta (valor cliente − costo total
   el formato real)? El sistema debe permitir crear y ejecutar la OT igualmente; el costeo/utilidad se
   calcula igual (mostrando utilidad negativa) y puede completarse/corregirse después, sin bloquear el flujo
   operativo por falta de este dato comercial.
-- Los técnicos internos también pueden facturar por tarifa/salario mensual prorrateado por días trabajados
-  (visto en el formato real: "Total Días", "Salario Mensual", "Total"), no solo por hora — el modelo exacto
-  de tarifa se define en `/speckit-plan`.
+- Los técnicos internos se costean por **días trabajados × valor día** (`salario mensual / 30`), como en el
+  formato real ("Total Días", "Salario Mensual", "Total") — resuelto en la sesión de clarificación
+  2026-09-01; el sueldo es historizado y el detalle vive en spec 004 (FR-009 a FR-011).
 
 ## Requirements *(mandatory)*
 
@@ -216,7 +228,7 @@ calcula correctamente costo total y utilidad neta (valor cliente − costo total
   (tareas, responsables, insumos) preservando el historial de cambios y sin perder evidencias/tareas ya
   completadas.
 - **FR-010**: El sistema DEBE generar una alerta cuando una OT esté próxima a vencer o vencida respecto a
-  su tiempo estimado, usando un umbral (horas o porcentaje del tiempo estimado) almacenado en
+  su tiempo estimado, usando un umbral (días o porcentaje del tiempo estimado en días) almacenado en
   `CONFIGURACIONES` y ajustable por el Administrador sin cambios de código.
 - **FR-011**: El sistema DEBE notificar automáticamente al cliente por correo en los hitos relevantes del
   flujo (creación, entrega) — detalle del mecanismo en spec 008.
@@ -231,7 +243,10 @@ calcula correctamente costo total y utilidad neta (valor cliente − costo total
   externa, con cantidad/valor de su participación, independiente de los técnicos propios asignados.
 - **FR-016**: El sistema DEBE calcular automáticamente el costo total de cada OT (mano de obra propia +
   mano de obra de contratistas + repuestos/insumos consumidos) y la utilidad neta (valor del proyecto
-  cobrado al cliente − costo total), visible al menos para el rol Administrador.
+  cobrado al cliente − costo total), visible al menos para el rol Administrador. La mano de obra propia se
+  calcula como `Σ (dias_trabajados × valor_día del técnico)`, con el valor día tomado del sueldo del
+  técnico vigente a la fecha de referencia de la OT (spec 004, FR-011); una OT cerrada NO se recostea si el
+  sueldo del técnico cambia después.
 - **FR-017**: El sistema DEBE registrar el estado de ingreso del equipo (marca, modelo, serie, estado) y el
   registro fotográfico de entrada al recibir el equipo, y el registro fotográfico de salida al confirmar la
   entrega — consistente con el proceso real de recepción/cierre documentado por el cliente.
@@ -241,8 +256,10 @@ calcula correctamente costo total y utilidad neta (valor cliente − costo total
 - **Orden de Trabajo** (`ORDENES_TRABAJO`): id, numero_ot (formato `OTSV-00001`), cliente_id (spec 000),
   equipo_id, prioridad_id, tecnico_id, estado_id, fecha_creacion, fecha_finalizacion, valor_proyecto
   (cobrado al cliente), observaciones.
-- **Detalle de OT** (`DETALLE_OT`): tareas/ítems de la OT — descripción, cantidad, costo_unitario,
-  valor_total (según ER; el mockup describe tareas con operario e insumo asociados).
+- **Detalle de OT** (`DETALLE_OT`): tareas/ítems de la OT — descripción, tecnico_id (operario),
+  tiempo_estimado_dias, dias_trabajados, insumo asociado (spec 003). El costo de mano de obra propia de la
+  tarea = `dias_trabajados × valor_día del técnico` (no se guarda una tarifa en el detalle; se deriva del
+  sueldo historizado del técnico, spec 004).
 - **Mano de Obra de Contratista** (nueva, no existía en el ER original): ot_id, contratista_id (spec 000),
   especialidad, cantidad, valor — costo de mano de obra externa por OT.
 - **Evidencia de OT** (`EVIDENCIAS_OT`): tipo_archivo, url_archivo, descripción, fecha_subida, tipo_registro

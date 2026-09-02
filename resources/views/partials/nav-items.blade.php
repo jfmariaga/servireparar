@@ -38,17 +38,31 @@
             'icon' => 'M4 4.5h16v4.5H4z|M4 10.5h16v4.5H4z|M4 16.5h16v3H4z',
         ],
         [
+            'route' => 'despachos.index',
+            'activePattern' => 'despachos.*',
+            'label' => 'Despachos',
+            'ability' => 'manage-despachos',
+            'icon' => 'M3 7h11v8H3z|M14 10h4l3 3v2h-7z|M7.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z|M17.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
+        ],
+        [
             'route' => 'usuarios.index',
             'label' => 'Usuarios',
             'ability' => 'manage-usuarios',
             'icon' => 'M9 8a3.2 3.2 0 110 6.4A3.2 3.2 0 019 8z|M3.5 20c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5|M17.5 8.5a2.4 2.4 0 110 4.8|M15.7 14.8c2.3.4 3.8 2.2 3.8 5.2',
         ],
     ];
+
+    $despachosPendientes = auth()->user()->hasAnyRole(['Almacenista', 'Administrador'])
+        ? \App\Models\SolicitudDespacho::whereIn('estado', ['solicitada', 'recibida', 'remisionada'])->count()
+        : 0;
 @endphp
 
 @foreach ($items as $item)
     @continue($item['ability'] && ! auth()->user()->can($item['ability']))
-    @php $isActive = request()->routeIs($item['activePattern'] ?? $item['route']); @endphp
+    @php
+        $isActive = request()->routeIs($item['activePattern'] ?? $item['route']);
+        $badge = $item['route'] === 'despachos.index' && $despachosPendientes > 0 ? $despachosPendientes : null;
+    @endphp
 
     @if ($variant === 'sidebar')
         <a href="{{ route($item['route']) }}"
@@ -61,6 +75,9 @@
                 @endforeach
             </svg>
             {{ $item['label'] }}
+            @if ($badge)
+                <span class="ml-auto bg-brand-red text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">{{ $badge }}</span>
+            @endif
         </a>
     @else
         <a href="{{ route($item['route']) }}"
@@ -72,6 +89,9 @@
                 @endforeach
             </svg>
             {{ $item['label'] }}
+            @if ($badge)
+                <span class="bg-brand-red text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">{{ $badge }}</span>
+            @endif
         </a>
     @endif
 @endforeach

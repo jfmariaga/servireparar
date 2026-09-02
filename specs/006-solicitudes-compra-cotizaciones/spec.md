@@ -199,3 +199,7 @@ verificando que el historial de costos queda registrado en `COMPRAS`/`DETALLE_CO
   en la cotización es el mecanismo de respaldo para el resto.
 - La maestra de servicios/insumos usada para cotizaciones puede reutilizar el catálogo de `INVENTARIO`
   (spec 003) para los insumos, y requiere un catálogo adicional de "servicios" no modelado aún en el ER.
+- El canal de **venta mostrador sin OT** (spec 003, US6) registra las compras a terceros por faltante de
+  almacén de forma ligera en la propia línea de la solicitud de despacho (proveedor externo + costo +
+  motivo "No disponible en almacén"), SIN crear un registro en `COMPRAS` / `DETALLE_COMPRA`. Formalizar
+  esas compras externas dentro de este módulo queda fuera de alcance por ahora.

@@ -1,8 +1,13 @@
 # Implementation Plan: Autenticación y Gestión de Usuarios
 
-**Branch**: `001-autenticacion-usuarios` | **Date**: 2026-08-24 | **Spec**: [spec.md](spec.md)
+**Branch**: `001-autenticacion-usuarios` | **Date**: 2026-08-24 · **Rev.**: 2026-09-01 (rol Vendedor) | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `specs/001-autenticacion-usuarios/spec.md`
+
+> **Revisión 2026-09-01**: se agrega **Vendedor** como 5º rol fijo (canal de venta sin OT, spec 003 US6).
+> Cambios acotados: enum/lista de roles pasa de 4 a 5, `RolPrioridad` inserta `Vendedor` entre `Almacenista`
+> y `Técnico`, `RolesSeeder` crea el rol y su permiso `manage-despachos`, y se añade una ruta placeholder
+> `dashboard.vendedor`. Detalle en la sección [Revisión 2026-09-01](#revisión-2026-09-01--rol-vendedor).
 
 ## Summary
 
@@ -144,3 +149,45 @@ UI con el resto del sistema, según los mockups Ilustraciones 1-4).
    expirar según el TTL configurado (`config/auth.php`, `passwords.users.expire`).
 5. Intentar inactivar al único Administrador activo → debe rechazarse (FR-008).
 6. `php artisan test --filter=Auth` y `--filter=Usuarios` en verde.
+
+---
+
+## Revisión 2026-09-01 — Rol Vendedor
+
+### Alcance
+
+Quinto rol fijo del catálogo, requerido por el canal de venta mostrador sin OT (spec 003, US6). El Vendedor
+recibe la solicitud del cliente, valida contra el inventario y crea Solicitudes de Despacho; no descuenta
+stock, no gestiona catálogos ni auditorías. La lógica funcional del despacho vive en spec 003; aquí solo se
+da de alta el rol, su prioridad de redirección y su permiso.
+
+### Cambios de código
+
+| Archivo | Cambio |
+|---|---|
+| `app/Enums/RolPrioridad.php` | Nuevo case `Vendedor = 'Vendedor'`; `ordenados()` → `[Administrador, JefeDeTaller, Almacenista, Vendedor, Tecnico]`; `rutaDashboard()` mapea `Vendedor` → `dashboard.vendedor`. |
+| `database/seeders/RolesSeeder.php` | El `foreach (RolPrioridad::ordenados())` ya crea el rol nuevo automáticamente. Añadir permiso `manage-despachos` a la lista; asignarlo a `Administrador` y `Vendedor`; asignar también `manage-despachos` a `Almacenista` (recibe/remisiona/entrega) y darle `manage-inventario` de solo lectura ya lo tiene. Vendedor: `syncPermissions(['manage-despachos'])` (+ lectura de inventario vía policy). |
+| `routes/web.php` | `Volt::route('/dashboard/vendedor', 'dashboard')->name('dashboard.vendedor')->middleware('role:Vendedor')` (placeholder, igual que los demás roles; spec 007 lo reemplaza). |
+| Redirección post-login | Sin cambios de lógica: ya itera `RolPrioridad::ordenados()`; basta el nuevo case. |
+
+### Data Model (incremental)
+
+- `roles` (spatie): +1 fila `Vendedor`. Catálogo pasa a 5 roles fijos.
+- `permissions` (spatie): +1 `manage-despachos`.
+- Sin migraciones nuevas.
+
+### Constitution Check (re-evaluación)
+
+- ✅ **II. Roles y Autorización**: el rol nuevo se implementa 100% con spatie-permission y el enum de
+  prioridad ya existente; sin lógica hardcodeada adicional.
+- ✅ Resto de principios: sin impacto (no toca auth, ni trazabilidad, ni alcance más allá de lo que la
+  cotización ya describe como consumo para externos sin OT).
+
+### Verificación end-to-end (incremental)
+
+1. `php artisan migrate:fresh --seed` → existen 5 roles; `Vendedor` tiene solo `manage-despachos`.
+2. Crear un usuario con rol Vendedor desde `/usuarios`; login → redirige a `dashboard.vendedor`.
+3. Usuario Vendedor: 403 en `/usuarios`, `/inventario/catalogos`, `/inventario/auditorias`; acceso
+   permitido a `/despachos` (spec 003).
+4. Usuario con roles Almacenista + Vendedor → login redirige al dashboard de Almacenista (mayor prioridad).
+5. `php artisan test --filter=Auth`, `--filter=Usuarios`, `--filter=RoleMiddleware` en verde.

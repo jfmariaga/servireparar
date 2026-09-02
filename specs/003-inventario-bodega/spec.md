@@ -76,6 +76,52 @@ el cliente.
   mínimo y herramientas por estado, más una tabla de ítems más críticos por stock bajo y valor por
   categoría. El catálogo se movió a `/inventario/catalogo`.
 
+### Session 2026-09-01 (canal de venta sin OT: vendedor → almacén → remisión firmada)
+
+- Q: La "solicitud manual sin OT" (US2) hoy es un formulario de un solo paso del Almacenista que registra
+  y descuenta la salida de inmediato. El proceso real tiene tres vendedores que reciben la solicitud del
+  cliente, validan contra inventario y piden despacho al almacén, que entrega contra una remisión firmada.
+  ¿Se adopta ese proceso? → A: Sí. Se agrega la User Story 6: el Vendedor crea una **solicitud de
+  despacho** con estados; el Almacenista la recibe, remisiona y entrega. El formulario de un solo paso de
+  US2 se reemplaza por este flujo como canal estándar sin OT; los movimientos históricos con
+  `origen: manual` siguen siendo válidos y el canal nuevo usa `origen: despacho`.
+- Q: ¿"Vendedor" es un rol nuevo del sistema? → A: Sí — quinto rol, se agrega en
+  [spec 001](../001-autenticacion-usuarios/spec.md). Puede consultar el catálogo de inventario y
+  crear/editar/anular solicitudes de despacho; no descuenta stock, no gestiona catálogos ni auditorías.
+- Q: ¿Cómo se modela la solicitud del vendedor al almacén? → A: Entidad propia (`SOLICITUDES_DESPACHO` +
+  detalle) con máquina de estados `borrador` / `solicitada` / `recibida` / `remisionada` / `entregada` /
+  `anulada`, separada de `MOVIMIENTOS_INVENTARIO`; el movimiento de salida se genera solo al confirmar la
+  entrega firmada.
+- Q: ¿Cómo se maneja la remisión que firma el cliente? → A: El sistema genera una Remisión de Entrega con
+  consecutivo `REM-####` y captura la **firma digital del cliente en pantalla** (trazo sobre lienzo), con
+  nombre y documento de quien recibe; la firma queda embebida en la remisión imprimible.
+- Q: Cuando el producto no está en el almacén y se compra a un externo, ¿cómo queda la trazabilidad? → A:
+  Registro simple en la línea de la solicitud (proveedor externo, costo, motivo fijo "No disponible en
+  almacén"), SIN pasar por el inventario (no se crea ítem, ni lote, ni movimiento). El enlace formal con
+  Compras (spec 006) queda fuera de alcance de este canal.
+
+### Session 2026-09-01 (revisión visual contra la remisión física real "REMISIÓN BAQ Nº ####")
+
+- Q: ¿Qué campos faltaban en la remisión digital frente al formato físico del taller? → A: Se agregan a la
+  remisión: el **logo** de SERVIREPARAR (embebido, en vez del texto "SERVIREPARAR / S.A.S — Taller de
+  servicios"), datos del cliente (dirección, NIT, teléfono, correo — ya viven en spec 000, solo se
+  muestran), nombre de quien entrega físicamente (`entregado_por_nombre`, distinto de quien genera la
+  remisión) y una nota libre de entrega (`nota_entrega` — la narración tipo "Se realiza la entrega de 2
+  ventiladores en buen estado al señor…").
+- Q: ¿Cómo se identifica la ciudad de la remisión? → A: Las remisiones se hacen **por ciudad**, rotuladas
+  con la sigla aeroportuaria (IATA) — ej. "REMISIÓN BAQ" para Barranquilla. La sede se elige al crear la
+  solicitud de despacho (campo `sede` en `SOLICITUDES_DESPACHO`), de una lista configurable
+  (`config/despachos.php` → `sedes`); `sede_por_defecto` (env `DESPACHO_SEDE`) fija la preselección. El PDF
+  muestra "REMISIÓN {sigla}" y el nombre de la ciudad.
+- Q: ¿La distinción inventario / compra externa aparece en la remisión que ve el cliente? → A: No. Esa
+  separación es **trazabilidad interna**; el PDF del cliente lista todos los artículos juntos bajo
+  "Despachamos a ustedes los siguientes artículos", sin la etiqueta "No disponible en almacén", sin el
+  proveedor externo y sin costos. La separación se mantiene solo en la pantalla interna de despacho.
+- Q: ¿Qué pasa tras confirmar la entrega recibida a satisfacción? → A: El sistema envía automáticamente una
+  copia del PDF de la remisión al correo del cliente (spec 000, `Cliente.correo`). Si el cliente no tiene
+  correo registrado, la entrega se confirma igual y se avisa que no se envió copia; un fallo de correo no
+  revierte la entrega.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Atender solicitudes de insumos generadas desde una OT (Priority: P1)
@@ -120,6 +166,10 @@ verifica que se descuenta del stock y queda trazada como "Manual", separada de l
    requerir una OT asociada.
 2. **Given** una solicitud manual registrada, **When** se consulta el historial de movimientos, **Then**
    queda claramente distinguible de las solicitudes originadas desde OT, con su costo asociado.
+
+> **Nota (2026-09-01)**: el formulario de un solo paso de esta historia se reemplaza por el flujo de la
+> User Story 6 (Vendedor → solicitud de despacho → remisión firmada) como canal estándar sin OT. Los
+> movimientos históricos con `origen: manual` siguen siendo válidos.
 
 ---
 
@@ -196,6 +246,69 @@ imprimible, y que ese código puede usarse para buscar el ítem mediante un lect
 4. **Given** un lector de código de barras USB (modo teclado) conectado, **When** se escanea el código de
    un ítem en un formulario de movimiento, **Then** el sistema identifica el ítem automáticamente sin
    necesidad de búsqueda manual.
+
+---
+
+### User Story 6 - Venta mostrador: despacho sin OT con remisión firmada (Priority: P1)
+
+Un Vendedor recibe la solicitud de compra de un cliente, valida contra el inventario qué ítems existen, y
+genera una **solicitud de despacho** al almacén. El Almacenista la recibe, prepara los ítems y, al
+entregarlos, genera una **remisión de entrega** que el cliente **firma digitalmente en pantalla**. Los
+ítems que el almacén no tiene se marcan para **compra externa**, dejando registrada la trazabilidad de que
+no se contaba con ese insumo o herramienta.
+
+**Why this priority**: Es el canal comercial de salida de mercancía sin Orden de Trabajo (la "funcionalidad
+diferencial" de la cotización); formaliza el proceso real de los tres vendedores → almacén → cliente, con
+separación de responsabilidades y evidencia de entrega.
+
+**Independent Test**: Un Vendedor crea una solicitud de despacho con dos líneas (una de un ítem en stock,
+otra de un ítem que el almacén no tiene, marcada como compra externa); el Almacenista la recibe, genera la
+remisión, captura la firma del cliente y confirma la entrega. Se verifica que solo la línea en stock generó
+movimiento de salida y descuento, que la línea externa quedó trazada como "No disponible en almacén" sin
+tocar el inventario, y que la remisión firmada queda consultable.
+
+**Acceptance Scenarios**:
+
+1. **Given** un Vendedor autenticado, **When** registra una solicitud de despacho seleccionando cliente y
+   agregando líneas (ítem del catálogo + cantidad, o descripción libre para lo que el almacén no tiene),
+   **Then** el sistema clasifica cada línea como "de inventario" (ítem existente y activo) o "compra
+   externa" y crea la solicitud con consecutivo `SD-####` en estado "Solicitada".
+2. **Given** una solicitud de despacho en estado "Solicitada", **When** el Almacenista la abre, **Then** la
+   marca como "Recibida" y ve las líneas separadas en "a despachar de inventario" y "a comprar por fuera".
+3. **Given** una solicitud "Recibida", **When** el Almacenista confirma la preparación y genera la
+   remisión, **Then** el sistema crea una Remisión de Entrega con consecutivo `REM-####` que lista todas
+   las líneas, y la solicitud pasa a "Remisionada".
+4. **Given** una remisión generada, **When** quien entrega y el cliente firman digitalmente en pantalla
+   (con el nombre de quien entrega y el nombre y documento de quien recibe) y el Almacenista confirma la
+   entrega, **Then** el sistema registra un movimiento de salida (`origen: despacho`) por cada línea de
+   inventario —descontando stock y aplicando
+   costeo FIFO (FR-016)—, deja las líneas de compra externa solo como registro trazable (sin movimiento ni
+   lote), y la solicitud pasa a "Entregada".
+5. **Given** una línea marcada como compra externa, **When** se registra, **Then** el sistema guarda
+   proveedor externo, costo y el motivo fijo "No disponible en almacén", sin crear ítem de catálogo ni
+   lote de inventario.
+6. **Given** una solicitud de despacho en cualquier estado previo a "Entregada", **When** el Vendedor o el
+   Almacenista la anula, **Then** pasa a "Anulada" sin haber afectado el `stock_actual`.
+7. **Given** una línea de inventario cuyo stock disponible ya no alcanza al momento de confirmar la
+   entrega, **When** el Almacenista intenta confirmarla, **Then** el sistema bloquea la entrega de esa
+   línea e informa la insuficiencia (FR-009), permitiendo re-marcarla como compra externa o ajustar la
+   cantidad.
+8. **Given** una solicitud con líneas de inventario y líneas de compra externa a la vez, **When** el
+   Almacenista la abre, **Then** el sistema muestra ambos grupos claramente separados y rotulados
+   («Despachar de bodega» vs «Compra externa — no disponible en almacén»), para que sea inequívoco qué se
+   entrega desde el almacén y qué se gestiona por fuera.
+9. **Given** un Almacenista con solicitudes pendientes de recibir, remisionar o entregar, **When** navega
+   el sistema, **Then** ve un indicador visible (contador en el menú y aviso en la bandeja de despachos)
+   de que tiene trabajo pendiente en este canal.
+10. **Given** una entrega confirmada con firma y el cliente tiene correo registrado, **When** el Almacenista
+    la confirma, **Then** el sistema envía automáticamente una copia del PDF de la remisión a ese correo y
+    lo deja registrado (`enviada_al_cliente_en`); si el cliente no tiene correo, la entrega se confirma
+    igual y el sistema avisa que no se envió copia.
+11. **Given** una remisión de un despacho con líneas de inventario y de compra externa, **When** se genera
+    su PDF (para descarga o para el correo al cliente), **Then** el documento lista todos los artículos en
+    una sola tabla ("Despachamos a ustedes los siguientes artículos"), con los datos del cliente, "Entrega"
+    y "Recibe" con firma, y SIN exponer la etiqueta "No disponible en almacén", el proveedor externo ni
+    costos (trazabilidad interna).
 
 ### Edge Cases
 
@@ -275,6 +388,48 @@ imprimible, y que ese código puede usarse para buscar el ítem mediante un lect
   (Σ del valor de los lotes con saldo disponible de cada ítem, ver FR-016), conteo de ítems bajo su stock
   mínimo, estado de herramientas (disponibles/en uso/dañadas) y valor por categoría, como vista de entrada
   al módulo.
+- **FR-019**: El sistema DEBE permitir a un Vendedor (spec 001, rol nuevo) registrar una **solicitud de
+  despacho** (canal de venta sin OT) con cliente y una o más líneas, cada una referida a un ítem del
+  catálogo con cantidad, o descrita en texto libre cuando el almacén no dispone del ítem. La solicitud DEBE
+  tener consecutivo propio (`SD-####`) y un estado en el conjunto: `borrador`, `solicitada`, `recibida`,
+  `remisionada`, `entregada`, `anulada`.
+- **FR-020**: Al crear o editar una solicitud de despacho, el sistema DEBE clasificar cada línea como "de
+  inventario" (ítem existente y activo) o "compra externa", y DEBE permitir al Vendedor forzar una línea a
+  "compra externa" aunque el ítem exista en el catálogo.
+- **FR-021**: El sistema DEBE registrar, para cada línea de compra externa, el proveedor externo (texto
+  libre), el costo y el motivo fijo "No disponible en almacén", SIN crear un ítem de catálogo, SIN crear un
+  lote de inventario y SIN generar movimiento de inventario.
+- **FR-022**: El Almacenista DEBE poder hacer avanzar la solicitud de despacho por sus estados
+  (`solicitada` → `recibida` → `remisionada` → `entregada`); el Vendedor o el Almacenista DEBEN poder
+  anularla en cualquier estado previo a `entregada`. Ninguna transición previa a `entregada` afecta el
+  `stock_actual`.
+- **FR-023**: Al generar la remisión, el sistema DEBE crear una **Remisión de Entrega** con consecutivo
+  propio (`REM-####`), asociada 1:1 a la solicitud de despacho, que lista todas las líneas (de inventario y
+  de compra externa) y es imprimible.
+- **FR-024**: La confirmación de entrega DEBE requerir **dos firmas digitales capturadas en pantalla**
+  (trazo sobre lienzo): la de **quien entrega** (`firma_entrega`) y la de **quien recibe** (`firma`),
+  junto con el nombre de quien entrega y el nombre y documento de quien recibe; ambas firmas quedan
+  embebidas en la Remisión de Entrega. Al confirmar, el sistema DEBE generar un movimiento de salida
+  `origen: despacho` por cada línea de inventario (descontando stock y aplicando costeo FIFO, FR-016) y
+  DEBE bloquear la confirmación de cualquier línea de inventario sin stock disponible suficiente (FR-009).
+- **FR-025**: Las solicitudes de despacho y sus remisiones DEBEN quedar consultables en el historial,
+  distinguibles de las salidas por OT (spec 002) y de las salidas manuales directas previas
+  (`origen: manual`); el canal nuevo usa `origen: despacho`.
+- **FR-026**: La Remisión de Entrega DEBE registrar el nombre de quien entrega físicamente
+  (`entregado_por_nombre`) y una nota libre de entrega (`nota_entrega`), y su PDF DEBE reproducir el
+  formato de la remisión física del taller: encabezado con el **logo** de SERVIREPARAR (imagen embebida),
+  el título "REMISIÓN {sigla IATA de la ciudad}" (de `SolicitudDespacho.sede`) y el consecutivo, datos del
+  cliente (nombre, dirección, NIT, teléfono, correo — de spec 000), una única tabla de artículos entregados
+  (Cant. / Referencia / Descripción), la nota de entrega, y los bloques "Entrega" y "Recibe" (nombre +
+  documento) con la firma. El PDF NO DEBE exponer la clasificación interna de líneas (etiqueta "No
+  disponible en almacén", proveedor externo) ni costos.
+- **FR-028**: Cada solicitud de despacho DEBE pertenecer a una ciudad/sede, identificada por su sigla
+  aeroportuaria (IATA), elegida al crearla de una lista configurable (`config/despachos.php`). La sede
+  acompaña al título de la remisión ("REMISIÓN BAQ") y es visible en la bandeja y en la vista de despacho.
+- **FR-027**: Al confirmar una entrega recibida a satisfacción, el sistema DEBE enviar automáticamente una
+  copia del PDF de la remisión al correo del cliente (`Cliente.correo`, spec 000) y registrar el envío
+  (`enviada_al_cliente_en`). Si el cliente no tiene correo, la entrega se confirma igual y el sistema lo
+  informa; un fallo en el envío de correo NO DEBE revertir la entrega ya confirmada.
 
 ### Key Entities
 
@@ -292,6 +447,22 @@ imprimible, y que ese código puede usarse para buscar el ítem mediante un lect
   esa salida), fecha, motivo, referencia, usuario_id, proveedor_id (spec 000, en entradas).
 - **Auditoría de Inventario** (`AUDITORIAS_INVENTARIO`): id, iniciada_por, fecha_inicio, fecha_cierre,
   estado (`abierta` / `cerrada` / `cancelada`, ver FR-017).
+- **Solicitud de Despacho** (`SOLICITUDES_DESPACHO`): id, numero (`SD-####`), cliente_id (spec 000),
+  vendedor_id (usuario con rol Vendedor), sede (sigla IATA de la ciudad, FR-028), estado (`borrador` /
+  `solicitada` / `recibida` / `remisionada` / `entregada` / `anulada`), observaciones, fecha_solicitud,
+  recibida_por, remisionada_por, entregada_en. Canal de salida sin OT (US6), distinto de las salidas por
+  OT (spec 002) y de las salidas manuales directas previas.
+- **Detalle de Solicitud de Despacho** (`DETALLE_SOLICITUD_DESPACHO`): id, solicitud_id, origen
+  (`inventario` / `compra_externa`), inventario_id (nulo si compra externa), descripcion (texto libre para
+  compra externa), cantidad, costo_unitario (referencia), proveedor_externo (solo compra externa),
+  costo_compra_externa (solo compra externa), motivo (fijo "No disponible en almacén" en compra externa).
+- **Remisión de Entrega** (`REMISIONES_ENTREGA`): id, numero (`REM-####`), solicitud_id (1:1),
+  generada_por, entregado_por_nombre (quien entrega físicamente, FR-026), fecha, recibido_por_nombre,
+  recibido_por_documento, firma (trazo de quien recibe), firma_entrega (trazo de quien entrega, FR-024),
+  nota_entrega (narración libre, FR-026), entregada_en,
+  enviada_al_cliente_en (marca de envío de la copia PDF al correo del cliente,
+  FR-027). Documento imprimible que respalda la entrega física (US6) y reproduce el formato de la remisión
+  física del taller.
 
 ## Success Criteria *(mandatory)*
 
@@ -310,6 +481,10 @@ imprimible, y que ese código puede usarse para buscar el ítem mediante un lect
 - **SC-006**: El costo de una salida que consume más de un lote es exactamente el promedio ponderado de los
   lotes que salieron en esa operación (verificable recalculándolo a mano desde los lotes tocados), nunca un
   promedio de todo el inventario ni el costo de la compra más reciente.
+- **SC-007**: El 100% de las entregas del canal de despacho sin OT quedan respaldadas por una Remisión de
+  Entrega con consecutivo único y firma digital del receptor; ninguna línea de inventario se entrega sin su
+  movimiento de salida y su descuento de stock correspondiente, y ninguna línea de compra externa genera
+  movimiento ni lote de inventario.
 
 ## Assumptions
 

@@ -31,12 +31,35 @@
   El Administrador crea/edita/inactiva especialidades desde una pantalla propia; inactivar una especialidad
   no afecta a los técnicos que ya la tienen asignada, solo deja de ofrecerse para asignaciones nuevas.
 
+### Session 2026-09-01 (costeo de mano de obra por día y hoja de vida del técnico)
+
+- Q: ¿La mano de obra propia en la OT se costea por hora o por día? → A: **Por día**. El técnico tiene un
+  **sueldo mensual**; el valor del día se deriva automáticamente como `sueldo / 30` (el divisor 30 queda
+  en configuración). La OT registra **cantidad de días** trabajados por técnico, no horas. Se elimina el
+  campo `tarifa_hora` manual que existía; el valor día NO se edita a mano, siempre sale del sueldo.
+- Q: Si a un técnico le suben el sueldo, ¿qué pasa con las OT que ya trabajó a un sueldo menor? → A: Las
+  OT **ya cerradas** conservan su costo de mano de obra calculado con el sueldo que estaba vigente a su
+  fecha de cierre — no se recalculan. Las OT **en curso** y **futuras** usan el sueldo vigente actual. Para
+  eso se guarda un **histórico de sueldos** por técnico (`sueldo` + `vigente_desde`); el valor día de una
+  OT se calcula con el sueldo vigente a la fecha de referencia de esa OT (su fecha de cierre, o la fecha
+  actual si sigue abierta).
+- Q: ¿Se amplía la ficha del técnico? → A: Sí. Se agregan **datos laborales** (fecha de ingreso, cargo,
+  tipo de contrato: término fijo / indefinido / prestación de servicios) y una vista de **hoja de vida**:
+  un panel de **solo lectura** abierto desde la fila del usuario Técnico en la pantalla de Usuarios
+  (respeta FR-007: sin pantalla ni menú separados de "Empleados"), con especialidad, sueldo actual, valor
+  día, estado, datos laborales, histórico de sueldos y el resumen operativo (carga actual + desempeño, que
+  se llena cuando exista el módulo de OT — spec 002).
+- Q: El divisor y la estimación de tiempo de la tarea, ¿en horas o días? → A: **Todo en días** — el costeo,
+  la estimación de la tarea y el umbral de vencimiento (spec 008) pasan a días. Impacta el modelo de datos
+  de spec 002 (`detalle_ot`: `tiempo_estimado_dias`, `dias_trabajados`).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Registrar y configurar trabajadores (Priority: P1)
 
 El Administrador registra trabajadores (técnicos) del taller, asociándolos a un usuario del sistema y
-definiendo su especialidad y estado de actividad.
+definiendo su especialidad, sueldo mensual, datos laborales (fecha de ingreso, cargo, tipo de contrato) y
+estado de actividad.
 
 **Why this priority**: Prerrequisito para que existan técnicos asignables a tareas de OT (spec 002); sin
 esto el módulo central de la operación no puede funcionar con datos reales.
@@ -46,10 +69,14 @@ especialidad, y se verifica que aparece disponible como operario al crear una ta
 
 **Acceptance Scenarios**:
 
-1. **Given** el Administrador autenticado, **When** registra un trabajador con especialidad y lo marca
-   activo, **Then** el trabajador queda disponible en los selectores de "operario" al crear tareas de OT.
+1. **Given** el Administrador autenticado, **When** registra un trabajador con especialidad, sueldo mensual
+   y lo marca activo, **Then** el trabajador queda disponible en los selectores de "operario" al crear
+   tareas de OT, y su **valor día** (`sueldo / 30`) queda calculado para el costeo de mano de obra.
 2. **Given** un trabajador marcado como inactivo, **When** se intenta asignarlo a una nueva tarea de OT,
    **Then** el sistema no lo ofrece como opción disponible.
+3. **Given** un técnico con un sueldo registrado, **When** el Administrador le cambia el sueldo, **Then** el
+   sistema guarda el nuevo sueldo con su fecha de vigencia sin borrar el anterior; las OT cerradas antes de
+   esa fecha siguen costeadas con el sueldo anterior y las OT abiertas o nuevas usan el nuevo.
 
 ---
 
@@ -92,6 +119,34 @@ se verifica que refleja tiempos reales vs. estimados y cantidad de OT en las que
 2. **Given** varios técnicos, **When** el Administrador compara su productividad, **Then** puede ordenar o
    filtrar por el indicador de interés.
 
+---
+
+### User Story 4 - Hoja de vida del técnico (Priority: P2)
+
+El Administrador abre, desde la fila de un usuario con rol Técnico en la pantalla de Usuarios, un panel de
+**solo lectura** que resume la "hoja de vida" del trabajador: especialidad, sueldo actual y valor día,
+estado, datos laborales (fecha de ingreso, cargo, tipo de contrato), histórico de sueldos, y el resumen
+operativo (carga actual + desempeño).
+
+**Why this priority**: Da una vista consolidada del trabajador para decisiones de asignación y gestión de
+personal, sin abrir un módulo de "Empleados" separado (prohibido por FR-007). No bloquea la operación
+diaria.
+
+**Independent Test**: Con un técnico que tiene especialidad, sueldo y datos laborales cargados, el
+Administrador abre su hoja de vida y verifica que muestra el sueldo actual, el valor día calculado
+(`sueldo / 30`), los datos laborales y el histórico de sueldos; el panel no permite editar nada.
+
+**Acceptance Scenarios**:
+
+1. **Given** un usuario con rol Técnico y ficha completa, **When** el Administrador pulsa "Hoja de vida" en
+   su fila, **Then** se abre un panel de solo lectura con especialidad, sueldo actual, valor día, estado,
+   fecha de ingreso, cargo, tipo de contrato e histórico de sueldos.
+2. **Given** un usuario sin rol Técnico, **When** el Administrador ve su fila, **Then** no se ofrece la
+   opción "Hoja de vida".
+3. **Given** un técnico con OT en su historial (spec 002), **When** se abre su hoja de vida, **Then** el
+   panel incluye su carga actual (tareas activas) y su resumen de desempeño; mientras spec 002 no exista,
+   esa sección muestra un aviso de "disponible al implementar Órdenes de Trabajo".
+
 ### Edge Cases
 
 - ¿Qué pasa con las métricas de desempeño de un técnico que es inactivado? Deben conservarse históricamente
@@ -125,13 +180,39 @@ se verifica que refleja tiempos reales vs. estimados y cantidad de OT en las que
   Especialidad desde una pantalla propia (no un seeder ni intervención técnica), evitando nombres distintos
   para la misma especialidad por error de digitación. Inactivar una especialidad NO DEBE afectar a los
   técnicos que ya la tienen asignada; solo deja de ofrecerse como opción para asignaciones nuevas.
+- **FR-009**: El sistema DEBE registrar el **sueldo mensual** de cada técnico y conservar su **histórico**:
+  cada cambio de sueldo se guarda como un registro nuevo con su fecha de vigencia (`vigente_desde`), sin
+  borrar los anteriores. El "sueldo actual" es el registro de mayor `vigente_desde` menor o igual a la
+  fecha de hoy.
+- **FR-010**: El sistema DEBE derivar automáticamente el **valor del día** de un técnico como
+  `sueldo_mensual / N`, con `N` configurable (por defecto 30). El valor día NO se edita manualmente; se
+  recalcula solo cuando cambia el sueldo. Toda presentación de sueldo o valor día DEBE usar el formato de
+  pesos colombianos (`App\Support\Moneda`, spec 009 FR-001).
+- **FR-011**: El costeo de mano de obra propia de una Orden de Trabajo (spec 002) DEBE usar el valor día
+  del sueldo **vigente a la fecha de referencia de esa OT**: su fecha de cierre si ya está cerrada, o la
+  fecha actual si sigue abierta. Un cambio de sueldo posterior al cierre de una OT NO DEBE alterar el costo
+  de mano de obra ya calculado para esa OT.
+- **FR-012**: El registro de técnico DEBE incluir **datos laborales**: fecha de ingreso, cargo y tipo de
+  contrato (término fijo / indefinido / prestación de servicios). Son informativos (hoja de vida); no
+  afectan el costeo.
+- **FR-013**: El sistema DEBE ofrecer una **hoja de vida** del técnico como panel de **solo lectura**,
+  accesible desde la fila del usuario con rol Técnico en la pantalla de Usuarios (FR-007), que consolida
+  especialidad, sueldo actual, valor día, estado, datos laborales, histórico de sueldos y el resumen
+  operativo (carga actual + desempeño, FR-003/FR-005). NO DEBE existir una pantalla ni un ítem de menú
+  separados para esta hoja de vida.
 
 ### Key Entities
 
 - **Técnico** (`TECNICOS`): id, usuario_id (FK a `USUARIOS`), especialidad_id (FK a catálogo de
-  especialidades), activo.
+  especialidades), fecha_ingreso (date, nullable), cargo (string, nullable), tipo_contrato
+  (`termino_fijo` / `indefinido` / `prestacion_servicios`, nullable), activo. El campo `tarifa_hora` queda
+  eliminado (reemplazado por el histórico de sueldos + valor día derivado).
+- **Sueldo de Técnico** (`SUELDOS_TECNICO`): id, tecnico_id (FK), sueldo (decimal, mensual), vigente_desde
+  (date), registrado_por (FK a `USUARIOS`, nullable), timestamps. Historial de sueldos (FR-009); el valor
+  día se deriva de aquí (FR-010).
 - **Especialidad**: catálogo fijo predefinido (nombre) mantenido por el Administrador.
-- Relación indirecta con **Orden de Trabajo** / **Detalle de OT** (spec 002) para el cálculo de desempeño.
+- Relación indirecta con **Orden de Trabajo** / **Detalle de OT** (spec 002) para el cálculo de desempeño y
+  el costeo de mano de obra por día (FR-011).
 
 ## Success Criteria *(mandatory)*
 
@@ -143,6 +224,11 @@ se verifica que refleja tiempos reales vs. estimados y cantidad de OT en las que
   tareas.
 - **SC-003**: Las métricas de desempeño reflejan con exactitud el historial de OT (validable contra el
   conteo manual de OT finalizadas por técnico en un período de prueba).
+- **SC-004**: Tras subir el sueldo de un técnico, el costo de mano de obra de cualquier OT que ya estaba
+  cerrada permanece idéntico al que tenía antes del cambio (verificable recalculándolo desde el histórico
+  de sueldos y la fecha de cierre de la OT).
+- **SC-005**: El valor día mostrado para un técnico siempre es exactamente `sueldo_actual / N` (N por
+  defecto 30), y todo monto (sueldo, valor día) se muestra formateado en pesos colombianos.
 
 ## Assumptions
 
@@ -150,3 +236,9 @@ se verifica que refleja tiempos reales vs. estimados y cantidad de OT en las que
   técnicos externos sin cuenta en el sistema).
 - Las métricas de productividad se calculan sobre datos de OT ya existentes en el sistema (no se requiere
   integración con nómina o control de asistencia).
+- El sueldo es el sueldo mensual base pactado; el valor día = `sueldo / 30` es una convención de costeo
+  interno del taller, no un cálculo de nómina con factor prestacional (si más adelante se quiere incluir
+  carga prestacional, se ajusta el divisor `N` en configuración o se agrega un factor).
+- La "fecha de referencia" de una OT para elegir el sueldo vigente es su fecha de cierre; mientras la OT
+  está abierta se usa el sueldo vigente hoy, por lo que su costo de mano de obra puede variar hasta que se
+  cierre (momento en que queda fijo).

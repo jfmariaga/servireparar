@@ -6,6 +6,7 @@ use App\Enums\RolPrioridad;
 use App\Models\User;
 use Database\Seeders\RolesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 /**
@@ -40,5 +41,35 @@ class RoleMiddlewareTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard.administrador'))
             ->assertOk();
+    }
+
+    public function test_vendedor_accede_a_su_dashboard_pero_no_al_de_administrador(): void
+    {
+        $vendedor = User::factory()->create(['estado' => 'activo']);
+        $vendedor->assignRole(RolPrioridad::Vendedor->value);
+
+        $this->actingAs($vendedor)
+            ->get(route('dashboard.vendedor'))
+            ->assertOk();
+
+        $this->actingAs($vendedor)
+            ->get(route('dashboard.administrador'))
+            ->assertForbidden();
+    }
+
+    public function test_redireccion_post_login_prioriza_almacenista_sobre_vendedor(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'almacen-vendedor@servireparar.com',
+            'password' => 'password123',
+            'estado' => 'activo',
+        ]);
+        $user->assignRole([RolPrioridad::Vendedor->value, RolPrioridad::Almacenista->value]);
+
+        Volt::test('auth.login')
+            ->set('email', 'almacen-vendedor@servireparar.com')
+            ->set('password', 'password123')
+            ->call('login')
+            ->assertRedirect(route('dashboard.almacenista'));
     }
 }

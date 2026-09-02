@@ -5,6 +5,8 @@ use App\Livewire\Concerns\Notifies;
 use App\Models\Especialidad;
 use App\Models\Tecnico;
 use App\Models\User;
+use App\Support\Moneda;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Js;
 use Illuminate\Validation\Rule;
@@ -32,8 +34,15 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
 
     // Ficha de técnico (spec 004) — solo aplica cuando el rol Técnico está marcado.
     public ?int $especialidadId = null;
-    public string $tarifaHora = '';
+    public string $sueldo = '';
+    public string $sueldoVigenteDesde = '';
+    public string $fechaIngreso = '';
+    public string $cargo = '';
+    public string $tipoContrato = '';
     public bool $tecnicoActivo = true;
+
+    // Hoja de vida (spec 004, FR-013) — panel de solo lectura.
+    public ?int $hojaVidaUserId = null;
 
     public string $errorDesactivar = '';
 
@@ -54,7 +63,20 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
                 ->paginate(10),
             'todosLosRoles' => RolPrioridad::ordenados(),
             'especialidades' => Especialidad::activas()->orderBy('nombre')->get(),
+            'hojaVida' => $this->hojaVidaUserId
+                ? User::with(['roles', 'tecnico.especialidad', 'tecnico.sueldos.registradoPor'])->find($this->hojaVidaUserId)
+                : null,
+            'diasMes' => (int) config('personal.dias_mes', 30),
         ];
+    }
+
+    public function valorDiaPreview(): string
+    {
+        if ($this->sueldo === '' || ! is_numeric($this->sueldo)) {
+            return '—';
+        }
+
+        return Moneda::cop(round((float) $this->sueldo / max(1, (int) config('personal.dias_mes', 30)), 2));
     }
 
     public function esTecnico(): bool
@@ -67,10 +89,11 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
         Gate::authorize('create', User::class);
         $this->reset([
             'name', 'email', 'telefono', 'editandoId', 'password', 'roles', 'errorDesactivar',
-            'especialidadId', 'tarifaHora',
+            'especialidadId', 'sueldo', 'fechaIngreso', 'cargo', 'tipoContrato',
         ]);
         $this->estado = 'activo';
         $this->tecnicoActivo = true;
+        $this->sueldoVigenteDesde = Carbon::today()->toDateString();
         $this->mostrarForm = true;
     }
 
@@ -88,10 +111,25 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
         $this->errorDesactivar = '';
 
         $this->especialidadId = $u->tecnico?->especialidad_id;
-        $this->tarifaHora = $u->tecnico?->tarifa_hora !== null ? (string) $u->tecnico->tarifa_hora : '';
+        $this->sueldo = $u->tecnico?->sueldoVigente() !== null ? (string) $u->tecnico->sueldoVigente() : '';
+        $this->sueldoVigenteDesde = Carbon::today()->toDateString();
+        $this->fechaIngreso = $u->tecnico?->fecha_ingreso?->toDateString() ?? '';
+        $this->cargo = (string) ($u->tecnico?->cargo ?? '');
+        $this->tipoContrato = (string) ($u->tecnico?->tipo_contrato ?? '');
         $this->tecnicoActivo = $u->tecnico?->activo ?? true;
 
         $this->mostrarForm = true;
+    }
+
+    public function verHojaVida(int $id): void
+    {
+        Gate::authorize('viewAny', User::class);
+        $this->hojaVidaUserId = $id;
+    }
+
+    public function cerrarHojaVida(): void
+    {
+        $this->hojaVidaUserId = null;
     }
 
     public function guardar(): void
@@ -105,7 +143,11 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
             'estado' => 'required|in:activo,inactivo',
             'roles' => 'array',
             'especialidadId' => [Rule::requiredIf($this->esTecnico()), 'nullable', 'exists:especialidades,id'],
-            'tarifaHora' => 'nullable|numeric|min:0',
+            'sueldo' => [Rule::requiredIf($this->esTecnico() && ! $this->editandoId), 'nullable', 'numeric', 'min:0'],
+            'sueldoVigenteDesde' => [Rule::requiredIf($this->sueldo !== ''), 'nullable', 'date'],
+            'fechaIngreso' => 'nullable|date',
+            'cargo' => 'nullable|string|max:120',
+            'tipoContrato' => 'nullable|in:termino_fijo,indefinido,prestacion_servicios',
         ];
 
         if (! $this->editandoId) {
@@ -113,7 +155,10 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
         }
 
         $datos = $this->validate($reglas);
-        unset($datos['roles'], $datos['especialidadId'], $datos['tarifaHora']);
+        unset(
+            $datos['roles'], $datos['especialidadId'], $datos['sueldo'], $datos['sueldoVigenteDesde'],
+            $datos['fechaIngreso'], $datos['cargo'], $datos['tipoContrato'],
+        );
 
         if ($this->editandoId && $this->password) {
             $datos['password'] = $this->password;
@@ -129,14 +174,24 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
         if ($this->esTecnico()) {
             Gate::authorize('manage', Tecnico::class);
 
-            Tecnico::updateOrCreate(
+            $tecnico = Tecnico::updateOrCreate(
                 ['usuario_id' => $usuario->id],
                 [
                     'especialidad_id' => $this->especialidadId,
-                    'tarifa_hora' => $this->tarifaHora !== '' ? $this->tarifaHora : null,
+                    'fecha_ingreso' => $this->fechaIngreso !== '' ? $this->fechaIngreso : null,
+                    'cargo' => $this->cargo !== '' ? $this->cargo : null,
+                    'tipo_contrato' => $this->tipoContrato !== '' ? $this->tipoContrato : null,
                     'activo' => $this->tecnicoActivo,
                 ]
             );
+
+            if ($this->sueldo !== '') {
+                $tecnico->registrarSueldo(
+                    (float) $this->sueldo,
+                    Carbon::parse($this->sueldoVigenteDesde ?: Carbon::today()),
+                    auth()->user(),
+                );
+            }
         }
 
         $this->mostrarForm = false;
@@ -266,12 +321,40 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
                             @error('especialidadId') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                         </div>
                         <div>
-                            <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Tarifa por hora</label>
-                            <input type="number" step="0.01" min="0" wire:model="tarifaHora" placeholder="Opcional"
+                            <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Sueldo mensual {{ $editandoId ? '' : '*' }}</label>
+                            <input type="number" step="1000" min="0" wire:model.live="sueldo" placeholder="{{ $editandoId ? 'Dejar vacío para no cambiarlo' : '' }}"
                                    class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
-                            @error('tarifaHora') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                            @error('sueldo') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                         </div>
-                        <div class="flex items-end pb-2.5">
+                        <div>
+                            <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Vigente desde</label>
+                            <input type="date" wire:model="sueldoVigenteDesde"
+                                   class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+                            @error('sueldoVigenteDesde') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                            <p class="text-xs text-slate-400 mt-1">Valor día ({{ $diasMes }}): <span class="font-semibold text-slate-600 dark:text-slate-300">{{ $this->valorDiaPreview() }}</span></p>
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Fecha de ingreso</label>
+                            <input type="date" wire:model="fechaIngreso"
+                                   class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+                            @error('fechaIngreso') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Cargo</label>
+                            <input type="text" wire:model="cargo" placeholder="Ej.: Técnico de taller"
+                                   class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+                            @error('cargo') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Tipo de contrato</label>
+                            <x-select wire:model="tipoContrato" :reset-key="'contrato-'.($editandoId ?? 'nuevo')">
+                                <option value="termino_fijo">Término fijo</option>
+                                <option value="indefinido">Indefinido</option>
+                                <option value="prestacion_servicios">Prestación de servicios</option>
+                            </x-select>
+                            @error('tipoContrato') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="flex items-end pb-2.5 sm:col-span-3">
                             <label class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                                 <input type="checkbox" wire:model="tecnicoActivo" class="accent-brand-blue">
                                 Disponible para asignación de tareas
@@ -284,6 +367,57 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
             <div class="flex gap-2 mt-6">
                 <button wire:click="guardar" class="bg-brand-blue hover:bg-brand-blue-dark text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg transition">Guardar</button>
                 <button wire:click="cancelar" class="text-[13.5px] font-semibold px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
+            </div>
+        </div>
+    @endif
+
+    @if ($hojaVida && $hojaVida->tecnico)
+        @php $t = $hojaVida->tecnico; $tiposContrato = ['termino_fijo' => 'Término fijo', 'indefinido' => 'Indefinido', 'prestacion_servicios' => 'Prestación de servicios']; @endphp
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
+            <div class="flex items-start justify-between mb-5">
+                <div>
+                    <div class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Hoja de vida</div>
+                    <h2 class="font-bold text-lg text-slate-800 dark:text-slate-100">{{ $hojaVida->name }}</h2>
+                    <div class="text-sm text-slate-500 dark:text-slate-400">{{ $hojaVida->email }} · {{ $hojaVida->telefono ?: 'sin teléfono' }}</div>
+                </div>
+                <button wire:click="cerrarHojaVida" class="text-xs font-semibold text-slate-500 hover:underline">Cerrar</button>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Especialidad</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ $t->especialidad?->nombre ?? '—' }}</div></div>
+                <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Estado</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ $t->activo ? 'Disponible' : 'No disponible' }}</div></div>
+                <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Sueldo actual</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ \App\Support\Moneda::cop($t->sueldoVigente()) }}</div></div>
+                <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Valor día ({{ $diasMes }})</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ \App\Support\Moneda::cop($t->valorDia()) }}</div></div>
+                <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Fecha de ingreso</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ $t->fecha_ingreso?->format('d/m/Y') ?? '—' }}</div></div>
+                <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Cargo</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ $t->cargo ?: '—' }}</div></div>
+                <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Tipo de contrato</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ $tiposContrato[$t->tipo_contrato] ?? '—' }}</div></div>
+            </div>
+
+            <div class="mt-6">
+                <div class="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2">Histórico de sueldos</div>
+                <div class="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-xl">
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-left border-b border-slate-100 dark:border-slate-800 text-[11px] uppercase tracking-wide text-slate-400">
+                            <th class="px-4 py-2">Vigente desde</th><th class="px-4 py-2">Sueldo</th><th class="px-4 py-2">Valor día</th><th class="px-4 py-2">Registró</th>
+                        </tr></thead>
+                        <tbody>
+                        @forelse ($t->sueldos as $s)
+                            <tr class="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                <td class="px-4 py-2 whitespace-nowrap">{{ $s->vigente_desde->format('d/m/Y') }}</td>
+                                <td class="px-4 py-2 whitespace-nowrap">{{ \App\Support\Moneda::cop($s->sueldo) }}</td>
+                                <td class="px-4 py-2 whitespace-nowrap text-slate-500">{{ \App\Support\Moneda::cop(round($s->sueldo / $diasMes, 2)) }}</td>
+                                <td class="px-4 py-2 whitespace-nowrap text-slate-500">{{ $s->registradoPor?->name ?? '—' }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="px-4 py-4 text-center text-slate-400">Sin sueldo registrado.</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mt-6 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                <span class="font-semibold text-slate-600 dark:text-slate-300">Resumen operativo</span> — carga actual de tareas y desempeño histórico: disponible al implementar Órdenes de Trabajo (spec 002).
             </div>
         </div>
     @endif
@@ -315,6 +449,11 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
                             </td>
                             <td class="px-5 py-3">
                                 <div class="flex items-center gap-2">
+                                    @if ($u->tecnico)
+                                        <x-icon-button wire:click="verHojaVida({{ $u->id }})" title="Hoja de vida">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h7l5 5v13a0 0 0 01 0 0H7a0 0 0 01 0 0V3z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>
+                                        </x-icon-button>
+                                    @endif
                                     <x-icon-button wire:click="editar({{ $u->id }})" title="Editar usuario">
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17h4l10-10-4-4L4 13v4z"/></svg>
                                     </x-icon-button>

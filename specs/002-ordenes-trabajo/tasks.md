@@ -159,7 +159,8 @@ sistema contra el mismo caso resuelto manualmente en el Excel real (oráculo, SC
 ### Tests for User Story 5
 
 - [ ] T039 [P] [US5] Feature test `tests/Feature/OrdenesTrabajo/CosteoUtilidadTest.php`: costo de mano de
-  obra propia (horas × tarifa técnico, spec 004)
+  obra propia (días trabajados × valor día del técnico = `sueldo/30` vigente a la fecha de referencia de la
+  OT, spec 004 FR-009..FR-011; incluir caso "OT cerrada no se recostea al cambiar el sueldo")
 - [ ] T040 [P] [US5] Feature test: costo de contratistas se suma correctamente al costo total
 - [ ] T041 [P] [US5] Feature test: costo de repuestos (integración con spec 003, `costo_unitario`) se suma
   correctamente
@@ -195,7 +196,7 @@ sistema contra el mismo caso resuelto manualmente en el Excel real (oráculo, SC
 - **US2** depende de US1 (necesita OT creadas para ejecutar tareas).
 - **US3** depende de US2 (necesita tareas finalizables para llegar al cierre).
 - **US4** es independiente de US3/US5, solo depende de US1/US2 (una OT en curso que corregir).
-- **US5** depende de US2 (horas trabajadas) y de spec 000/003/004 para tener contratistas/insumos/tarifas
+- **US5** depende de US2 (días trabajados) y de spec 000/003/004 para tener contratistas/insumos/sueldos
   reales, pero puede desarrollarse con datos de prueba en paralelo a US3/US4.
 
 ## Implementation Strategy

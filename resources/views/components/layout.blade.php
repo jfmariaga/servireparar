@@ -29,8 +29,8 @@
             <aside x-show="$store.ui.navMode === 'sidebar'" x-cloak
                    :class="$store.ui.mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
                    class="w-64 shrink-0 bg-brand-navy min-h-screen p-3.5 flex flex-col gap-5 fixed inset-y-0 left-0 z-40 transition-transform duration-200 lg:static lg:z-auto">
-                <div class="bg-white rounded-lg px-3 py-2 w-fit">
-                    <img src="{{ asset('img/logo.png') }}" alt="ServiReparar" class="h-[22px] w-auto block">
+                <div class="bg-white rounded-lg px-3 py-2.5 w-fit">
+                    <img src="{{ asset('img/logo.png') }}" alt="ServiReparar" class="h-9 w-auto block">
                 </div>
                 <nav class="flex flex-col gap-1">
                     @include('partials.nav-items', ['variant' => 'sidebar'])
@@ -60,7 +60,7 @@
 
                     <template x-if="$store.ui.navMode === 'topbar'">
                         <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 w-fit shrink-0">
-                            <img src="{{ asset('img/logo.png') }}" alt="ServiReparar" class="h-4 w-auto block">
+                            <img src="{{ asset('img/logo.png') }}" alt="ServiReparar" class="h-6 w-auto block">
                         </div>
                     </template>
 

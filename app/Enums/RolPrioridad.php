@@ -11,6 +11,7 @@ enum RolPrioridad: string
     case Administrador = 'Administrador';
     case JefeDeTaller = 'Jefe de Taller';
     case Almacenista = 'Almacenista';
+    case Vendedor = 'Vendedor';
     case Tecnico = 'Técnico';
 
     /**
@@ -22,6 +23,7 @@ enum RolPrioridad: string
             self::Administrador->value,
             self::JefeDeTaller->value,
             self::Almacenista->value,
+            self::Vendedor->value,
             self::Tecnico->value,
         ];
     }
@@ -35,6 +37,7 @@ enum RolPrioridad: string
             self::Administrador->value => 'dashboard.administrador',
             self::JefeDeTaller->value => 'dashboard.jefe-taller',
             self::Almacenista->value => 'dashboard.almacenista',
+            self::Vendedor->value => 'dashboard.vendedor',
             self::Tecnico->value => 'dashboard.tecnico',
             default => 'dashboard',
         };

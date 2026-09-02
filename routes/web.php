@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\InventarioEtiquetaController;
+use App\Http\Controllers\RemisionEntregaController;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -19,6 +20,7 @@ Route::middleware('auth')->group(function () {
     Volt::route('/dashboard/administrador', 'dashboard')->name('dashboard.administrador')->middleware('role:Administrador');
     Volt::route('/dashboard/jefe-taller', 'dashboard')->name('dashboard.jefe-taller')->middleware('role:Jefe de Taller');
     Volt::route('/dashboard/almacenista', 'dashboard')->name('dashboard.almacenista')->middleware('role:Almacenista');
+    Volt::route('/dashboard/vendedor', 'dashboard')->name('dashboard.vendedor')->middleware('role:Vendedor');
     Volt::route('/dashboard/tecnico', 'dashboard')->name('dashboard.tecnico')->middleware('role:Técnico');
 
     // Catálogos maestros (spec 000)
@@ -36,6 +38,14 @@ Route::middleware('auth')->group(function () {
     Volt::route('/inventario/auditorias', 'inventario.auditoria')->name('inventario.auditoria');
     Volt::route('/inventario/categorias', 'inventario.catalogos')->name('inventario.catalogos');
     Route::get('/inventario/{inventario}/etiqueta', InventarioEtiquetaController::class)->name('inventario.etiqueta');
+
+    // Despachos / venta mostrador sin OT (spec 003, US6)
+    Route::middleware('role:Vendedor|Almacenista|Administrador')->group(function () {
+        Volt::route('/despachos', 'despacho.index')->name('despachos.index');
+        Volt::route('/despachos/nueva', 'despacho.form')->name('despachos.nueva');
+        Volt::route('/despachos/{solicitud}', 'despacho.entrega')->name('despachos.detalle');
+        Route::get('/despachos/{solicitud}/remision', RemisionEntregaController::class)->name('despachos.remision');
+    });
 
     // Administración de usuarios (spec 001)
     Volt::route('/usuarios', 'admin.usuarios.index')->name('usuarios.index');

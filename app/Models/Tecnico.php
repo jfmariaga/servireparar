@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 class Tecnico extends Model
 {
@@ -15,7 +18,9 @@ class Tecnico extends Model
     protected $fillable = [
         'usuario_id',
         'especialidad_id',
-        'tarifa_hora',
+        'fecha_ingreso',
+        'cargo',
+        'tipo_contrato',
         'activo',
     ];
 
@@ -23,7 +28,7 @@ class Tecnico extends Model
     {
         return [
             'activo' => 'boolean',
-            'tarifa_hora' => 'decimal:2',
+            'fecha_ingreso' => 'date',
         ];
     }
 
@@ -35,6 +40,71 @@ class Tecnico extends Model
     public function especialidad(): BelongsTo
     {
         return $this->belongsTo(Especialidad::class);
+    }
+
+    /**
+     * Histórico de sueldos, más reciente primero (spec 004, FR-009).
+     */
+    public function sueldos(): HasMany
+    {
+        return $this->hasMany(SueldoTecnico::class)->orderByDesc('vigente_desde')->orderByDesc('id');
+    }
+
+    /**
+     * Sueldo mensual vigente a `$fecha` (o a hoy): la fila con mayor
+     * `vigente_desde` menor o igual a esa fecha. `null` si no hay ninguna.
+     */
+    public function sueldoVigente(?CarbonInterface $fecha = null): ?float
+    {
+        $fecha ??= Carbon::today();
+
+        $registro = $this->sueldos()
+            ->whereDate('vigente_desde', '<=', $fecha)
+            ->first();
+
+        return $registro ? (float) $registro->sueldo : null;
+    }
+
+    /**
+     * Valor del día = sueldo vigente / N (spec 004, FR-010; N configurable).
+     * Consumido por el costeo de mano de obra propia de la OT (spec 002, FR-016).
+     */
+    public function valorDia(?CarbonInterface $fecha = null): ?float
+    {
+        $sueldo = $this->sueldoVigente($fecha);
+
+        if ($sueldo === null) {
+            return null;
+        }
+
+        return round($sueldo / max(1, (int) config('personal.dias_mes', 30)), 2);
+    }
+
+    public function getSueldoActualAttribute(): ?float
+    {
+        return $this->sueldoVigente();
+    }
+
+    public function getValorDiaActualAttribute(): ?float
+    {
+        return $this->valorDia();
+    }
+
+    /**
+     * Registra un sueldo nuevo en el histórico solo si difiere del vigente a esa
+     * fecha (evita filas duplicadas al guardar el formulario sin cambios).
+     */
+    public function registrarSueldo(float $valor, CarbonInterface $vigenteDesde, ?User $por = null): ?SueldoTecnico
+    {
+        if ($this->sueldoVigente($vigenteDesde) === round($valor, 2)) {
+            return null;
+        }
+
+        return $this->sueldos()->create([
+            'sueldo' => round($valor, 2),
+            'vigente_desde' => $vigenteDesde->toDateString(),
+            'registrado_por' => $por?->id,
+        ]);
     }
 
     /**

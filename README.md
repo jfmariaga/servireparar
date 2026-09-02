@@ -38,6 +38,8 @@ Cada módulo pasa por: `/speckit-specify` → `/speckit-clarify` → `/speckit-p
 para todos los módulos; `clarify`/`plan`/`tasks` se abordan módulo por módulo en sesiones posteriores, una
 vez validados los specs con el cliente.
 
+**Bitácoras de sesión** (detalle de lo implementado por fecha): [`docs/`](docs/).
+
 ## Mapeo Módulo ↔ Fase ↔ Hito de pago
 
 | Spec | Módulo | Fase (cronograma) | Fechas | Hito de pago asociado |
@@ -61,10 +63,10 @@ entrega (hasta 12/12/2026).
 | Spec | Estado `/speckit-clarify` | Notas |
 |------|---------------------------|-------|
 | 000 — Catálogos Maestros | ✅ Completado (2026-08-24) | Nuevo spec agregado tras validar documentos operativos reales. Contratistas como entidad propia, distinta de Proveedores. Listo para `/speckit-plan`. |
-| 001 — Autenticación y Usuarios | ✅ Completado (2026-08-24) | Sin auto-registro público, redirección por prioridad de rol, throttle estándar de Laravel. Listo para `/speckit-plan`. |
-| 002 — Órdenes de Trabajo | ✅ Completado (2026-08-24) | Umbral de vencimiento configurable; rechazo de salida de equipo reabre la OT a "En curso"; ampliado con numeración `OTSV-`, mano de obra de contratistas y costeo/utilidad neta por OT (ver constitución, principio III). Listo para `/speckit-plan`. |
-| 003 — Inventario (Bodega) | ✅ Completado (2026-08-24) | Auditorías bajo demanda; ajustes requieren aprobación del Administrador; ampliado con las 7 categorías reales, ubicación física Pasillo-Estante-Nivel y códigos de barra Code128. Listo para `/speckit-plan`. |
-| 004 — Gestión de Personal | ✅ Completado (2026-08-24) | Especialidad de técnico como catálogo fijo predefinido. Listo para `/speckit-plan`. |
+| 001 — Autenticación y Usuarios | ✅ Completado (2026-08-24) · ⚠️ revisado (2026-09-01) | Sin auto-registro público, redirección por prioridad de rol, throttle estándar de Laravel. **2026-09-01**: se agrega **Vendedor** como 5º rol fijo (canal de venta sin OT, spec 003 US6); FR-005/FR-010 y `RolPrioridad` actualizados → re-correr `/speckit-plan` y `/speckit-tasks`. |
+| 002 — Órdenes de Trabajo | ✅ Completado (2026-08-24) · ⚠️ revisado (2026-09-01) | Umbral de vencimiento configurable; rechazo de salida de equipo reabre la OT a "En curso"; ampliado con numeración `OTSV-`, mano de obra de contratistas y costeo/utilidad neta por OT. **2026-09-01**: mano de obra propia se costea **por día** (`dias_trabajados × valor_día`, valor día = `sueldo/30` del técnico, historizado — spec 004); `detalle_ot` pasa a `tiempo_estimado_dias` / `dias_trabajados`; umbral de vencimiento en días. Aún sin implementar. |
+| 003 — Inventario (Bodega) | ✅ Completado (2026-08-24) · ⚠️ revisado (2026-09-01) | Auditorías bajo demanda; ajustes requieren aprobación del Administrador; ampliado con las 7 categorías reales, ubicación física Pasillo-Estante-Nivel y códigos de barra Code128. **2026-09-01**: nueva **US6 — venta mostrador sin OT** (Vendedor → solicitud de despacho con estados → remisión de entrega con firma digital → compra externa trazada sin tocar stock); FR-019..FR-025, entidades `SOLICITUDES_DESPACHO` / `DETALLE_SOLICITUD_DESPACHO` / `REMISIONES_ENTREGA` → re-correr `/speckit-plan` y `/speckit-tasks`. |
+| 004 — Gestión de Personal | ✅ Completado (2026-08-24) · 🔁 revisado (2026-09-01) | Especialidad de técnico como catálogo fijo predefinido. **2026-09-01**: **sueldo mensual historizado** + **valor día** derivado (`sueldo/30`) para el costeo de OT (una OT cerrada no se recostea al subir el sueldo); **datos laborales** (fecha ingreso, cargo, tipo contrato); **hoja de vida** de solo lectura desde la lista de Usuarios. Elimina `tecnicos.tarifa_hora`. Fase 7 en tasks (T021–T029). |
 | 005 — Equipos y Mantenimiento | ✅ Completado (2026-08-24) | Variables técnicas como esquema clave-valor; checklist técnico con plantilla única genérica; registro de Cliente reubicado al spec 000. Listo para `/speckit-plan`. |
 | 006 — Compras y Cotizaciones | ✅ Completado (2026-08-24) | Recepción vía IMAP polling, correos fuera de hilo notifican al Administrador, "Cotización" como entidad propia; registro de Proveedor reubicado al spec 000. Queda abierto (no bloqueante): matcheo automático de cliente remitente. |
 | 007 — Reportes e Indicadores | ✅ Completado (2026-08-24) | Dashboard por recarga/refresco (sin polling); exportaciones de OT e Inventario primero, Compras/Personal en corte posterior. Listo para `/speckit-plan`. |
@@ -78,10 +80,10 @@ automático de cliente remitente en el spec 006.
 | Spec | Estado `/speckit-plan` |
 |------|-------------------------|
 | [000 — Catálogos Maestros](specs/000-catalogos-maestros/plan.md) | ✅ Completado (2026-08-24) |
-| [001 — Autenticación y Usuarios](specs/001-autenticacion-usuarios/plan.md) | ✅ Completado (2026-08-24) |
+| [001 — Autenticación y Usuarios](specs/001-autenticacion-usuarios/plan.md) | ✅ Completado (2026-08-24) · 🔁 revisado (2026-09-01) por rol Vendedor |
 | [002 — Órdenes de Trabajo](specs/002-ordenes-trabajo/plan.md) | ✅ Completado (2026-08-24) |
-| [003 — Inventario (Bodega)](specs/003-inventario-bodega/plan.md) | ✅ Completado (2026-08-24) |
-| [004 — Gestión de Personal](specs/004-gestion-personal/plan.md) | ✅ Completado (2026-08-24) |
+| [003 — Inventario (Bodega)](specs/003-inventario-bodega/plan.md) | ✅ Completado (2026-08-24) · 🔁 revisado (2026-09-01) por US6 venta sin OT |
+| [004 — Gestión de Personal](specs/004-gestion-personal/plan.md) | ✅ Completado (2026-08-24) · ✅ revisado + implementado (2026-09-01): sueldo/hoja de vida |
 | [005 — Equipos y Mantenimiento](specs/005-equipos-mantenimiento/plan.md) | ✅ Completado (2026-08-24) |
 | [006 — Compras y Cotizaciones](specs/006-solicitudes-compra-cotizaciones/plan.md) | ✅ Completado (2026-08-24) |
 | [007 — Reportes e Indicadores](specs/007-reportes-kpis/plan.md) | ✅ Completado (2026-08-24) |
@@ -108,10 +110,10 @@ módulos:
 | Spec | Estado `/speckit-tasks` | MVP (primer incremento) |
 |------|--------------------------|---------------------------|
 | [000 — Catálogos Maestros](specs/000-catalogos-maestros/tasks.md) | ✅ Completado (2026-08-24) | User Story 1 (Cliente) |
-| [001 — Autenticación y Usuarios](specs/001-autenticacion-usuarios/tasks.md) | ✅ Completado (2026-08-24) | US1 (Login) + US4 (Admin usuarios) |
+| [001 — Autenticación y Usuarios](specs/001-autenticacion-usuarios/tasks.md) | ✅ Completado (2026-08-24) · ✅ Fase 8 (2026-09-01): rol Vendedor implementado | US1 (Login) + US4 (Admin usuarios) |
 | [002 — Órdenes de Trabajo](specs/002-ordenes-trabajo/tasks.md) | ✅ Completado (2026-08-24) | US1 + US2 (crear y ejecutar OT) |
-| [003 — Inventario (Bodega)](specs/003-inventario-bodega/tasks.md) | ✅ Completado (2026-08-24) | US1 (solicitudes desde OT) |
-| [004 — Gestión de Personal](specs/004-gestion-personal/tasks.md) | ✅ Completado (2026-08-24) | US1 (ficha de técnico) |
+| [003 — Inventario (Bodega)](specs/003-inventario-bodega/tasks.md) | ✅ Completado (2026-08-24) · ✅ Fase 10 (2026-09-01): US6 venta sin OT implementada (T045–T077: solicitud→remisión firmada→copia PDF al correo del cliente; 15 tests) | US1 (solicitudes desde OT) |
+| [004 — Gestión de Personal](specs/004-gestion-personal/tasks.md) | ✅ Completado (2026-08-24) · ✅ Fase 7 (2026-09-01): sueldo historizado + valor día + hoja de vida implementados (T021–T029, +6 tests) | US1 (ficha de técnico) |
 | [005 — Equipos y Mantenimiento](specs/005-equipos-mantenimiento/tasks.md) | ✅ Completado (2026-08-24) | US1 (registro de equipos) |
 | [006 — Compras y Cotizaciones](specs/006-solicitudes-compra-cotizaciones/tasks.md) | ✅ Completado (2026-08-24) | US1 + US2 (recepción + construcción/envío) |
 | [007 — Reportes e Indicadores](specs/007-reportes-kpis/tasks.md) | ✅ Completado (2026-08-24) | US1 (dashboards por rol) |

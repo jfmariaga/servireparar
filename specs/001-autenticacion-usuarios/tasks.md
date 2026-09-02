@@ -141,6 +141,37 @@ credenciales inválidas y usuario inactivo
 
 ---
 
+## Phase 8: Revisión 2026-09-01 - Rol Vendedor (5º rol) — habilita spec 003 US6
+
+> **Nota de alcance**: quinto rol fijo del catálogo, requerido por el canal de venta mostrador sin OT
+> (spec 003, User Story 6). Sólo se da de alta el rol, su prioridad de redirección y su permiso; la lógica
+> del despacho vive en spec 003. Sin migraciones nuevas (spatie ya tiene las tablas). Esta fase debe estar
+> completa antes de la Fase 10 de `specs/003-inventario-bodega/tasks.md`.
+
+- [x] T033 `app/Enums/RolPrioridad.php`: nuevo case `Vendedor = 'Vendedor'`; `ordenados()` pasa a
+  `[Administrador, JefeDeTaller, Almacenista, Vendedor, Tecnico]`; `rutaDashboard()` mapea `Vendedor` →
+  `dashboard.vendedor`
+- [x] T034 `database/seeders/RolesSeeder.php`: añadir permiso `manage-despachos` a la lista base;
+  `Vendedor->syncPermissions(['manage-despachos'])`; añadir `manage-despachos` a las de `Almacenista`
+  (recibe/remisiona/entrega) y `Administrador`. El `foreach (RolPrioridad::ordenados())` ya crea el rol
+  `Vendedor` automáticamente
+- [x] T035 `routes/web.php`: ruta placeholder
+  `Volt::route('/dashboard/vendedor', 'dashboard')->name('dashboard.vendedor')->middleware('role:Vendedor')`
+  (igual que los demás roles; spec 007 la reemplaza con indicadores reales)
+- [x] T036 [P] Feature test `tests/Feature/Auth/RoleMiddlewareTest.php` (ampliación): usuario con rol
+  `Vendedor` accede a `dashboard.vendedor` y recibe 403 en `/usuarios`, `/inventario/categorias`,
+  `/inventario/auditorias`; usuario con roles `Almacenista` + `Vendedor` es redirigido al dashboard de
+  Almacenista (mayor prioridad)
+- [x] T037 Revisar tests/seeders que asuman exactamente 4 roles (`AdminUserSeeder`, factories) y
+  ejecutar `php artisan test --filter=Auth`, `--filter=Usuarios`, `--filter=RoleMiddleware` en verde
+- [x] T038 Actualizar `README.md` (fila de `/speckit-tasks` del spec 001 → completado rev. 2026-09-01) y la
+  tabla de estado de clarificación/plan si procede
+
+**Checkpoint**: existe el rol `Vendedor` con permiso `manage-despachos` y su redirección post-login; spec
+003 Fase 10 (US6) queda desbloqueada.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Setup + Foundational** bloquean todo — sin roles y usuario admin seed, nada más funciona.
@@ -148,6 +179,8 @@ credenciales inválidas y usuario inactivo
 - **US2 (recuperación)** y **US3 (perfil)** son independientes entre sí y de US4, pueden paralelizarse tras
   US1.
 - **US4 (Admin usuarios)** depende de US1 (necesita poder loguearse como Administrador) pero no de US2/US3.
+- **Fase 8 (rol Vendedor)** sólo depende de la Fase 2 (`RolPrioridad`, `RolesSeeder`); es prerrequisito de
+  la Fase 10 de spec 003 (venta mostrador sin OT).
 
 ## Implementation Strategy
 

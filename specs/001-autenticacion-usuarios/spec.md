@@ -22,12 +22,21 @@ Mockups Ilustraciones 1-4 (Login, Registro, Recuperación de contraseña, Perfil
 - Q: ¿Qué tan estricta debe ser la protección contra intentos repetidos de login fallido? → A: Throttle
   estándar de Laravel (límite de intentos por minuto con backoff), sin bloqueo adicional.
 
+### Session 2026-09-01
+
+- Q: El canal de venta sin OT (spec 003, US6) introduce tres "vendedores" que reciben la solicitud del
+  cliente y piden despacho al almacén. ¿Es un rol nuevo? → A: Sí — se agrega **Vendedor** como quinto rol
+  fijo del catálogo. Prioridad de redirección post-login:
+  Administrador > Jefe de Taller > Almacenista > Vendedor > Técnico. Alcance del rol: consulta del catálogo
+  de inventario y gestión (crear/editar/anular) de solicitudes de despacho; NO descuenta stock, NO gestiona
+  catálogos ni auditorías. Actualiza FR-005 y FR-010 (antes 4 roles).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar sesión en el sistema (Priority: P1)
 
-Cualquier usuario registrado (Administrador, Jefe de Taller, Almacenista, Técnico) ingresa su correo y
-contraseña para acceder al sistema y ser dirigido al tablero correspondiente a su rol.
+Cualquier usuario registrado (Administrador, Jefe de Taller, Almacenista, Vendedor, Técnico) ingresa su
+correo y contraseña para acceder al sistema y ser dirigido al tablero correspondiente a su rol.
 
 **Why this priority**: Es la puerta de entrada obligatoria a todos los demás módulos; sin esto ningún otro
 flujo es demostrable.
@@ -91,7 +100,7 @@ cambio se aplica en el siguiente login.
 ### User Story 4 - Administrar usuarios y roles (Priority: P1)
 
 El Administrador crea, edita, activa/inactiva usuarios y les asigna uno o más roles del catálogo
-(Administrador, Jefe de Taller, Almacenista, Técnico).
+(Administrador, Jefe de Taller, Almacenista, Vendedor, Técnico).
 
 **Why this priority**: Sin esta gestión no es posible dar de alta al resto del personal que usará los
 demás módulos (OT, Inventario, Personal); es prerrequisito operativo de todas las fases siguientes.
@@ -134,7 +143,7 @@ usuario puede iniciar sesión y solo ve las funcionalidades permitidas a su rol.
   teléfono, contraseña) sin poder auto-modificar su(s) rol(es).
 - **FR-004**: El sistema DEBE permitir al Administrador crear, editar, activar/inactivar usuarios.
 - **FR-005**: El sistema DEBE permitir al Administrador asignar y revocar roles del catálogo fijo
-  (Administrador, Jefe de Taller, Almacenista, Técnico) a cualquier usuario, usando
+  (Administrador, Jefe de Taller, Almacenista, Vendedor, Técnico) a cualquier usuario, usando
   spatie/laravel-permission como mecanismo de autorización subyacente.
 - **FR-006**: El sistema DEBE impedir el acceso a pantallas/acciones no autorizadas para el rol del usuario
   autenticado (autorización a nivel de policy/permiso, no solo ocultamiento de UI).
@@ -146,7 +155,7 @@ usuario puede iniciar sesión y solo ve las funcionalidades permitidas a su rol.
   texto plano en ninguna vista, log o notificación.
 - **FR-010**: Cuando un usuario tiene más de un rol asignado, el sistema DEBE redirigirlo tras el login al
   tablero del rol de mayor prioridad que tenga asignado, según el orden fijo: Administrador > Jefe de
-  Taller > Almacenista > Técnico.
+  Taller > Almacenista > Vendedor > Técnico.
 - **FR-011**: El sistema NO DEBE ofrecer auto-registro público de usuarios; toda alta de usuario es
   realizada exclusivamente por el Administrador (FR-004). La pantalla "Regístrate" del mockup no se
   implementa como flujo de auto-registro real.
@@ -158,7 +167,8 @@ usuario puede iniciar sesión y solo ve las funcionalidades permitidas a su rol.
 ### Key Entities
 
 - **Usuario** (`USUARIOS`): id, nombre, correo, contraseña (hash), teléfono, estado, fecha_registro.
-- **Rol** (`ROLES`): id, nombre, descripción — catálogo fijo de 4 roles.
+- **Rol** (`ROLES`): id, nombre, descripción — catálogo fijo de 5 roles (Administrador, Jefe de Taller,
+  Almacenista, Vendedor, Técnico).
 - **Usuario_Rol** (`USUARIO_ROL`): relación N:N entre Usuario y Rol.
 - **Técnico** (`TECNICOS`): extiende a un Usuario con rol Técnico — especialidad, activo (ver spec 004).
 
@@ -178,6 +188,6 @@ usuario puede iniciar sesión y solo ve las funcionalidades permitidas a su rol.
 - El correo electrónico es único por usuario y actúa como identificador de login.
 - El envío de correos (recuperación de contraseña, bienvenida) usa el mismo mecanismo de correo saliente
   que se defina para notificaciones (ver spec 008), no un proveedor distinto.
-- Los 4 roles del catálogo son fijos para el alcance contratado; no se requiere un editor de roles/permisos
+- Los 5 roles del catálogo son fijos para el alcance contratado; no se requiere un editor de roles/permisos
   dinámico por parte del Administrador (los permisos por rol se configuran en código/seed, no en UI).
 - El registro de nuevos usuarios en el día a día es responsabilidad exclusiva del Administrador (FR-011).
