@@ -1,0 +1,106 @@
+<?php
+
+namespace App\Services\OrdenTrabajo;
+
+use App\Exceptions\StockInsuficienteException;
+use App\Models\SolicitudInsumoOt;
+use App\Models\User;
+use App\Services\Inventario\MovimientoService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Atención por Bodega de las solicitudes de insumo generadas por las tareas de
+ * una OT (spec 003, US1). Flujo: `pendiente → (aprobada) → entregada`, o
+ * `rechazada` con motivo.
+ *
+ * La entrega es el único punto que descuenta stock: genera un movimiento de
+ * salida con `origen = 'ot'` (costeo FIFO) y enlaza la solicitud a ese
+ * movimiento, de modo que el costeo de la OT tome el costo real de lo despachado.
+ */
+class AtencionInsumoOtService
+{
+    public function __construct(
+        private readonly MovimientoService $movimientos = new MovimientoService(),
+    ) {}
+
+    public function aprobar(SolicitudInsumoOt $solicitud, User $almacenista): SolicitudInsumoOt
+    {
+        $this->asegurarEstado($solicitud, ['pendiente']);
+
+        $solicitud->update(['estado' => 'aprobada', 'motivo_rechazo' => null]);
+
+        return $solicitud->fresh();
+    }
+
+    public function entregar(SolicitudInsumoOt $solicitud, User $almacenista): SolicitudInsumoOt
+    {
+        $this->asegurarEstado($solicitud, ['pendiente', 'aprobada']);
+        $solicitud->loadMissing('inventario', 'ordenTrabajo', 'tarea');
+
+        return DB::transaction(function () use ($solicitud, $almacenista) {
+            try {
+                $movimiento = $this->movimientos->salida(
+                    $solicitud->inventario,
+                    (float) $solicitud->cantidad,
+                    $almacenista,
+                    origen: 'ot',
+                    motivo: 'OT '.$solicitud->ordenTrabajo->numero_ot.' — '.str((string) $solicitud->tarea?->descripcion)->limit(60),
+                    referencia: $solicitud->ordenTrabajo->numero_ot,
+                );
+            } catch (StockInsuficienteException $e) {
+                throw ValidationException::withMessages(['solicitud' => $e->getMessage()]);
+            }
+
+            $solicitud->update([
+                'estado' => 'entregada',
+                'movimiento_id' => $movimiento->id,
+                'motivo_rechazo' => null,
+            ]);
+
+            $solicitud->ordenTrabajo?->registrarEvento(
+                'insumo_entregado',
+                sprintf(
+                    'Bodega entregó %s uds. de %s para la tarea «%s».',
+                    rtrim(rtrim(number_format((float) $solicitud->cantidad, 2), '0'), '.'),
+                    $solicitud->inventario->nombre,
+                    str((string) $solicitud->tarea?->descripcion)->limit(40),
+                ),
+                $almacenista,
+            );
+
+            return $solicitud->fresh();
+        });
+    }
+
+    public function rechazar(SolicitudInsumoOt $solicitud, User $almacenista, string $motivo): SolicitudInsumoOt
+    {
+        $this->asegurarEstado($solicitud, ['pendiente', 'aprobada']);
+
+        if (trim($motivo) === '') {
+            throw ValidationException::withMessages(['motivo' => 'Indica el motivo del rechazo.']);
+        }
+
+        $solicitud->update(['estado' => 'rechazada', 'motivo_rechazo' => $motivo]);
+
+        $solicitud->ordenTrabajo?->registrarEvento(
+            'insumo_rechazado',
+            sprintf('Bodega rechazó el insumo para la tarea «%s». Motivo: %s', str((string) $solicitud->tarea?->descripcion)->limit(40), $motivo),
+            $almacenista,
+        );
+
+        return $solicitud->fresh();
+    }
+
+    /**
+     * @param  array<int, string>  $permitidos
+     */
+    private function asegurarEstado(SolicitudInsumoOt $solicitud, array $permitidos): void
+    {
+        if (! in_array($solicitud->estado, $permitidos, true)) {
+            throw ValidationException::withMessages([
+                'solicitud' => 'La solicitud ya fue '.$solicitud->estado.'; no admite esta acción.',
+            ]);
+        }
+    }
+}

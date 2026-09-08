@@ -18,6 +18,9 @@ class DatabaseSeeder extends Seeder
             EspecialidadesSeeder::class,
             CategoriasInventarioSeeder::class,
             UnidadesMedidaSeeder::class,
+            PrioridadesSeeder::class,
+            EstadosOtSeeder::class,
+            UsuariosDemoSeeder::class,
         ]);
     }
 }

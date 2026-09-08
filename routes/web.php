@@ -35,9 +35,18 @@ Route::middleware('auth')->group(function () {
     Volt::route('/inventario', 'inventario.dashboard')->name('inventario.dashboard');
     Volt::route('/inventario/catalogo', 'inventario.catalogo')->name('inventario.catalogo');
     Volt::route('/inventario/solicitudes', 'inventario.movimientos')->name('inventario.movimientos');
+    Volt::route('/inventario/insumos-ot', 'inventario.solicitudes-ot')->name('insumos-ot');
     Volt::route('/inventario/auditorias', 'inventario.auditoria')->name('inventario.auditoria');
     Volt::route('/inventario/categorias', 'inventario.catalogos')->name('inventario.catalogos');
     Route::get('/inventario/{inventario}/etiqueta', InventarioEtiquetaController::class)->name('inventario.etiqueta');
+
+    // Órdenes de Trabajo (spec 002)
+    Route::middleware('can:viewAny,App\Models\OrdenTrabajo')->group(function () {
+        Volt::route('/ordenes-trabajo', 'ordenes-trabajo.tablero')->name('ordenes-trabajo.tablero');
+        Volt::route('/ordenes-trabajo/crear', 'ordenes-trabajo.crear')->name('ordenes-trabajo.crear');
+        Volt::route('/ordenes-trabajo/{ordenTrabajo}/costeo', 'ordenes-trabajo.costeo')->name('ordenes-trabajo.costeo');
+        Volt::route('/ordenes-trabajo/{ordenTrabajo}', 'ordenes-trabajo.detalle')->name('ordenes-trabajo.detalle');
+    });
 
     // Despachos / venta mostrador sin OT (spec 003, US6)
     Route::middleware('role:Vendedor|Almacenista|Administrador')->group(function () {

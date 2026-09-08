@@ -58,8 +58,8 @@ new #[Layout('components.layout')] class extends Component
             <circle cx="100" cy="100" r="30" stroke="#e0332c" stroke-width="1.5"/>
         </svg>
 
-        <div class="relative bg-white rounded-lg px-4 py-2.5 w-fit">
-            <img src="{{ asset('img/logo.png') }}" alt="ServiReparar" class="h-[26px] w-auto block">
+        <div class="relative bg-white rounded-lg px-6 py-4 w-fit">
+            <img src="{{ asset('img/logo.png') }}" alt="ServiReparar" class="h-12 w-auto block">
         </div>
 
         <div class="relative">
@@ -72,6 +72,10 @@ new #[Layout('components.layout')] class extends Component
 
     <div class="flex-1 flex items-center justify-center p-10">
         <div class="w-full max-w-sm">
+            <div class="lg:hidden mb-8 bg-white rounded-lg px-5 py-3 w-fit shadow-sm">
+                <img src="{{ asset('img/logo.png') }}" alt="ServiReparar" class="h-10 w-auto block">
+            </div>
+
             <h2 class="text-2xl font-bold mb-1.5">Iniciar sesión</h2>
             <p class="text-sm text-slate-500 dark:text-slate-400 mb-8">Ingresa con las credenciales asignadas por tu administrador.</p>
 

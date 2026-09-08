@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Spec 005 (Equipos/Mantenimiento), FR-006: revisa mantenimientos preventivos próximos a vencer.
 Schedule::command('mantenimientos:revisar-preventivos')->daily();
+
+// Spec 002 (Órdenes de Trabajo), FR-010: revisa OT próximas a vencer o vencidas.
+Schedule::command('ot:revisar-vencimientos')->daily();

@@ -30,6 +30,9 @@ class RolesSeeder extends Seeder
             'manage-usuarios',
             // Personal / técnicos (spec 004)
             'manage-tecnicos',
+            // Órdenes de Trabajo (spec 002)
+            'manage-ot',
+            'execute-ot',
             // Equipos (spec 005)
             'manage-equipos',
             // Inventario / Bodega (spec 003)
@@ -49,7 +52,7 @@ class RolesSeeder extends Seeder
 
         /** @var Role $jefeDeTaller */
         $jefeDeTaller = Role::findByName(RolPrioridad::JefeDeTaller->value);
-        $jefeDeTaller->syncPermissions(['manage-clientes', 'manage-proveedores', 'manage-contratistas', 'manage-equipos']);
+        $jefeDeTaller->syncPermissions(['manage-clientes', 'manage-proveedores', 'manage-contratistas', 'manage-equipos', 'manage-ot', 'execute-ot']);
 
         /** @var Role $almacenista */
         $almacenista = Role::findByName(RolPrioridad::Almacenista->value);
@@ -58,5 +61,9 @@ class RolesSeeder extends Seeder
         /** @var Role $vendedor */
         $vendedor = Role::findByName(RolPrioridad::Vendedor->value);
         $vendedor->syncPermissions(['manage-despachos']);
+
+        /** @var Role $tecnico */
+        $tecnico = Role::findByName(RolPrioridad::Tecnico->value);
+        $tecnico->syncPermissions(['execute-ot']);
     }
 }

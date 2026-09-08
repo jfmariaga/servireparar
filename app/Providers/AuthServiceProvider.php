@@ -8,6 +8,7 @@ use App\Models\Cliente;
 use App\Models\Contratista;
 use App\Models\Equipo;
 use App\Models\Inventario;
+use App\Models\OrdenTrabajo;
 use App\Models\Proveedor;
 use App\Models\SolicitudDespacho;
 use App\Models\Tecnico;
@@ -17,6 +18,7 @@ use App\Policies\ClientePolicy;
 use App\Policies\ContratistaPolicy;
 use App\Policies\EquipoPolicy;
 use App\Policies\InventarioPolicy;
+use App\Policies\OrdenTrabajoPolicy;
 use App\Policies\ProveedorPolicy;
 use App\Policies\SolicitudDespachoPolicy;
 use App\Policies\TecnicoPolicy;
@@ -47,6 +49,7 @@ class AuthServiceProvider extends ServiceProvider
         AuditoriaInventario::class => AuditoriaPolicy::class,
         AjusteAuditoria::class => AuditoriaPolicy::class,
         SolicitudDespacho::class => SolicitudDespachoPolicy::class,
+        OrdenTrabajo::class => OrdenTrabajoPolicy::class,
     ];
 
     public function boot(): void

@@ -1,0 +1,739 @@
+<?php
+
+use App\Models\ChecklistOt;
+use App\Models\DetalleOt;
+use App\Models\Inventario;
+use App\Models\OrdenTrabajo;
+use App\Models\Prioridad;
+use App\Models\Tecnico;
+use App\Livewire\Concerns\Notifies;
+use App\Services\OrdenTrabajo\EstadoOtService;
+use App\Services\OrdenTrabajo\OrdenTrabajoService;
+use App\Services\OrdenTrabajo\SalidaEquipoService;
+use App\Services\OrdenTrabajo\SolicitudInsumoService;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Layout;
+use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
+
+new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extends Component
+{
+    use Notifies, WithFileUploads;
+
+    public OrdenTrabajo $ot;
+
+    // Finalizar tarea
+    public ?int $finalizandoTareaId = null;
+    public string $diasTrabajados = '';
+
+    // Evidencia de proceso
+    public $evidencia = null;
+    public string $evidenciaDescripcion = '';
+
+    // Checklist
+    public string $nuevoItem = '';
+
+    // Salida de equipo
+    public string $motivoRechazoSalida = '';
+    public string $firmaCliente = '';
+
+    // Corrección (US4)
+    public bool $editandoCabecera = false;
+    public ?int $prioridadId = null;
+    public string $descripcion = '';
+    public string $tipoServicio = 'taller';
+    public string $tiempoEstimadoDias = '';
+    // Alta / edición de tareas en una OT existente (US4 / FR-009)
+    public bool $agregandoTarea = false;
+    /** @var array<string, mixed> */
+    public array $tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumo_id' => null, 'cantidad_insumo' => ''];
+    public ?int $editandoTareaId = null;
+
+    public function mount(OrdenTrabajo $ordenTrabajo): void
+    {
+        $this->ot = $ordenTrabajo;
+        Gate::authorize('view', $this->ot);
+        $this->syncCabecera();
+    }
+
+    private function syncCabecera(): void
+    {
+        $this->prioridadId = $this->ot->prioridad_id;
+        $this->descripcion = $this->ot->descripcion;
+        $this->tipoServicio = $this->ot->tipo_servicio;
+        $this->tiempoEstimadoDias = (string) ($this->ot->tiempo_estimado_dias ?? '');
+    }
+
+    public function with(): array
+    {
+        $this->ot->load([
+            'cliente', 'equipo', 'prioridad', 'estado', 'creadoPor',
+            'tareas.tecnico.usuario', 'tareas.insumo', 'tareas.solicitudInsumo',
+            'evidencias.subidaPor', 'checklist', 'eventos.usuario',
+            'manoObraContratistas.contratista',
+        ]);
+
+        return [
+            'prioridades' => Prioridad::orderBy('nivel')->get(['id', 'nombre']),
+            'insumos' => Inventario::activos()->orderBy('nombre')->get(['id', 'nombre', 'codigo']),
+            'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
+                ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id]),
+            'puedeGestionar' => Gate::allows('update', $this->ot),
+            'puedeEjecutar' => Gate::allows('executeTareas', $this->ot),
+            'puedeAprobarSalida' => Gate::allows('approveEquipmentExit', $this->ot),
+            'puedeSolicitarSalida' => Gate::allows('requestEquipmentExit', $this->ot),
+            'puedeVerCosteo' => Gate::allows('viewCosteo', $this->ot),
+            'puedeFinalizar' => app(EstadoOtService::class)->puedeFinalizar($this->ot),
+        ];
+    }
+
+    // --- US2: ejecución de tareas ---
+
+    public function iniciarTarea(int $tareaId, EstadoOtService $estados): void
+    {
+        Gate::authorize('executeTareas', $this->ot);
+        $tarea = $this->ot->tareas()->findOrFail($tareaId);
+
+        if ($tarea->estado_tarea !== 'pendiente') {
+            $this->notifyError('La tarea ya fue iniciada.');
+
+            return;
+        }
+
+        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+        $estados->recalcular($this->ot->fresh(), auth()->user());
+        $this->ot->refresh();
+        $this->notifySuccess('Tarea iniciada.');
+    }
+
+    public function confirmarFinalizarTarea(int $tareaId): void
+    {
+        Gate::authorize('executeTareas', $this->ot);
+        $this->finalizandoTareaId = $tareaId;
+        $this->diasTrabajados = '';
+    }
+
+    public function finalizarTarea(EstadoOtService $estados): void
+    {
+        Gate::authorize('executeTareas', $this->ot);
+
+        $this->validate([
+            'diasTrabajados' => 'required|numeric|min:0',
+        ], [], ['diasTrabajados' => 'días trabajados']);
+
+        $tarea = $this->ot->tareas()->findOrFail($this->finalizandoTareaId);
+
+        if ($tarea->estado_tarea === 'pendiente') {
+            $this->notifyError('Inicia la tarea antes de finalizarla.');
+
+            return;
+        }
+
+        $tarea->update([
+            'estado_tarea' => 'finalizada',
+            'fecha_fin' => now(),
+            'dias_trabajados' => (float) $this->diasTrabajados,
+        ]);
+
+        $estados->recalcular($this->ot->fresh(), auth()->user());
+        $this->ot->refresh();
+        $this->finalizandoTareaId = null;
+        $this->diasTrabajados = '';
+        $this->notifySuccess('Tarea finalizada.');
+    }
+
+    public function subirEvidencia(): void
+    {
+        Gate::authorize('view', $this->ot);
+        $this->validate([
+            'evidencia' => 'required|file|max:10240',
+            'evidenciaDescripcion' => 'nullable|string|max:255',
+        ], [], ['evidencia' => 'archivo']);
+
+        $ruta = $this->evidencia->store('evidencias-ot', 'public');
+        $this->ot->evidencias()->create([
+            'tipo_registro' => 'proceso',
+            'tipo_archivo' => $this->evidencia->getMimeType(),
+            'url_archivo' => $ruta,
+            'descripcion' => $this->evidenciaDescripcion ?: null,
+            'subida_por' => auth()->id(),
+            'fecha_subida' => now(),
+        ]);
+        $this->ot->registrarEvento('evidencia', 'Evidencia de proceso cargada.', auth()->user());
+        $this->reset('evidencia', 'evidenciaDescripcion');
+        $this->notifySuccess('Evidencia cargada.');
+    }
+
+    // --- US3: checklist ---
+
+    public function agregarItemChecklist(): void
+    {
+        Gate::authorize('update', $this->ot);
+        $this->validate(['nuevoItem' => 'required|string|max:255'], [], ['nuevoItem' => 'ítem']);
+        $this->ot->checklist()->create(['item' => $this->nuevoItem]);
+        $this->nuevoItem = '';
+        $this->notifySuccess('Ítem agregado al checklist.');
+    }
+
+    public function responderChecklist(int $itemId, bool $cumple, EstadoOtService $estados): void
+    {
+        Gate::authorize('update', $this->ot);
+        ChecklistOt::where('ot_id', $this->ot->id)->where('id', $itemId)->update(['cumple' => $cumple]);
+        $estados->recalcular($this->ot->fresh(), auth()->user());
+        $this->ot->refresh();
+    }
+
+    public function eliminarItemChecklist(int $itemId): void
+    {
+        Gate::authorize('update', $this->ot);
+        ChecklistOt::where('ot_id', $this->ot->id)->where('id', $itemId)->delete();
+    }
+
+    // --- US3: salida de equipo ---
+
+    public function solicitarSalida(SalidaEquipoService $salida): void
+    {
+        Gate::authorize('requestEquipmentExit', $this->ot);
+        try {
+            $salida->solicitar($this->ot, auth()->user());
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+        $this->ot->refresh();
+        $this->notifySuccess('Salida de equipo solicitada. A la espera de aprobación del Administrador.');
+    }
+
+    public function aprobarSalida(SalidaEquipoService $salida): void
+    {
+        Gate::authorize('approveEquipmentExit', $this->ot);
+        try {
+            $salida->aprobar($this->ot, auth()->user());
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+        $this->ot->refresh();
+        $this->notifySuccess('Salida aprobada.');
+    }
+
+    public function rechazarSalida(SalidaEquipoService $salida): void
+    {
+        Gate::authorize('approveEquipmentExit', $this->ot);
+        $this->validate(['motivoRechazoSalida' => 'required|string|max:500'], [], ['motivoRechazoSalida' => 'motivo']);
+        try {
+            $salida->rechazar($this->ot, auth()->user(), $this->motivoRechazoSalida);
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+        $this->motivoRechazoSalida = '';
+        $this->ot->refresh();
+        $this->notifySuccess('Salida rechazada. La OT vuelve a estar en curso.');
+    }
+
+    public function confirmarEntrega(SalidaEquipoService $salida): void
+    {
+        Gate::authorize('requestEquipmentExit', $this->ot);
+        try {
+            $salida->confirmarEntrega($this->ot, auth()->user(), $this->firmaCliente ?: null);
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+        $this->firmaCliente = '';
+        $this->ot->refresh();
+        $this->notifySuccess('Entrega confirmada. OT '.$this->ot->numero_ot.' entregada.');
+    }
+
+    // --- US4: correcciones ---
+
+    public function editarCabecera(): void
+    {
+        Gate::authorize('update', $this->ot);
+        $this->editandoCabecera = true;
+        $this->syncCabecera();
+    }
+
+    public function guardarCabecera(OrdenTrabajoService $servicio): void
+    {
+        Gate::authorize('update', $this->ot);
+        $datos = $this->validate([
+            'prioridadId' => 'required|exists:prioridades,id',
+            'descripcion' => 'required|string|max:2000',
+            'tipoServicio' => 'required|in:taller,domicilio',
+            'tiempoEstimadoDias' => 'nullable|numeric|min:0',
+        ], [], ['prioridadId' => 'prioridad']);
+
+        $servicio->corregir($this->ot, auth()->user(), [
+            'prioridad_id' => (int) $datos['prioridadId'],
+            'descripcion' => $datos['descripcion'],
+            'tipo_servicio' => $datos['tipoServicio'],
+            'tiempo_estimado_dias' => $datos['tiempoEstimadoDias'] !== '' ? (float) $datos['tiempoEstimadoDias'] : null,
+        ]);
+
+        $this->editandoCabecera = false;
+        $this->ot->refresh();
+        $this->notifySuccess('OT corregida.');
+    }
+
+    // --- US4: alta / edición / baja de tareas en una OT existente ---
+
+    private function resetTareaForm(): void
+    {
+        $this->tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumo_id' => null, 'cantidad_insumo' => ''];
+    }
+
+    public function nuevaTarea(): void
+    {
+        Gate::authorize('update', $this->ot);
+        $this->editandoTareaId = null;
+        $this->resetTareaForm();
+        $this->agregandoTarea = true;
+    }
+
+    public function editarTarea(int $tareaId): void
+    {
+        Gate::authorize('update', $this->ot);
+        $tarea = $this->ot->tareas()->findOrFail($tareaId);
+
+        if ($tarea->estado_tarea === 'finalizada') {
+            $this->notifyError('Una tarea finalizada no se puede editar ni reasignar.');
+
+            return;
+        }
+
+        $this->agregandoTarea = false;
+        $this->editandoTareaId = $tareaId;
+        $this->tareaForm = [
+            'descripcion' => $tarea->descripcion,
+            'tecnico_id' => $tarea->tecnico_id,
+            'insumo_id' => $tarea->insumo_id,
+            'cantidad_insumo' => (string) ($tarea->cantidad_insumo ?? ''),
+        ];
+    }
+
+    public function cancelarTarea(): void
+    {
+        $this->agregandoTarea = false;
+        $this->editandoTareaId = null;
+        $this->resetTareaForm();
+    }
+
+    public function guardarTarea(OrdenTrabajoService $servicio): void
+    {
+        Gate::authorize('update', $this->ot);
+
+        $datos = $this->validate([
+            'tareaForm.descripcion' => 'required|string|max:1000',
+            'tareaForm.tecnico_id' => 'required|exists:tecnicos,id',
+            'tareaForm.insumo_id' => 'nullable|exists:inventario,id',
+            'tareaForm.cantidad_insumo' => 'nullable|required_with:tareaForm.insumo_id|numeric|min:0.01',
+        ], [], [
+            'tareaForm.descripcion' => 'descripción',
+            'tareaForm.tecnico_id' => 'técnico',
+            'tareaForm.cantidad_insumo' => 'cantidad de insumo',
+        ])['tareaForm'];
+
+        try {
+            if ($this->editandoTareaId) {
+                $tarea = $this->ot->tareas()->with('tecnico.usuario', 'solicitudInsumo')->findOrFail($this->editandoTareaId);
+                $servicio->actualizarTarea($tarea, auth()->user(), $datos);
+                $msg = 'Tarea actualizada.';
+            } else {
+                $servicio->agregarTarea($this->ot, auth()->user(), $datos);
+                $msg = 'Tarea agregada.';
+            }
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+
+        $this->cancelarTarea();
+        $this->ot->refresh();
+        $this->notifySuccess($msg);
+    }
+
+    public function quitarTarea(int $tareaId, OrdenTrabajoService $servicio): void
+    {
+        Gate::authorize('update', $this->ot);
+        $tarea = $this->ot->tareas()->with('solicitudInsumo')->findOrFail($tareaId);
+
+        try {
+            $servicio->quitarTarea($tarea, auth()->user());
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+
+        $this->ot->refresh();
+        $this->notifySuccess('Tarea eliminada.');
+    }
+}; ?>
+
+@php
+    $estadoTono = match ($ot->estado?->slug) {
+        'entregada' => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+        'finalizada' => 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+        'en_curso' => 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+        default => 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+    };
+    $nfmt = fn ($v) => rtrim(rtrim(number_format((float) $v, 2), '0'), '.');
+@endphp
+
+<div class="w-full flex flex-col gap-6" x-data>
+    @if (session('ok'))
+        <div class="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-sm rounded-lg px-4 py-2.5">{{ session('ok') }}</div>
+    @endif
+
+    {{-- Barra superior --}}
+    <div class="flex flex-wrap items-center gap-3">
+        <a href="{{ route('ordenes-trabajo.tablero') }}" wire:navigate class="text-sm text-slate-400 hover:text-brand-blue">← Tablero</a>
+        <h1 class="text-xl font-bold font-display">{{ $ot->numero_ot }}</h1>
+        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold {{ $estadoTono }}">{{ $ot->estado?->nombre }}</span>
+        <div class="ml-auto flex gap-2">
+            @if ($puedeVerCosteo)
+                <a href="{{ route('ordenes-trabajo.costeo', $ot) }}" wire:navigate class="inline-flex items-center h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Costeo y utilidad</a>
+            @endif
+            @if ($puedeGestionar && ! $editandoCabecera)
+                <button wire:click="editarCabecera" class="inline-flex items-center h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Corregir OT</button>
+            @endif
+        </div>
+    </div>
+
+    <div class="grid gap-6 xl:grid-cols-3 items-start">
+
+        {{-- ===================== Columna principal ===================== --}}
+        <div class="xl:col-span-2 flex flex-col gap-6 min-w-0">
+
+            {{-- Descripción / equipo --}}
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
+                @if ($editandoCabecera)
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <x-field label="Descripción" class="sm:col-span-2">
+                            <x-textarea wire:model="descripcion" rows="3" />
+                            @error('descripcion') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                        </x-field>
+                        <x-field label="Prioridad">
+                            <x-select wire:model="prioridadId" :placeholder="null">
+                                @foreach ($prioridades as $p)<option value="{{ $p->id }}">{{ $p->nombre }}</option>@endforeach
+                            </x-select>
+                        </x-field>
+                        <x-field label="Tipo de servicio">
+                            <x-select wire:model="tipoServicio" :placeholder="null">
+                                <option value="taller">Taller</option>
+                                <option value="domicilio">Domicilio</option>
+                            </x-select>
+                        </x-field>
+                        <x-field label="Tiempo estimado (días)">
+                            <x-input type="number" step="0.5" min="0" wire:model="tiempoEstimadoDias" />
+                        </x-field>
+                        <div class="sm:col-span-2 flex gap-2">
+                            <button wire:click="guardarCabecera" class="inline-flex items-center h-10 px-4 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white text-[13px] font-semibold">Guardar</button>
+                            <button wire:click="$set('editandoCabecera', false)" class="inline-flex items-center h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold">Cancelar</button>
+                        </div>
+                    </div>
+                @else
+                    <div>
+                        <h2 class="text-[13px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Servicio solicitado</h2>
+                        <p class="text-sm leading-relaxed">{{ $ot->descripcion }}</p>
+                    </div>
+                    @if ($ot->equipo_marca || $ot->equipo_descripcion || $ot->equipo_id || $ot->equipo_estado_ingreso)
+                        <div class="grid gap-2 sm:grid-cols-2 text-sm border-t border-slate-100 dark:border-slate-800 pt-4">
+                            <div><span class="text-slate-400">Equipo:</span> {{ $ot->equipo_descripcion ?? $ot->equipo?->tipo ?? '—' }}</div>
+                            <div><span class="text-slate-400">Marca / Modelo:</span> {{ $ot->equipo_marca ?? $ot->equipo?->marca ?? '—' }} {{ $ot->equipo_modelo ?? $ot->equipo?->modelo }}</div>
+                            <div><span class="text-slate-400">Serie:</span> {{ $ot->equipo_serie ?? $ot->equipo?->serie ?? '—' }}</div>
+                            <div><span class="text-slate-400">Estado de ingreso:</span> {{ $ot->equipo_estado_ingreso ?? '—' }}</div>
+                        </div>
+                    @endif
+                @endif
+            </div>
+
+            {{-- Tareas --}}
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-sm">Tareas <span class="text-slate-400 font-normal">({{ $ot->tareas->count() }})</span>
+                        <span class="text-xs text-slate-400 font-normal">· {{ $ot->tareas->where('estado_tarea', 'finalizada')->count() }} finalizadas</span>
+                    </h2>
+                    @if ($puedeGestionar && $ot->estado?->slug !== 'entregada' && ! $agregandoTarea && ! $editandoTareaId)
+                        <button wire:click="nuevaTarea"
+                                class="inline-flex items-center gap-1.5 rounded-lg border border-brand-blue/30 bg-brand-blue-tint dark:bg-brand-navy-active px-2.5 py-1.5 text-[12px] font-semibold text-brand-blue dark:text-white hover:bg-brand-blue/15">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                            Agregar tarea
+                        </button>
+                    @endif
+                </div>
+
+                @error('tareaForm.descripcion') <p class="text-xs text-brand-red">{{ $message }}</p> @enderror
+
+                {{-- Formulario de alta / edición de tarea --}}
+                @if ($agregandoTarea || $editandoTareaId)
+                    <div class="rounded-xl border border-brand-blue/30 bg-brand-blue-tint/40 dark:bg-brand-navy-active/40 p-4 flex flex-col gap-3">
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-brand-blue dark:text-white">{{ $editandoTareaId ? 'Editar tarea' : 'Nueva tarea' }}</p>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <x-field label="Descripción" required class="sm:col-span-2">
+                                <x-input wire:model="tareaForm.descripcion" placeholder="Qué se va a hacer" />
+                                @error('tareaForm.descripcion') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                            </x-field>
+                            <x-field label="Técnico" required>
+                                <x-select wire:model="tareaForm.tecnico_id" :reset-key="'tf-tec-'.($editandoTareaId ?? 'new')">
+                                    @foreach ($tecnicos as $t)<option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>@endforeach
+                                </x-select>
+                                @error('tareaForm.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                            </x-field>
+                            <div class="grid grid-cols-2 gap-3">
+                                <x-field label="Insumo">
+                                    <x-select wire:model="tareaForm.insumo_id" :reset-key="'tf-ins-'.($editandoTareaId ?? 'new')">
+                                        @foreach ($insumos as $ins)<option value="{{ $ins->id }}">{{ $ins->nombre }}</option>@endforeach
+                                    </x-select>
+                                </x-field>
+                                <x-field label="Cantidad">
+                                    <x-input type="number" step="0.01" min="0.01" wire:model="tareaForm.cantidad_insumo" />
+                                    @error('tareaForm.cantidad_insumo') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                                </x-field>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button wire:click="guardarTarea" class="inline-flex items-center h-9 px-4 rounded-lg bg-brand-blue hover:bg-brand-blue-dark text-white text-[12.5px] font-semibold">Guardar</button>
+                            <button wire:click="cancelarTarea" class="inline-flex items-center h-9 px-4 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold">Cancelar</button>
+                        </div>
+                    </div>
+                @endif
+
+                <div class="grid gap-3 md:grid-cols-2">
+                    @foreach ($ot->tareas as $tarea)
+                        <div wire:key="tarea-{{ $tarea->id }}" class="border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col gap-2 text-sm {{ $editandoTareaId === $tarea->id ? 'ring-2 ring-brand-blue/40' : '' }}">
+                            <div class="flex items-start justify-between gap-2">
+                                <p class="font-medium leading-snug">{{ $tarea->descripcion }}</p>
+                                <span class="shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold
+                                    {{ $tarea->estado_tarea === 'finalizada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : ($tarea->estado_tarea === 'en_curso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-slate-100 dark:bg-slate-800') }}">
+                                    {{ str($tarea->estado_tarea)->replace('_', ' ')->ucfirst() }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-400">
+                                {{ $tarea->tecnico?->usuario?->name ?? 'Técnico #'.$tarea->tecnico_id }}
+                                @if ($tarea->insumo)<br>Insumo: {{ $tarea->insumo->nombre }} ({{ $nfmt($tarea->cantidad_insumo) }})@if ($tarea->solicitudInsumo) — solicitud <span class="font-semibold">{{ $tarea->solicitudInsumo->estado }}</span>@endif @endif
+                                @if ($tarea->estado_tarea === 'finalizada')<br>Días trabajados: {{ $nfmt($tarea->dias_trabajados) }}@endif
+                            </p>
+                            @if ($tarea->solicitudInsumo && in_array($tarea->solicitudInsumo->estado, ['pendiente', 'aprobada'], true) && $tarea->estado_tarea !== 'finalizada')
+                                <p class="text-[11px] text-amber-600 dark:text-amber-400 flex items-start gap-1">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mt-0.5 shrink-0"><path d="M12 9v4M12 17h.01M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+                                    Insumo aún no entregado por Bodega.
+                                </p>
+                            @elseif ($tarea->solicitudInsumo && $tarea->solicitudInsumo->estado === 'rechazada')
+                                <p class="text-[11px] text-brand-red">Bodega rechazó el insumo: {{ $tarea->solicitudInsumo->motivo_rechazo }}</p>
+                            @endif
+                            <div class="flex flex-wrap items-center gap-2 pt-1">
+                                @if ($puedeEjecutar && $tarea->estado_tarea === 'pendiente')
+                                    <button wire:click="iniciarTarea({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-blue text-white hover:bg-brand-blue-dark">Iniciar</button>
+                                @endif
+                                @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso')
+                                    @if ($finalizandoTareaId === $tarea->id)
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <input type="number" step="0.5" min="0" wire:model="diasTrabajados" placeholder="Días" class="w-24 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3 text-xs outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10">
+                                            <button wire:click="finalizarTarea" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar</button>
+                                            <button wire:click="$set('finalizandoTareaId', null)" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">Cancelar</button>
+                                        </div>
+                                        @error('diasTrabajados') <span class="text-brand-red text-xs w-full">{{ $message }}</span> @enderror
+                                    @else
+                                        <button wire:click="confirmarFinalizarTarea({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Finalizar</button>
+                                    @endif
+                                @endif
+                                @if ($puedeGestionar && $tarea->estado_tarea !== 'finalizada')
+                                    <button wire:click="editarTarea({{ $tarea->id }})" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Editar</button>
+                                @endif
+                                @if ($puedeGestionar && $tarea->estado_tarea === 'pendiente' && $ot->tareas->count() > 1)
+                                    <button wire:click="quitarTarea({{ $tarea->id }})" wire:confirm="¿Quitar esta tarea de la OT?" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-red hover:border-brand-red/40">Quitar</button>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Checklist --}}
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-sm">Checklist de cierre</h2>
+                    @if ($puedeFinalizar)
+                        <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Listo para finalizar</span>
+                    @else
+                        <span class="text-xs text-amber-600 dark:text-amber-400">Pendiente para poder finalizar</span>
+                    @endif
+                </div>
+                <div class="flex flex-col">
+                    @forelse ($ot->checklist as $item)
+                        <div wire:key="chk-{{ $item->id }}" class="flex items-center justify-between gap-3 text-sm border-b border-slate-50 dark:border-slate-800/60 py-2.5">
+                            <span class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {{ $item->cumple === null ? 'bg-slate-300' : ($item->cumple ? 'bg-emerald-500' : 'bg-brand-red') }}"></span>
+                                {{ $item->item }}
+                            </span>
+                            <div class="flex items-center gap-2 shrink-0">
+                                @if ($puedeGestionar)
+                                    <button wire:click="responderChecklist({{ $item->id }}, true)" class="text-[11px] font-bold px-2.5 py-1 rounded-md {{ $item->cumple === true ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800' }}">SÍ</button>
+                                    <button wire:click="responderChecklist({{ $item->id }}, false)" class="text-[11px] font-bold px-2.5 py-1 rounded-md {{ $item->cumple === false ? 'bg-brand-red text-white' : 'bg-slate-100 dark:bg-slate-800' }}">NO</button>
+                                    <button wire:click="eliminarItemChecklist({{ $item->id }})" class="text-[11px] text-slate-400 hover:text-brand-red">✕</button>
+                                @else
+                                    <span class="text-xs font-semibold">{{ $item->cumple === null ? 'Pendiente' : ($item->cumple ? 'Sí' : 'No') }}</span>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-xs text-slate-400 py-2">Sin ítems de checklist todavía.</p>
+                    @endforelse
+                </div>
+                @if ($puedeGestionar)
+                    <div class="flex gap-2 pt-1">
+                        <x-input wire:model="nuevoItem" placeholder="Nuevo ítem de checklist" class="flex-1" wire:keydown.enter="agregarItemChecklist" />
+                        <button wire:click="agregarItemChecklist" class="inline-flex items-center h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Agregar</button>
+                    </div>
+                    @error('nuevoItem') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                @endif
+            </div>
+
+            {{-- Evidencias --}}
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
+                <h2 class="font-bold text-sm">Evidencias</h2>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    @forelse ($ot->evidencias as $ev)
+                        @php $esImg = str((string) $ev->tipo_archivo)->startsWith('image/'); @endphp
+                        <div wire:key="ev-{{ $ev->id }}" class="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+                            <div class="aspect-square bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center overflow-hidden">
+                                @if ($esImg)
+                                    <a href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($ev->url_archivo) }}" target="_blank">
+                                        <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($ev->url_archivo) }}" alt="{{ $ev->descripcion }}" class="w-full h-full object-cover">
+                                    </a>
+                                @else
+                                    <a href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($ev->url_archivo) }}" target="_blank" class="flex flex-col items-center gap-1 text-slate-400 text-xs p-2">
+                                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3v5h5M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V8l-6-5z"/></svg>
+                                        Archivo
+                                    </a>
+                                @endif
+                            </div>
+                            <div class="p-2 text-[11px] leading-tight">
+                                <span class="inline-block rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 font-semibold capitalize">{{ $ev->tipo_registro }}</span>
+                                <p class="text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{{ $ev->descripcion ?? '—' }}</p>
+                                <p class="text-slate-400 mt-0.5">{{ $ev->fecha_subida?->format('d/m/Y H:i') }}</p>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-xs text-slate-400 col-span-full">Sin evidencias cargadas.</p>
+                    @endforelse
+                </div>
+
+                <div class="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-col sm:flex-row sm:items-start gap-3">
+                    @if ($evidencia)
+                        <div class="shrink-0">
+                            @if (str((string) $evidencia->getMimeType())->startsWith('image/'))
+                                <img src="{{ $evidencia->temporaryUrl() }}" class="h-24 w-24 rounded-xl object-cover border border-slate-200 dark:border-slate-700">
+                            @else
+                                <div class="h-24 w-24 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 text-xs">{{ str($evidencia->getClientOriginalName())->limit(14) }}</div>
+                            @endif
+                        </div>
+                    @endif
+                    <div class="flex-1 flex flex-col gap-2">
+                        <input type="file" wire:model="evidencia"
+                               class="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-blue-tint file:px-3 file:py-2 file:text-[12px] file:font-semibold file:text-brand-blue hover:file:bg-brand-blue/15 dark:file:bg-brand-navy-active dark:file:text-white cursor-pointer">
+                        <div wire:loading wire:target="evidencia" class="text-xs text-slate-400">Cargando previsualización…</div>
+                        <div class="flex gap-2">
+                            <x-input wire:model="evidenciaDescripcion" placeholder="Descripción (opcional)" class="flex-1 !h-10 text-xs" />
+                            <button wire:click="subirEvidencia" wire:loading.attr="disabled" wire:target="subirEvidencia,evidencia"
+                                    class="inline-flex items-center h-10 px-4 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white text-[12.5px] font-semibold disabled:opacity-60">Subir</button>
+                        </div>
+                        @error('evidencia') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ===================== Columna lateral ===================== --}}
+        <div class="flex flex-col gap-6 xl:sticky xl:top-6">
+
+            {{-- Resumen --}}
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3 text-sm">
+                <h2 class="font-bold text-sm">Resumen</h2>
+                <dl class="grid grid-cols-3 gap-y-2.5">
+                    <dt class="text-slate-400 col-span-1">Cliente</dt><dd class="col-span-2 font-medium">{{ $ot->cliente?->nombre }}</dd>
+                    <dt class="text-slate-400 col-span-1">Tipo</dt><dd class="col-span-2 capitalize">{{ $ot->tipo_servicio }}</dd>
+                    <dt class="text-slate-400 col-span-1">Prioridad</dt><dd class="col-span-2">{{ $ot->prioridad?->nombre }}</dd>
+                    <dt class="text-slate-400 col-span-1">Estimado</dt><dd class="col-span-2">{{ $ot->tiempo_estimado_dias ? $nfmt($ot->tiempo_estimado_dias).' día(s)' : '—' }}</dd>
+                    <dt class="text-slate-400 col-span-1">Trabajado</dt><dd class="col-span-2">{{ $nfmt($ot->diasTrabajadosTotales()) }} día(s)</dd>
+                    @if ($ot->desviacionDias() !== null)
+                        <dt class="text-slate-400 col-span-1">Desviación</dt>
+                        <dd class="col-span-2 font-semibold {{ $ot->desviacionDias() > 0 ? 'text-brand-red' : 'text-emerald-600 dark:text-emerald-400' }}">{{ $ot->desviacionDias() > 0 ? '+' : '' }}{{ $nfmt($ot->desviacionDias()) }} día(s)</dd>
+                    @endif
+                    <dt class="text-slate-400 col-span-1">Creada</dt><dd class="col-span-2">{{ $ot->created_at?->format('d/m/Y') }} · {{ $ot->creadoPor?->name }}</dd>
+                    @if ($ot->fecha_finalizacion)
+                        <dt class="text-slate-400 col-span-1">Finalizada</dt><dd class="col-span-2">{{ $ot->fecha_finalizacion->format('d/m/Y') }}</dd>
+                    @endif
+                    @if ($ot->fecha_entrega)
+                        <dt class="text-slate-400 col-span-1">Entregada</dt><dd class="col-span-2">{{ $ot->fecha_entrega->format('d/m/Y') }}</dd>
+                    @endif
+                    @if ($ot->valor_proyecto !== null)
+                        <dt class="text-slate-400 col-span-1">Valor</dt><dd class="col-span-2 font-semibold">{{ \App\Support\Moneda::cop($ot->valor_proyecto) }}</dd>
+                    @endif
+                </dl>
+            </div>
+
+            {{-- Salida de equipo --}}
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3 text-sm">
+                <h2 class="font-bold text-sm">Salida de equipo y entrega</h2>
+                <p class="text-xs">Estado: <span class="font-semibold capitalize">{{ str($ot->salida_estado)->replace('_', ' ') }}</span></p>
+
+                @if ($ot->salida_estado === 'rechazada' && $ot->salida_motivo_rechazo)
+                    <p class="text-xs text-brand-red bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">Último rechazo: {{ $ot->salida_motivo_rechazo }}</p>
+                @endif
+
+                @if ($ot->estado?->slug !== 'finalizada' && $ot->estado?->slug !== 'entregada' && $ot->salida_estado === 'no_solicitada')
+                    <p class="text-xs text-slate-400">Disponible cuando la OT esté finalizada.</p>
+                @endif
+
+                <div class="flex flex-col gap-2">
+                    @if ($puedeSolicitarSalida && in_array($ot->salida_estado, ['no_solicitada', 'rechazada'], true) && $ot->estado?->slug === 'finalizada')
+                        <button wire:click="solicitarSalida" class="w-full inline-flex items-center justify-center h-10 rounded-xl bg-brand-blue text-white text-[12.5px] font-semibold hover:bg-brand-blue-dark">Solicitar salida</button>
+                    @endif
+
+                    @if ($puedeAprobarSalida && $ot->salida_estado === 'solicitada')
+                        <button wire:click="aprobarSalida" class="w-full inline-flex items-center justify-center h-10 rounded-xl bg-emerald-600 text-white text-[12.5px] font-semibold hover:bg-emerald-700">Aprobar salida</button>
+                        <input type="text" wire:model="motivoRechazoSalida" placeholder="Motivo del rechazo" class="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3 text-xs outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10">
+                        <button wire:click="rechazarSalida" class="w-full inline-flex items-center justify-center h-10 rounded-xl border border-brand-red text-brand-red text-[12.5px] font-semibold hover:bg-red-50 dark:hover:bg-red-900/20">Rechazar</button>
+                        @error('motivoRechazoSalida') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                    @endif
+
+                    @if ($puedeSolicitarSalida && $ot->salida_estado === 'aprobada' && $ot->estado?->slug !== 'entregada')
+                        <input type="text" wire:model="firmaCliente" placeholder="Firma / conformidad del cliente (opcional)" class="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3 text-xs outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10">
+                        <button wire:click="confirmarEntrega" class="w-full inline-flex items-center justify-center h-10 rounded-xl bg-emerald-600 text-white text-[12.5px] font-semibold hover:bg-emerald-700">Confirmar entrega</button>
+                    @endif
+
+                    @if ($ot->estado?->slug === 'entregada')
+                        <p class="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">✓ Equipo entregado al cliente.</p>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Trazabilidad --}}
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-2 text-sm">
+                <h2 class="font-bold text-sm">Trazabilidad</h2>
+                <div class="flex flex-col gap-0 max-h-96 overflow-y-auto -mx-1 px-1">
+                    @foreach ($ot->eventos as $evento)
+                        <div wire:key="evt-{{ $evento->id }}" class="border-b border-slate-50 dark:border-slate-800/60 py-2 last:border-0">
+                            <div class="flex items-center gap-2 text-[11px]">
+                                <span class="font-semibold capitalize">{{ str($evento->tipo)->replace('_', ' ') }}</span>
+                                <span class="text-slate-400">{{ $evento->created_at?->format('d/m/Y H:i') }}</span>
+                            </div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ $evento->descripcion }}@if ($evento->usuario) <span class="text-slate-400">· {{ $evento->usuario->name }}</span>@endif</p>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
