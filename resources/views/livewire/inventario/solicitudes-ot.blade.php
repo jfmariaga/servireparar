@@ -165,7 +165,13 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
                                         @if ($s->estado === 'pendiente')
                                             <button wire:click="aprobar({{ $s->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Aprobar</button>
                                         @endif
-                                        <button wire:click="entregar({{ $s->id }})" wire:confirm="¿Entregar el insumo y descontarlo del stock?" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Entregar</button>
+                                        <button type="button"
+                                                x-on:click="Notify.confirmDanger({
+                                                    title: '¿Entregar el insumo?',
+                                                    text: {{ Js::from('Se descontarán '.$nfmt($s->cantidad).' uds. de «'.$s->inventario?->nombre.'» del stock. Esta acción no se puede deshacer.') }},
+                                                    confirmButtonText: 'Sí, entregar',
+                                                }).then((ok) => ok && $wire.entregar({{ $s->id }}))"
+                                                class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Entregar</button>
                                         <button wire:click="pedirRechazo({{ $s->id }})" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-red">Rechazar</button>
                                     </div>
                                 @endif

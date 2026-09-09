@@ -591,7 +591,13 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                     <button wire:click="editarTarea({{ $tarea->id }})" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Editar</button>
                                 @endif
                                 @if ($puedeGestionar && $tarea->estado_tarea === 'pendiente' && $ot->tareas->count() > 1)
-                                    <button wire:click="quitarTarea({{ $tarea->id }})" wire:confirm="¿Quitar esta tarea de la OT?" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-red hover:border-brand-red/40">Quitar</button>
+                                    <button type="button"
+                                            x-on:click="Notify.confirmDanger({
+                                                title: '¿Quitar esta tarea?',
+                                                text: {{ Js::from('Se quitará «'.$tarea->descripcion.'» de la OT.') }},
+                                                confirmButtonText: 'Sí, quitar',
+                                            }).then((ok) => ok && $wire.quitarTarea({{ $tarea->id }}))"
+                                            class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-red hover:border-brand-red/40">Quitar</button>
                                 @endif
                             </div>
                         </div>

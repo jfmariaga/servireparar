@@ -93,7 +93,12 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
         <p class="text-xs text-slate-400">Sueldo vigente a la fecha de referencia: {{ $costeo['fecha_referencia']->format('d/m/Y') }}</p>
         @foreach ($ot->tareas as $tarea)
             <div class="flex justify-between border-b border-slate-50 dark:border-slate-800/60 py-1.5">
-                <span>{{ $tarea->tecnico?->usuario?->name ?? 'Técnico #'.$tarea->tecnico_id }} — {{ $tarea->descripcion }}</span>
+                <span>
+                    {{ $tarea->tecnico?->usuario?->name ?? 'Técnico #'.$tarea->tecnico_id }} — {{ $tarea->descripcion }}
+                    @if ($tarea->estado_tarea !== 'finalizada')
+                        <span class="text-[11px] text-amber-600 dark:text-amber-400">· tarea {{ str($tarea->estado_tarea)->replace('_', ' ') }}, sin días registrados aún</span>
+                    @endif
+                </span>
                 <span class="text-slate-500">{{ rtrim(rtrim(number_format((float) ($tarea->dias_trabajados ?? 0), 2), '0'), '.') }} día(s) × {{ $Moneda::cop($tarea->tecnico?->valorDia($costeo['fecha_referencia'])) }}</span>
             </div>
         @endforeach
