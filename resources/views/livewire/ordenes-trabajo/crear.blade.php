@@ -305,13 +305,13 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                             @endif
                         </div>
 
-                        <div class="grid gap-4 lg:grid-cols-12">
-                            <x-field label="Descripción" required class="lg:col-span-5">
+                        <div class="grid gap-4 sm:grid-cols-12">
+                            <x-field label="Descripción" required class="sm:col-span-7">
                                 <x-input wire:model="tareas.{{ $i }}.descripcion" placeholder="Qué se va a hacer" />
                                 @error('tareas.'.$i.'.descripcion') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                             </x-field>
 
-                            <x-field label="Técnico" required class="lg:col-span-3">
+                            <x-field label="Técnico" required class="sm:col-span-5">
                                 <x-select wire:model="tareas.{{ $i }}.tecnico_id" :reset-key="'tec-'.($tarea['uid'] ?? $i)">
                                     @foreach ($tecnicos as $t)
                                         <option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>
@@ -319,26 +319,31 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                                 </x-select>
                                 @error('tareas.'.$i.'.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                             </x-field>
+                        </div>
 
-                            <div class="lg:col-span-4 flex flex-col gap-2">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Insumos (opcional)</span>
-                                    <button type="button" wire:click="agregarInsumo({{ $i }})" class="text-[11px] font-semibold text-brand-blue hover:underline">+ Agregar insumo</button>
-                                </div>
-                                @foreach ($tarea['insumos'] ?? [] as $li => $linea)
-                                    <div wire:key="{{ ($tarea['uid'] ?? $i).'-ins-'.$li }}" class="grid grid-cols-[1fr_7rem_auto] gap-2 items-start">
-                                        <x-select wire:model="tareas.{{ $i }}.insumos.{{ $li }}.inventario_id" :reset-key="'ins-'.($tarea['uid'] ?? $i).'-'.$li">
-                                            @foreach ($insumos as $ins)
-                                                <option value="{{ $ins['id'] }}">{{ $ins['nombre'] }} ({{ $ins['codigo'] }}) — disp. {{ rtrim(rtrim(number_format((float) $ins['disponible'], 2), '0'), '.') }}</option>
-                                            @endforeach
-                                        </x-select>
-                                        <x-input type="number" step="0.01" min="0.01" placeholder="Cantidad" wire:model="tareas.{{ $i }}.insumos.{{ $li }}.cantidad" />
-                                        <button type="button" wire:click="quitarInsumo({{ $i }}, {{ $li }})" class="h-10 px-2 text-slate-400 hover:text-brand-red text-sm">✕</button>
-                                        @error('tareas.'.$i.'.insumos.'.$li.'.inventario_id') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
-                                        @error('tareas.'.$i.'.insumos.'.$li.'.cantidad') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
-                                    </div>
-                                @endforeach
+                        <div class="flex flex-col gap-2 rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/50 dark:bg-slate-900/30 p-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Insumos requeridos (opcional)</span>
+                                <button type="button" wire:click="agregarInsumo({{ $i }})" class="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline">
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                                    Agregar insumo
+                                </button>
                             </div>
+                            @forelse ($tarea['insumos'] ?? [] as $li => $linea)
+                                <div wire:key="{{ ($tarea['uid'] ?? $i).'-ins-'.$li }}" class="grid grid-cols-[1fr_6rem_auto] gap-2 items-start">
+                                    <x-select wire:model="tareas.{{ $i }}.insumos.{{ $li }}.inventario_id" :reset-key="'ins-'.($tarea['uid'] ?? $i).'-'.$li">
+                                        @foreach ($insumos as $ins)
+                                            <option value="{{ $ins['id'] }}">{{ $ins['nombre'] }} · disp. {{ rtrim(rtrim(number_format((float) $ins['disponible'], 2), '0'), '.') }}</option>
+                                        @endforeach
+                                    </x-select>
+                                    <x-input type="number" step="0.01" min="0.01" placeholder="Cant." wire:model="tareas.{{ $i }}.insumos.{{ $li }}.cantidad" />
+                                    <button type="button" wire:click="quitarInsumo({{ $i }}, {{ $li }})" class="h-10 w-9 shrink-0 text-slate-400 hover:text-brand-red text-sm">✕</button>
+                                    @error('tareas.'.$i.'.insumos.'.$li.'.inventario_id') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
+                                    @error('tareas.'.$i.'.insumos.'.$li.'.cantidad') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
+                                </div>
+                            @empty
+                                <p class="text-[11px] text-slate-400">Sin insumos. La tarea no generará solicitudes a Bodega.</p>
+                            @endforelse
                         </div>
                     </div>
                 @endforeach

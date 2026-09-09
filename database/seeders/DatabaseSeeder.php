@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             PrioridadesSeeder::class,
             EstadosOtSeeder::class,
             UsuariosDemoSeeder::class,
+            InventarioDemoSeeder::class,
         ]);
     }
 }
