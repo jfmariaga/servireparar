@@ -7,6 +7,7 @@ use App\Models\DetalleOtInsumo;
 use App\Models\SolicitudInsumoOt;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Punto de integración OT → Bodega (spec 002, FR-003; spec 003 US1). Sincroniza
@@ -44,6 +45,7 @@ class SolicitudInsumoService
                 }
 
                 $solicitud = $solicitudPorLinea->get($linea->id);
+                $this->asegurarNoProcesada($solicitud, $linea, 'quitar');
                 $this->cancelarSolicitud($solicitud, $linea, $actor);
                 $linea->delete();
             }
@@ -55,16 +57,45 @@ class SolicitudInsumoService
                 $linea = $tarea->insumos->firstWhere('inventario_id', $invId)
                     ?? new DetalleOtInsumo(['detalle_ot_id' => $tarea->id, 'inventario_id' => $invId]);
 
+                $solicitud = $linea->exists ? $solicitudPorLinea->get($linea->id) : null;
+
+                if ($linea->exists && round((float) $linea->cantidad, 2) !== $cantidad) {
+                    $this->asegurarNoProcesada($solicitud, $linea, 'cambiar la cantidad de');
+                }
+
                 $linea->cantidad = $cantidad;
                 $linea->detalle_ot_id = $tarea->id;
                 $linea->inventario_id = $invId;
                 $linea->save();
 
-                $this->sincronizarSolicitud($tarea, $linea, $solicitudPorLinea->get($linea->id), $actor);
+                $this->sincronizarSolicitud($tarea, $linea, $solicitud, $actor);
             }
 
             return $tarea->fresh(['insumos.inventario', 'solicitudesInsumo']);
         });
+    }
+
+    /**
+     * Una línea cuya solicitud Bodega ya aprobó o entregó no se puede quitar ni
+     * re-cantidad desde la OT: el material ya salió del almacén. Si sobra, se
+     * registra una devolución en Inventario (H11 — no se desincroniza en silencio).
+     */
+    private function asegurarNoProcesada(?SolicitudInsumoOt $solicitud, DetalleOtInsumo $linea, string $accion): void
+    {
+        if (! $solicitud || ! in_array($solicitud->estado, ['aprobada', 'entregada'], true)) {
+            return;
+        }
+
+        $linea->loadMissing('inventario');
+
+        throw ValidationException::withMessages([
+            'tarea' => sprintf(
+                'No se puede %s el insumo «%s»: Bodega ya lo %s. Si sobra, regístralo como devolución en Inventario.',
+                $accion,
+                $linea->inventario?->nombre ?? 'ítem #'.$linea->inventario_id,
+                $solicitud->estado === 'entregada' ? 'entregó' : 'aprobó',
+            ),
+        ]);
     }
 
     private function cancelarSolicitud(?SolicitudInsumoOt $solicitud, DetalleOtInsumo $linea, ?User $actor): void

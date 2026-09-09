@@ -8,7 +8,6 @@ use App\Models\Tecnico;
 use App\Services\OrdenTrabajo\CosteoOtService;
 use App\Services\OrdenTrabajo\OrdenTrabajoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 /**
@@ -93,6 +92,56 @@ class MultiInsumoTareaTest extends TestCase
         ]);
         $this->assertDatabaseHas('ot_eventos', ['ot_id' => $ot->id, 'tipo' => 'insumo_cancelado']);
         $this->assertSame(1, $tarea->fresh()->insumos()->count());
+    }
+
+    public function test_no_se_puede_quitar_una_linea_de_insumo_ya_entregada(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+        $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 100]);
+
+        $tarea = app(OrdenTrabajoService::class)->agregarTarea($ot, $this->jefeDeTaller(), [
+            'descripcion' => 'Tarea',
+            'tecnico_id' => $tecnico->id,
+            'insumos' => [['inventario_id' => $item->id, 'cantidad' => 3]],
+        ]);
+
+        SolicitudInsumoOt::where('detalle_ot_id', $tarea->id)->update(['estado' => 'entregada']);
+
+        try {
+            app(OrdenTrabajoService::class)->actualizarTarea($tarea->fresh(), $this->jefeDeTaller(), ['insumos' => []]);
+            $this->fail('Debía bloquear quitar una línea ya entregada.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertStringContainsString('devolución en Inventario', $e->getMessage());
+        }
+
+        $this->assertSame(1, $tarea->fresh()->insumos()->count());
+        $this->assertSame('entregada', SolicitudInsumoOt::where('detalle_ot_id', $tarea->id)->value('estado'));
+    }
+
+    public function test_no_se_puede_cambiar_la_cantidad_de_una_linea_ya_entregada(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+        $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 100]);
+
+        $tarea = app(OrdenTrabajoService::class)->agregarTarea($ot, $this->jefeDeTaller(), [
+            'descripcion' => 'Tarea',
+            'tecnico_id' => $tecnico->id,
+            'insumos' => [['inventario_id' => $item->id, 'cantidad' => 3]],
+        ]);
+
+        SolicitudInsumoOt::where('detalle_ot_id', $tarea->id)->update(['estado' => 'entregada']);
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+
+        try {
+            app(OrdenTrabajoService::class)->actualizarTarea($tarea->fresh(), $this->jefeDeTaller(), [
+                'insumos' => [['inventario_id' => $item->id, 'cantidad' => 9]],
+            ]);
+        } finally {
+            $this->assertEquals(3, (float) $tarea->fresh()->insumos()->value('cantidad'));
+        }
     }
 
     public function test_el_costeo_ignora_las_lineas_rechazadas_o_canceladas(): void
