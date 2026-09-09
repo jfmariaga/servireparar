@@ -77,15 +77,17 @@ class DetalleOt extends Model
     }
 
     /**
-     * ¿Quedan líneas de insumo cuya solicitud NO está entregada? (H4/D3: bloquea
-     * que el técnico finalice solo la tarea; requiere confirmación del Jefe.)
+     * ¿Quedan líneas de insumo sin resolver por Bodega? Cuenta como sin resolver
+     * todo lo que NO esté `entregada` ni `cancelada` (es decir `pendiente` o
+     * `rechazada`). H4/D3: si es así, la finalización de la tarea la confirma el
+     * Jefe de Taller, no el técnico solo.
      */
     public function insumosPendientesDeEntrega(): bool
     {
         $this->loadMissing('solicitudesInsumo');
 
         return $this->solicitudesInsumo
-            ->where('estado', 'pendiente')
+            ->whereNotIn('estado', ['entregada', 'cancelada'])
             ->isNotEmpty();
     }
 }

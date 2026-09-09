@@ -66,6 +66,24 @@ class GuardiasFlujoTest extends TestCase
         $this->assertNull($tarea->fresh()->finalizacion_solicitada_en);
     }
 
+    public function test_finalizar_tarea_con_insumo_rechazado_tambien_espera_al_jefe(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        app(EstadoOtService::class)->planificar($ot, $this->jefeDeTaller());
+        $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 50]);
+
+        $tarea = app(OrdenTrabajoService::class)->agregarTarea($ot->fresh(['estado']), $this->jefeDeTaller(), [
+            'descripcion' => 'Con insumo rechazado',
+            'tecnico_id' => Tecnico::factory()->conSueldo()->create()->id,
+            'insumos' => [['inventario_id' => $item->id, 'cantidad' => 2]],
+        ]);
+        SolicitudInsumoOt::where('detalle_ot_id', $tarea->id)->update(['estado' => 'rechazada', 'motivo_rechazo' => 'Se compra directo']);
+        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+
+        $tarea = app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller(), 1);
+        $this->assertTrue($tarea->finalizacionPendiente(), 'Un insumo rechazado también retiene la finalización');
+    }
+
     public function test_finalizar_tarea_sin_insumos_es_directo(): void
     {
         $ot = $this->crearOt(tareas: 1);
