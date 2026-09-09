@@ -21,6 +21,7 @@ class SolicitudInsumoOt extends Model
     protected $fillable = [
         'ot_id',
         'detalle_ot_id',
+        'detalle_ot_insumo_id',
         'inventario_id',
         'cantidad',
         'estado',
@@ -42,6 +43,11 @@ class SolicitudInsumoOt extends Model
     public function tarea(): BelongsTo
     {
         return $this->belongsTo(DetalleOt::class, 'detalle_ot_id');
+    }
+
+    public function lineaInsumo(): BelongsTo
+    {
+        return $this->belongsTo(DetalleOtInsumo::class, 'detalle_ot_insumo_id');
     }
 
     public function inventario(): BelongsTo

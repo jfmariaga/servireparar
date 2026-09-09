@@ -17,6 +17,7 @@ class SolicitudInsumoOtFactory extends Factory
         return [
             'ot_id' => OrdenTrabajo::factory(),
             'detalle_ot_id' => DetalleOt::factory(),
+            'detalle_ot_insumo_id' => null,
             'inventario_id' => Inventario::factory(),
             'cantidad' => $this->faker->numberBetween(1, 10),
             'estado' => 'pendiente',

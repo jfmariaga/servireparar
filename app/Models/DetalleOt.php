@@ -5,12 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Tarea de una OT (spec 002, `DETALLE_OT`). El costo de mano de obra propia
  * de la tarea = `dias_trabajados × Tecnico::valorDia(fecha de referencia)`
- * (spec 004); no se persiste tarifa aquí.
+ * (spec 004); no se persiste tarifa aquí. Los insumos requeridos viven en
+ * `detalle_ot_insumos` (Phase 11 / D6): una tarea puede tener N líneas de insumo.
  */
 class DetalleOt extends Model
 {
@@ -23,8 +24,6 @@ class DetalleOt extends Model
         'ot_id',
         'descripcion',
         'tecnico_id',
-        'insumo_id',
-        'cantidad_insumo',
         'estado_tarea',
         'fecha_inicio',
         'fecha_fin',
@@ -34,7 +33,6 @@ class DetalleOt extends Model
     protected function casts(): array
     {
         return [
-            'cantidad_insumo' => 'decimal:2',
             'dias_trabajados' => 'decimal:2',
             'fecha_inicio' => 'datetime',
             'fecha_fin' => 'datetime',
@@ -51,18 +49,35 @@ class DetalleOt extends Model
         return $this->belongsTo(Tecnico::class);
     }
 
-    public function insumo(): BelongsTo
+    /** Líneas de insumo de la tarea (Phase 11 / D6). */
+    public function insumos(): HasMany
     {
-        return $this->belongsTo(Inventario::class, 'insumo_id');
+        return $this->hasMany(DetalleOtInsumo::class, 'detalle_ot_id');
     }
 
-    public function solicitudInsumo(): HasOne
+    /** Solicitudes hacia Bodega generadas por las líneas de insumo de la tarea. */
+    public function solicitudesInsumo(): HasMany
     {
-        return $this->hasOne(SolicitudInsumoOt::class, 'detalle_ot_id');
+        return $this->hasMany(SolicitudInsumoOt::class, 'detalle_ot_id');
     }
 
-    public function requiereInsumo(): bool
+    public function tieneInsumos(): bool
     {
-        return $this->insumo_id !== null && (float) $this->cantidad_insumo > 0;
+        $lineas = $this->relationLoaded('insumos') ? $this->insumos : $this->insumos()->get();
+
+        return $lineas->contains(fn (DetalleOtInsumo $l) => (float) $l->cantidad > 0);
+    }
+
+    /**
+     * ¿Quedan líneas de insumo cuya solicitud NO está entregada? (H4/D3: bloquea
+     * que el técnico finalice solo la tarea; requiere confirmación del Jefe.)
+     */
+    public function insumosPendientesDeEntrega(): bool
+    {
+        $this->loadMissing('solicitudesInsumo');
+
+        return $this->solicitudesInsumo
+            ->whereIn('estado', ['pendiente', 'aprobada'])
+            ->isNotEmpty();
     }
 }

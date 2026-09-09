@@ -107,7 +107,7 @@ class CrearOtTest extends TestCase
             ->set('clienteId', $cliente->id)
             ->set('descripcion', 'Cambio de sellos')
             ->set('tareas', [
-                ['uid' => 'a', 'descripcion' => 'Reemplazo', 'tecnico_id' => $tecnico->id, 'insumo_id' => $insumo->id, 'cantidad_insumo' => '4'],
+                ['uid' => 'a', 'descripcion' => 'Reemplazo', 'tecnico_id' => $tecnico->id, 'insumos' => [['inventario_id' => $insumo->id, 'cantidad' => '4']]],
             ])
             ->call('guardar')
             ->assertHasNoErrors();

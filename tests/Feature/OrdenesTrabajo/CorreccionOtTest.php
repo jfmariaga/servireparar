@@ -51,7 +51,7 @@ class CorreccionOtTest extends TestCase
 
         // Aunque se fuerce el guardado apuntando a la tarea finalizada, no cambia.
         $comp->set('editandoTareaId', $tarea->id)
-            ->set('tareaForm', ['descripcion' => 'Hackeada', 'tecnico_id' => $otroTecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''])
+            ->set('tareaForm', ['descripcion' => 'Hackeada', 'tecnico_id' => $otroTecnico->id, 'insumos' => []])
             ->call('guardarTarea');
         $this->assertSame('finalizada', $tarea->fresh()->estado_tarea);
         $this->assertNotSame('Hackeada', $tarea->fresh()->descripcion);
@@ -123,8 +123,7 @@ class CorreccionOtTest extends TestCase
             ->call('nuevaTarea')
             ->set('tareaForm.descripcion', 'Cambio de filtro')
             ->set('tareaForm.tecnico_id', $tecnico->id)
-            ->set('tareaForm.insumo_id', $insumo->id)
-            ->set('tareaForm.cantidad_insumo', '3')
+            ->set('tareaForm.insumos', [['inventario_id' => $insumo->id, 'cantidad' => '3']])
             ->call('guardarTarea')
             ->assertHasNoErrors();
 

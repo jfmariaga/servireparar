@@ -59,8 +59,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'uid' => (string) Str::uuid(),
             'descripcion' => '',
             'tecnico_id' => null,
-            'insumo_id' => null,
-            'cantidad_insumo' => '',
+            'insumos' => [],
         ];
     }
 
@@ -71,6 +70,17 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
         if ($this->tareas === []) {
             $this->agregarTarea();
         }
+    }
+
+    public function agregarInsumo(int $i): void
+    {
+        $this->tareas[$i]['insumos'][] = ['inventario_id' => null, 'cantidad' => ''];
+    }
+
+    public function quitarInsumo(int $i, int $li): void
+    {
+        unset($this->tareas[$i]['insumos'][$li]);
+        $this->tareas[$i]['insumos'] = array_values($this->tareas[$i]['insumos']);
     }
 
     public function guardar(OrdenTrabajoService $servicio): void
@@ -92,14 +102,16 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'tareas' => 'required|array|min:1',
             'tareas.*.descripcion' => 'required|string|max:1000',
             'tareas.*.tecnico_id' => 'required|exists:tecnicos,id',
-            'tareas.*.insumo_id' => 'nullable|exists:inventario,id',
-            'tareas.*.cantidad_insumo' => 'nullable|required_with:tareas.*.insumo_id|numeric|min:0.01',
+            'tareas.*.insumos' => 'array',
+            'tareas.*.insumos.*.inventario_id' => 'required|exists:inventario,id',
+            'tareas.*.insumos.*.cantidad' => 'required|numeric|min:0.01',
         ], [], [
             'clienteId' => 'cliente',
             'prioridadId' => 'prioridad',
             'tareas.*.descripcion' => 'descripción de la tarea',
             'tareas.*.tecnico_id' => 'técnico',
-            'tareas.*.cantidad_insumo' => 'cantidad de insumo',
+            'tareas.*.insumos.*.inventario_id' => 'insumo',
+            'tareas.*.insumos.*.cantidad' => 'cantidad de insumo',
         ]);
 
         try {
@@ -283,18 +295,25 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                                 @error('tareas.'.$i.'.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                             </x-field>
 
-                            <x-field label="Insumo (opcional)" class="lg:col-span-2">
-                                <x-select wire:model="tareas.{{ $i }}.insumo_id" :reset-key="'ins-'.($tarea['uid'] ?? $i)">
-                                    @foreach ($insumos as $ins)
-                                        <option value="{{ $ins->id }}">{{ $ins->nombre }} ({{ $ins->codigo }})</option>
-                                    @endforeach
-                                </x-select>
-                            </x-field>
-
-                            <x-field label="Cantidad" class="lg:col-span-2">
-                                <x-input type="number" step="0.01" min="0.01" wire:model="tareas.{{ $i }}.cantidad_insumo" placeholder="0" />
-                                @error('tareas.'.$i.'.cantidad_insumo') <x-slot:error>{{ $message }}</x-slot:error> @enderror
-                            </x-field>
+                            <div class="lg:col-span-4 flex flex-col gap-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Insumos (opcional)</span>
+                                    <button type="button" wire:click="agregarInsumo({{ $i }})" class="text-[11px] font-semibold text-brand-blue hover:underline">+ Agregar insumo</button>
+                                </div>
+                                @foreach ($tarea['insumos'] ?? [] as $li => $linea)
+                                    <div wire:key="{{ ($tarea['uid'] ?? $i).'-ins-'.$li }}" class="grid grid-cols-[1fr_7rem_auto] gap-2 items-start">
+                                        <x-select wire:model="tareas.{{ $i }}.insumos.{{ $li }}.inventario_id" :reset-key="'ins-'.($tarea['uid'] ?? $i).'-'.$li">
+                                            @foreach ($insumos as $ins)
+                                                <option value="{{ $ins->id }}">{{ $ins->nombre }} ({{ $ins->codigo }})</option>
+                                            @endforeach
+                                        </x-select>
+                                        <x-input type="number" step="0.01" min="0.01" placeholder="Cantidad" wire:model="tareas.{{ $i }}.insumos.{{ $li }}.cantidad" />
+                                        <button type="button" wire:click="quitarInsumo({{ $i }}, {{ $li }})" class="h-10 px-2 text-slate-400 hover:text-brand-red text-sm">✕</button>
+                                        @error('tareas.'.$i.'.insumos.'.$li.'.inventario_id') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
+                                        @error('tareas.'.$i.'.insumos.'.$li.'.cantidad') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
+                                    </div>
+                                @endforeach
+                            </div>
                         </div>
                     </div>
                 @endforeach

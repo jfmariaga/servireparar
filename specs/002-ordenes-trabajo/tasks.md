@@ -255,17 +255,17 @@ OT con asignación + devolución · D5 campana in-app con polling (~45 s) · D6 
 D7 el Técnico solo ve sus OT · D8 cancelar OT / cancelar tarea.
 
 ### Fase 0 — Base
-- [ ] T050 Commit del spec 002 actual (working tree) como respaldo del Hito 2; `php artisan test` baseline en verde
+- [x] T050 Commit del spec 002 actual (working tree) como respaldo del Hito 2; `php artisan test` baseline en verde
 
 ### Fase 1 — Multi-insumo por tarea (D6 · H8)
-- [ ] T051 Migración `create_detalle_ot_insumos_table` (`detalle_ot_id`, `inventario_id`, `cantidad`; unique `(detalle_ot_id, inventario_id)`)
-- [ ] T052 Migración de datos `detalle_ot.insumo_id`/`cantidad_insumo` → `detalle_ot_insumos`
-- [ ] T053 Modelo `DetalleOtInsumo` + `DetalleOt::insumos()`; reemplazar `requiereInsumo()` por `tieneInsumos()`/`lineasInsumo()`
-- [ ] T054 `solicitudes_insumo_ot.detalle_ot_insumo_id` (1 solicitud por línea) + migración de datos
-- [ ] T055 `SolicitudInsumoService::sincronizarDesdeTarea()` itera líneas: alta/cambio/baja con evento en `ot_eventos` (H11/H21)
-- [ ] T056 UI del formulario de tarea (`crear`/`detalle`): repetidor de insumos
-- [ ] T057 `CosteoOtService` soporta N líneas de insumo por tarea
-- [ ] T058 [P] Ajustar tests/factories de OT al nuevo modelo; `DetalleOtInsumoFactory`
+- [x] T051 Migración `create_detalle_ot_insumos_table` (`detalle_ot_id`, `inventario_id`, `cantidad`; unique `(detalle_ot_id, inventario_id)`)
+- [x] T052 Migración de datos `detalle_ot.insumo_id`/`cantidad_insumo` → `detalle_ot_insumos`
+- [x] T053 Modelo `DetalleOtInsumo` + `DetalleOt::insumos()`; reemplazar `requiereInsumo()` por `tieneInsumos()`/`lineasInsumo()`
+- [x] T054 `solicitudes_insumo_ot.detalle_ot_insumo_id` (1 solicitud por línea) + migración de datos
+- [x] T055 `SolicitudInsumoService::sincronizarDesdeTarea()` itera líneas: alta/cambio/baja con evento en `ot_eventos` (H11/H21)
+- [x] T056 UI del formulario de tarea (`crear`/`detalle`): repetidor de insumos
+- [x] T057 `CosteoOtService` soporta N líneas de insumo por tarea
+- [x] T058 [P] Ajustar tests/factories de OT al nuevo modelo; `DetalleOtInsumoFactory`
 
 ### Fase 2 — Reserva y bloqueo de stock (D1 · H1, H2, H5)
 - [ ] T059 `Inventario::comprometido()`/`disponible()` (= `stock_actual − Σ solicitudes pendiente`); scope `SolicitudInsumoOt::pendientesDe()`

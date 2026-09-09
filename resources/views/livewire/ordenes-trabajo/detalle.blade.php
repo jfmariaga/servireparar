@@ -47,7 +47,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     // Alta / edición de tareas en una OT existente (US4 / FR-009)
     public bool $agregandoTarea = false;
     /** @var array<string, mixed> */
-    public array $tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumo_id' => null, 'cantidad_insumo' => ''];
+    public array $tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumos' => []];
     public ?int $editandoTareaId = null;
 
     public function mount(OrdenTrabajo $ordenTrabajo): void
@@ -69,7 +69,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     {
         $this->ot->load([
             'cliente', 'equipo', 'prioridad', 'estado', 'creadoPor',
-            'tareas.tecnico.usuario', 'tareas.insumo', 'tareas.solicitudInsumo',
+            'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud',
             'evidencias.subidaPor', 'checklist', 'eventos.usuario',
             'manoObraContratistas.contratista',
         ]);
@@ -286,7 +286,18 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
     private function resetTareaForm(): void
     {
-        $this->tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumo_id' => null, 'cantidad_insumo' => ''];
+        $this->tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumos' => []];
+    }
+
+    public function agregarInsumoForm(): void
+    {
+        $this->tareaForm['insumos'][] = ['inventario_id' => null, 'cantidad' => ''];
+    }
+
+    public function quitarInsumoForm(int $i): void
+    {
+        unset($this->tareaForm['insumos'][$i]);
+        $this->tareaForm['insumos'] = array_values($this->tareaForm['insumos']);
     }
 
     public function nuevaTarea(): void
@@ -300,7 +311,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public function editarTarea(int $tareaId): void
     {
         Gate::authorize('update', $this->ot);
-        $tarea = $this->ot->tareas()->findOrFail($tareaId);
+        $tarea = $this->ot->tareas()->with('insumos')->findOrFail($tareaId);
 
         if ($tarea->estado_tarea === 'finalizada') {
             $this->notifyError('Una tarea finalizada no se puede editar ni reasignar.');
@@ -313,8 +324,10 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->tareaForm = [
             'descripcion' => $tarea->descripcion,
             'tecnico_id' => $tarea->tecnico_id,
-            'insumo_id' => $tarea->insumo_id,
-            'cantidad_insumo' => (string) ($tarea->cantidad_insumo ?? ''),
+            'insumos' => $tarea->insumos
+                ->map(fn ($l) => ['inventario_id' => $l->inventario_id, 'cantidad' => (string) $l->cantidad])
+                ->values()
+                ->all(),
         ];
     }
 
@@ -332,17 +345,19 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $datos = $this->validate([
             'tareaForm.descripcion' => 'required|string|max:1000',
             'tareaForm.tecnico_id' => 'required|exists:tecnicos,id',
-            'tareaForm.insumo_id' => 'nullable|exists:inventario,id',
-            'tareaForm.cantidad_insumo' => 'nullable|required_with:tareaForm.insumo_id|numeric|min:0.01',
+            'tareaForm.insumos' => 'array',
+            'tareaForm.insumos.*.inventario_id' => 'required|exists:inventario,id',
+            'tareaForm.insumos.*.cantidad' => 'required|numeric|min:0.01',
         ], [], [
             'tareaForm.descripcion' => 'descripción',
             'tareaForm.tecnico_id' => 'técnico',
-            'tareaForm.cantidad_insumo' => 'cantidad de insumo',
+            'tareaForm.insumos.*.inventario_id' => 'insumo',
+            'tareaForm.insumos.*.cantidad' => 'cantidad de insumo',
         ])['tareaForm'];
 
         try {
             if ($this->editandoTareaId) {
-                $tarea = $this->ot->tareas()->with('tecnico.usuario', 'solicitudInsumo')->findOrFail($this->editandoTareaId);
+                $tarea = $this->ot->tareas()->with('tecnico.usuario')->findOrFail($this->editandoTareaId);
                 $servicio->actualizarTarea($tarea, auth()->user(), $datos);
                 $msg = 'Tarea actualizada.';
             } else {
@@ -363,7 +378,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public function quitarTarea(int $tareaId, OrdenTrabajoService $servicio): void
     {
         Gate::authorize('update', $this->ot);
-        $tarea = $this->ot->tareas()->with('solicitudInsumo')->findOrFail($tareaId);
+        $tarea = $this->ot->tareas()->with('solicitudesInsumo')->findOrFail($tareaId);
 
         try {
             $servicio->quitarTarea($tarea, auth()->user());
@@ -488,16 +503,25 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 </x-select>
                                 @error('tareaForm.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                             </x-field>
-                            <div class="grid grid-cols-2 gap-3">
-                                <x-field label="Insumo">
-                                    <x-select wire:model="tareaForm.insumo_id" :reset-key="'tf-ins-'.($editandoTareaId ?? 'new')">
-                                        @foreach ($insumos as $ins)<option value="{{ $ins->id }}">{{ $ins->nombre }}</option>@endforeach
-                                    </x-select>
-                                </x-field>
-                                <x-field label="Cantidad">
-                                    <x-input type="number" step="0.01" min="0.01" wire:model="tareaForm.cantidad_insumo" />
-                                    @error('tareaForm.cantidad_insumo') <x-slot:error>{{ $message }}</x-slot:error> @enderror
-                                </x-field>
+                            <div class="sm:col-span-2 flex flex-col gap-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Insumos (opcional)</span>
+                                    <button type="button" wire:click="agregarInsumoForm" class="text-[11px] font-semibold text-brand-blue hover:underline">+ Agregar insumo</button>
+                                </div>
+                                @foreach (($tareaForm['insumos'] ?? []) as $li => $linea)
+                                    <div wire:key="tf-ins-{{ $li }}" class="grid grid-cols-[1fr_7rem_auto] gap-2 items-start">
+                                        <x-select wire:model="tareaForm.insumos.{{ $li }}.inventario_id" :reset-key="'tf-ins-'.($editandoTareaId ?? 'new').'-'.$li">
+                                            @foreach ($insumos as $ins)<option value="{{ $ins->id }}">{{ $ins->nombre }}</option>@endforeach
+                                        </x-select>
+                                        <x-input type="number" step="0.01" min="0.01" placeholder="Cantidad" wire:model="tareaForm.insumos.{{ $li }}.cantidad" />
+                                        <button type="button" wire:click="quitarInsumoForm({{ $li }})" class="h-10 px-2 text-slate-400 hover:text-brand-red text-sm">✕</button>
+                                        @error('tareaForm.insumos.'.$li.'.inventario_id') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
+                                        @error('tareaForm.insumos.'.$li.'.cantidad') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
+                                    </div>
+                                @endforeach
+                                @if (empty($tareaForm['insumos'] ?? []))
+                                    <p class="text-[11px] text-slate-400">Sin insumos. La tarea no generará solicitudes a Bodega.</p>
+                                @endif
                             </div>
                         </div>
                         <div class="flex gap-2">
@@ -519,17 +543,24 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                             </div>
                             <p class="text-xs text-slate-400">
                                 {{ $tarea->tecnico?->usuario?->name ?? 'Técnico #'.$tarea->tecnico_id }}
-                                @if ($tarea->insumo)<br>Insumo: {{ $tarea->insumo->nombre }} ({{ $nfmt($tarea->cantidad_insumo) }})@if ($tarea->solicitudInsumo) — solicitud <span class="font-semibold">{{ $tarea->solicitudInsumo->estado }}</span>@endif @endif
                                 @if ($tarea->estado_tarea === 'finalizada')<br>Días trabajados: {{ $nfmt($tarea->dias_trabajados) }}@endif
                             </p>
-                            @if ($tarea->solicitudInsumo && in_array($tarea->solicitudInsumo->estado, ['pendiente', 'aprobada'], true) && $tarea->estado_tarea !== 'finalizada')
-                                <p class="text-[11px] text-amber-600 dark:text-amber-400 flex items-start gap-1">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mt-0.5 shrink-0"><path d="M12 9v4M12 17h.01M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
-                                    Insumo aún no entregado por Bodega.
+                            @foreach ($tarea->insumos as $linea)
+                                @php $sol = $linea->solicitud; @endphp
+                                <p class="text-[11px] flex items-start gap-1
+                                    {{ $sol?->estado === 'entregada' ? 'text-emerald-600 dark:text-emerald-400' : ($sol && in_array($sol->estado, ['rechazada','cancelada'], true) ? 'text-brand-red' : 'text-amber-600 dark:text-amber-400') }}">
+                                    <span class="font-semibold">{{ $linea->inventario?->nombre }}</span>
+                                    <span>({{ $nfmt($linea->cantidad) }})</span>
+                                    @if ($sol)
+                                        —
+                                        @if ($sol->estado === 'entregada') entregado por Bodega
+                                        @elseif ($sol->estado === 'rechazada') rechazado por Bodega: {{ $sol->motivo_rechazo }}
+                                        @elseif ($sol->estado === 'cancelada') línea cancelada
+                                        @else pendiente en Bodega
+                                        @endif
+                                    @endif
                                 </p>
-                            @elseif ($tarea->solicitudInsumo && $tarea->solicitudInsumo->estado === 'rechazada')
-                                <p class="text-[11px] text-brand-red">Bodega rechazó el insumo: {{ $tarea->solicitudInsumo->motivo_rechazo }}</p>
-                            @endif
+                            @endforeach
                             <div class="flex flex-wrap items-center gap-2 pt-1">
                                 @if ($puedeEjecutar && $tarea->estado_tarea === 'pendiente')
                                     <button wire:click="iniciarTarea({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-blue text-white hover:bg-brand-blue-dark">Iniciar</button>

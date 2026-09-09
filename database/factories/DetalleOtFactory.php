@@ -17,8 +17,6 @@ class DetalleOtFactory extends Factory
             'ot_id' => OrdenTrabajo::factory(),
             'descripcion' => $this->faker->sentence(),
             'tecnico_id' => Tecnico::factory(),
-            'insumo_id' => null,
-            'cantidad_insumo' => null,
             'estado_tarea' => 'pendiente',
             'dias_trabajados' => null,
         ];

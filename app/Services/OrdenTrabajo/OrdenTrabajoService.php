@@ -26,7 +26,7 @@ class OrdenTrabajoService
 
     /**
      * @param  array<string, mixed>  $datos     cliente_id, prioridad_id, tipo_servicio, descripcion, tiempo_estimado_dias, valor_proyecto, equipo_* ...
-     * @param  array<int, array<string, mixed>>  $tareas  cada una: descripcion, tecnico_id, insumo_id?, cantidad_insumo?
+     * @param  array<int, array<string, mixed>>  $tareas  cada una: descripcion, tecnico_id, insumos? (o insumo_id/cantidad_insumo legado)
      */
     public function crear(User $actor, array $datos, array $tareas): OrdenTrabajo
     {
@@ -62,12 +62,10 @@ class OrdenTrabajoService
                 $detalle = $ot->tareas()->create([
                     'descripcion' => $tarea['descripcion'],
                     'tecnico_id' => $tarea['tecnico_id'],
-                    'insumo_id' => $tarea['insumo_id'] ?? null,
-                    'cantidad_insumo' => ($tarea['insumo_id'] ?? null) ? ($tarea['cantidad_insumo'] ?? null) : null,
                     'estado_tarea' => 'pendiente',
                 ]);
 
-                $this->insumos->sincronizarDesdeTarea($detalle);
+                $this->insumos->aplicarLineasInsumo($detalle, $this->lineasInsumo($tarea), $actor);
             }
 
             $ot->registrarEvento('creacion', 'OT creada con '.count($tareas).' tarea(s).', $actor);
@@ -111,7 +109,7 @@ class OrdenTrabajoService
      * Agrega una tarea a una OT existente (US4 / FR-009), generando su solicitud
      * de insumo si corresponde y recalculando el estado.
      *
-     * @param  array<string, mixed>  $tarea  descripcion, tecnico_id, insumo_id?, cantidad_insumo?
+     * @param  array<string, mixed>  $tarea  descripcion, tecnico_id, insumos? (o insumo_id/cantidad_insumo legado)
      */
     public function agregarTarea(OrdenTrabajo $ot, User $actor, array $tarea): DetalleOt
     {
@@ -123,18 +121,14 @@ class OrdenTrabajoService
             throw ValidationException::withMessages(['tarea' => 'La tarea necesita descripción y técnico.']);
         }
 
-        $insumoId = filled($tarea['insumo_id'] ?? null) ? $tarea['insumo_id'] : null;
-
-        return DB::transaction(function () use ($ot, $actor, $tarea, $insumoId) {
+        return DB::transaction(function () use ($ot, $actor, $tarea) {
             $detalle = $ot->tareas()->create([
                 'descripcion' => $tarea['descripcion'],
                 'tecnico_id' => $tarea['tecnico_id'],
-                'insumo_id' => $insumoId,
-                'cantidad_insumo' => $insumoId ? ($tarea['cantidad_insumo'] ?: null) : null,
                 'estado_tarea' => 'pendiente',
             ]);
 
-            $this->insumos->sincronizarDesdeTarea($detalle);
+            $this->insumos->aplicarLineasInsumo($detalle, $this->lineasInsumo($tarea), $actor);
             $ot->registrarEvento('correccion', "Tarea agregada: «{$detalle->descripcion}».", $actor);
             $this->estados->recalcular($ot->fresh(), $actor);
 
@@ -143,9 +137,9 @@ class OrdenTrabajoService
     }
 
     /**
-     * Edita una tarea que aún no está finalizada (descripción, técnico, insumo).
+     * Edita una tarea que aún no está finalizada (descripción, técnico, insumos).
      *
-     * @param  array<string, mixed>  $datos
+     * @param  array<string, mixed>  $datos  descripcion?, tecnico_id?, insumos? (o insumo_id/cantidad_insumo legado)
      */
     public function actualizarTarea(DetalleOt $tarea, User $actor, array $datos): DetalleOt
     {
@@ -153,20 +147,16 @@ class OrdenTrabajoService
             throw ValidationException::withMessages(['tarea' => 'No se puede editar una tarea finalizada.']);
         }
 
-        $insumoId = filled($datos['insumo_id'] ?? null) ? $datos['insumo_id'] : null;
-
-        return DB::transaction(function () use ($tarea, $actor, $datos, $insumoId) {
+        return DB::transaction(function () use ($tarea, $actor, $datos) {
             $tecAntes = $tarea->tecnico?->usuario?->name ?? 'técnico #'.$tarea->tecnico_id;
 
             $tarea->update([
                 'descripcion' => $datos['descripcion'] ?? $tarea->descripcion,
                 'tecnico_id' => $datos['tecnico_id'] ?? $tarea->tecnico_id,
-                'insumo_id' => $insumoId,
-                'cantidad_insumo' => $insumoId ? ($datos['cantidad_insumo'] ?: null) : null,
             ]);
 
-            $tarea = $tarea->fresh(['tecnico.usuario', 'solicitudInsumo']);
-            $this->insumos->sincronizarDesdeTarea($tarea);
+            $this->insumos->aplicarLineasInsumo($tarea, $this->lineasInsumo($datos), $actor);
+            $tarea = $tarea->fresh(['tecnico.usuario']);
 
             $tecDespues = $tarea->tecnico?->usuario?->name ?? 'técnico #'.$tarea->tecnico_id;
             $nota = $tecAntes !== $tecDespues
@@ -195,9 +185,12 @@ class OrdenTrabajoService
             throw ValidationException::withMessages(['tarea' => 'Solo se pueden quitar tareas que aún están pendientes.']);
         }
 
-        $solicitud = $tarea->solicitudInsumo;
-        if ($solicitud && in_array($solicitud->estado, ['aprobada', 'entregada'], true)) {
-            throw ValidationException::withMessages(['tarea' => 'La solicitud de insumo de esta tarea ya fue procesada por Bodega.']);
+        $procesada = $tarea->solicitudesInsumo()
+            ->whereIn('estado', ['aprobada', 'entregada'])
+            ->exists();
+
+        if ($procesada) {
+            throw ValidationException::withMessages(['tarea' => 'Una solicitud de insumo de esta tarea ya fue procesada por Bodega.']);
         }
 
         DB::transaction(function () use ($ot, $tarea, $actor) {
@@ -217,5 +210,34 @@ class OrdenTrabajoService
     private function tareasValidas(array $tareas): array
     {
         return array_values(array_filter($tareas, fn ($t) => filled($t['descripcion'] ?? null) && filled($t['tecnico_id'] ?? null)));
+    }
+
+    /**
+     * Normaliza los insumos declarados para una tarea a una lista sin ítems
+     * repetidos. Acepta el formato nuevo `insumos => [['inventario_id','cantidad'], …]`
+     * y el legado `insumo_id` + `cantidad_insumo` (una sola línea).
+     *
+     * @param  array<string, mixed>  $tarea
+     * @return array<int, array{inventario_id: int, cantidad: float}>
+     */
+    private function lineasInsumo(array $tarea): array
+    {
+        $crudas = $tarea['insumos'] ?? [];
+
+        if ($crudas === [] && filled($tarea['insumo_id'] ?? null)) {
+            $crudas = [['inventario_id' => $tarea['insumo_id'], 'cantidad' => $tarea['cantidad_insumo'] ?? null]];
+        }
+
+        $lineas = [];
+        foreach ($crudas as $linea) {
+            $invId = filled($linea['inventario_id'] ?? null) ? (int) $linea['inventario_id'] : null;
+            $cantidad = (float) ($linea['cantidad'] ?? 0);
+
+            if ($invId !== null && $cantidad > 0) {
+                $lineas[$invId] = ['inventario_id' => $invId, 'cantidad' => $cantidad];
+            }
+        }
+
+        return array_values($lineas);
     }
 }

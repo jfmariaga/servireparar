@@ -11,6 +11,15 @@ trazabilidad de qué se va a corregir, en qué orden, y cómo se prueba.
   flujo. No sustituye al spec 008 completo.
 - Backlog ejecutable: `specs/002-ordenes-trabajo/tasks.md` → **Phase 11** (T050–T098).
 
+### Avance
+
+| Fase | Estado |
+|------|--------|
+| 0 — Base y respaldo | ✅ hecho (2026-09-08). Rama `feature/ot-endurecimiento`; baseline 159 tests en verde. |
+| 1 — Multi-insumo por tarea (T051–T058) | ✅ hecho (2026-09-08). Tabla `detalle_ot_insumos`; 1 solicitud por línea; estado `cancelada` con traza; costeo excluye rechazada/cancelada. 163 tests en verde. |
+| 2 — Reserva y bloqueo de stock | ⏳ siguiente |
+| 3–8 | pendientes |
+
 ---
 
 ## 1. Decisiones de negocio (confirmadas por el cliente, 2026-09-08)

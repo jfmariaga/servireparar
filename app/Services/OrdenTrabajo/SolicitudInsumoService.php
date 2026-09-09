@@ -3,63 +3,150 @@
 namespace App\Services\OrdenTrabajo;
 
 use App\Models\DetalleOt;
+use App\Models\DetalleOtInsumo;
 use App\Models\SolicitudInsumoOt;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 /**
- * Punto de integración OT → Bodega (spec 002, FR-003; spec 003 US1). Al guardar
- * una tarea con insumo y cantidad, genera (o sincroniza) una solicitud de
- * insumo `pendiente` que el Almacenista atiende desde Inventario. NO descuenta
- * stock: eso ocurre cuando el Almacenista entrega la solicitud (spec 003).
+ * Punto de integración OT → Bodega (spec 002, FR-003; spec 003 US1). Sincroniza
+ * las líneas de insumo de una tarea (`detalle_ot_insumos`) con sus solicitudes
+ * hacia Bodega. Una tarea puede tener N líneas de insumo (Phase 11 / D6).
+ *
+ * NO descuenta stock: eso ocurre cuando el Almacenista entrega la solicitud
+ * (spec 003). Nunca borra una solicitud en silencio: al quitar una línea, la
+ * solicitud pendiente pasa a `cancelada` y queda el evento en `ot_eventos` (H11).
  */
 class SolicitudInsumoService
 {
     /**
-     * Crea/actualiza la solicitud de insumo de una tarea. Devuelve la solicitud
-     * si la tarea requiere insumo, o null si no. Una solicitud ya aprobada o
-     * entregada no se toca (el almacén ya la procesó).
+     * Deja las líneas de insumo de la tarea (y sus solicitudes) igual a
+     * `$lineasDeseadas` (lista de `['inventario_id' => int, 'cantidad' => float]`,
+     * sin ítems repetidos). Devuelve la tarea recargada.
+     *
+     * @param  array<int, array{inventario_id: int, cantidad: float}>  $lineasDeseadas
      */
-    public function sincronizarDesdeTarea(DetalleOt $tarea): ?SolicitudInsumoOt
+    public function aplicarLineasInsumo(DetalleOt $tarea, array $lineasDeseadas, ?User $actor = null): DetalleOt
     {
-        $tarea->loadMissing('solicitudInsumo');
-        $solicitud = $tarea->solicitudInsumo;
+        return DB::transaction(function () use ($tarea, $lineasDeseadas, $actor) {
+            $tarea->loadMissing('insumos', 'solicitudesInsumo', 'ordenTrabajo');
 
-        if (! $tarea->requiereInsumo()) {
-            if ($solicitud && $solicitud->estado === 'pendiente') {
-                $solicitud->delete();
+            $deseadas = collect($lineasDeseadas)
+                ->filter(fn ($l) => (int) ($l['inventario_id'] ?? 0) > 0 && (float) ($l['cantidad'] ?? 0) > 0)
+                ->keyBy(fn ($l) => (int) $l['inventario_id']);
+
+            $solicitudPorLinea = $tarea->solicitudesInsumo->keyBy('detalle_ot_insumo_id');
+
+            // 1. Quitar líneas que ya no se piden.
+            foreach ($tarea->insumos as $linea) {
+                if ($deseadas->has((int) $linea->inventario_id)) {
+                    continue;
+                }
+
+                $solicitud = $solicitudPorLinea->get($linea->id);
+                $this->cancelarSolicitud($solicitud, $linea, $actor);
+                $linea->delete();
             }
 
-            return null;
+            // 2. Crear / actualizar las líneas pedidas y sincronizar su solicitud.
+            foreach ($deseadas as $invId => $l) {
+                $cantidad = round((float) $l['cantidad'], 2);
+
+                $linea = $tarea->insumos->firstWhere('inventario_id', $invId)
+                    ?? new DetalleOtInsumo(['detalle_ot_id' => $tarea->id, 'inventario_id' => $invId]);
+
+                $linea->cantidad = $cantidad;
+                $linea->detalle_ot_id = $tarea->id;
+                $linea->inventario_id = $invId;
+                $linea->save();
+
+                $this->sincronizarSolicitud($tarea, $linea, $solicitudPorLinea->get($linea->id), $actor);
+            }
+
+            return $tarea->fresh(['insumos.inventario', 'solicitudesInsumo']);
+        });
+    }
+
+    private function cancelarSolicitud(?SolicitudInsumoOt $solicitud, DetalleOtInsumo $linea, ?User $actor): void
+    {
+        if (! $solicitud || $solicitud->estado !== 'pendiente') {
+            return;
         }
 
+        $solicitud->update(['estado' => 'cancelada']);
+
+        $linea->loadMissing('inventario');
+        $solicitud->ordenTrabajo?->registrarEvento(
+            'insumo_cancelado',
+            sprintf(
+                'Se retiró el insumo «%s» (%s uds.) de la tarea «%s».',
+                $linea->inventario?->nombre ?? 'ítem #'.$linea->inventario_id,
+                $this->nfmt($linea->cantidad),
+                str((string) $linea->tarea?->descripcion)->limit(40),
+            ),
+            $actor,
+        );
+    }
+
+    private function sincronizarSolicitud(DetalleOt $tarea, DetalleOtInsumo $linea, ?SolicitudInsumoOt $solicitud, ?User $actor): void
+    {
+        // Bodega ya la procesó: no se toca.
         if ($solicitud && in_array($solicitud->estado, ['aprobada', 'entregada'], true)) {
-            return $solicitud;
+            return;
         }
 
         if ($solicitud) {
+            $cambioCantidad = round((float) $solicitud->cantidad, 2) !== round((float) $linea->cantidad, 2);
+            $cambioItem = (int) $solicitud->inventario_id !== (int) $linea->inventario_id;
+
             $solicitud->update([
-                'inventario_id' => $tarea->insumo_id,
-                'cantidad' => $tarea->cantidad_insumo,
+                'inventario_id' => $linea->inventario_id,
+                'cantidad' => $linea->cantidad,
                 'estado' => 'pendiente',
                 'motivo_rechazo' => null,
             ]);
 
-            return $solicitud;
+            if ($cambioCantidad || $cambioItem) {
+                $tarea->ordenTrabajo?->registrarEvento(
+                    'insumo_modificado',
+                    sprintf(
+                        'Se ajustó el insumo de la tarea «%s»: %s uds. de %s.',
+                        str($tarea->descripcion)->limit(40),
+                        $this->nfmt($linea->cantidad),
+                        $linea->inventario?->nombre ?? 'ítem #'.$linea->inventario_id,
+                    ),
+                    $actor,
+                );
+            }
+
+            return;
         }
 
-        $solicitud = SolicitudInsumoOt::create([
+        $nueva = SolicitudInsumoOt::create([
             'ot_id' => $tarea->ot_id,
             'detalle_ot_id' => $tarea->id,
-            'inventario_id' => $tarea->insumo_id,
-            'cantidad' => $tarea->cantidad_insumo,
+            'detalle_ot_insumo_id' => $linea->id,
+            'inventario_id' => $linea->inventario_id,
+            'cantidad' => $linea->cantidad,
             'estado' => 'pendiente',
-            'solicitada_por' => auth()->id(),
+            'solicitada_por' => $actor?->id ?? auth()->id(),
         ]);
 
+        $linea->loadMissing('inventario');
         $tarea->ordenTrabajo?->registrarEvento(
             'insumo_solicitado',
-            sprintf('Solicitud de insumo generada para la tarea «%s» (%s uds.)', str($tarea->descripcion)->limit(40), rtrim(rtrim(number_format((float) $tarea->cantidad_insumo, 2), '0'), '.')),
+            sprintf(
+                'Solicitud de insumo generada para la tarea «%s»: %s uds. de %s.',
+                str($tarea->descripcion)->limit(40),
+                $this->nfmt($nueva->cantidad),
+                $linea->inventario?->nombre ?? 'ítem #'.$linea->inventario_id,
+            ),
+            $actor,
         );
+    }
 
-        return $solicitud;
+    private function nfmt(float|string|null $v): string
+    {
+        return rtrim(rtrim(number_format((float) $v, 2), '0'), '.');
     }
 }

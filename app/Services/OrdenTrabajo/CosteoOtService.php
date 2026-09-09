@@ -40,9 +40,8 @@ class CosteoOtService
         $ot->loadMissing([
             'tareas.tecnico.sueldos',
             'manoObraContratistas',
-            'tareas.solicitudInsumo.inventario',
-            'tareas.solicitudInsumo.movimiento',
-            'tareas.insumo',
+            'tareas.insumos.inventario',
+            'tareas.insumos.solicitud.movimiento',
         ]);
 
         $fechaRef = $ot->fecha_finalizacion
@@ -62,20 +61,22 @@ class CosteoOtService
         $contratistas = (float) $ot->manoObraContratistas->sum('valor');
 
         $repuestos = $ot->tareas->reduce(function (float $acc, $tarea) {
-            if (! $tarea->requiereInsumo()) {
-                return $acc;
-            }
+            return $acc + $tarea->insumos->reduce(function (float $sub, $linea) {
+                $solicitud = $linea->solicitud;
 
-            $cantidad = (float) $tarea->cantidad_insumo;
+                // Una línea rechazada o cancelada por Bodega no se consumió: no cuesta (H5).
+                if ($solicitud && in_array($solicitud->estado, ['rechazada', 'cancelada'], true)) {
+                    return $sub;
+                }
 
-            // Si Bodega ya despachó el insumo, usa el costo REAL de ese movimiento
-            // (costeo FIFO); si no, cae al costo de referencia del ítem.
-            $costoUnit = $tarea->solicitudInsumo?->movimiento?->costo_unitario
-                ?? $tarea->solicitudInsumo?->inventario?->costo_unitario
-                ?? $tarea->insumo?->costo_unitario
-                ?? 0;
+                // Si Bodega ya despachó, usa el costo REAL del movimiento (FIFO);
+                // si aún no, cae al costo de referencia del ítem (estimado).
+                $costoUnit = $solicitud?->movimiento?->costo_unitario
+                    ?? $linea->inventario?->costo_unitario
+                    ?? 0;
 
-            return $acc + $cantidad * (float) $costoUnit;
+                return $sub + (float) $linea->cantidad * (float) $costoUnit;
+            }, 0.0);
         }, 0.0);
 
         $costoTotal = round($manoObraPropia + $contratistas + $repuestos, 2);
