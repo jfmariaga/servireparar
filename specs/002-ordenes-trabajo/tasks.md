@@ -317,6 +317,23 @@ D7 el Técnico solo ve sus OT · D8 cancelar OT / cancelar tarea.
 - [x] T095 [P] Tests: técnico no ve OT ajena (403); almacenista sin permiso no atiende; checklist por defecto presente
 
 ### Fase 8 — Regresión y cierre
-- [ ] T096 `php artisan test` completo en verde; actualizar contador en README y bitácora
-- [ ] T097 `docs/BITACORA-2026-09-08.md` + marcar T050–T098 en este archivo
+- [x] T096 `php artisan test` completo en verde; actualizar contador en README y bitácora
+- [x] T097 `docs/BITACORA-2026-09-08.md` + marcar T050–T098 en este archivo
 - [ ] T098 Ejecutar el Protocolo de pruebas de aceptación (PLAN §4) con los 5 roles; registrar resultados
+
+---
+
+## Notas de implementación (2026-09-08 — Phase 11 endurecimiento)
+
+T050–T097 implementadas en la rama `feature/ot-endurecimiento` (13 commits). **Suite: 197 tests en
+verde** (159 → +38). Detalle en `docs/BITACORA-2026-09-08.md`; hallazgos, decisiones y protocolo de
+pruebas en `docs/PLAN-ENDURECIMIENTO-OT-2026-09-08.md`.
+
+Cambios de modelo: `detalle_ot_insumos` (multi-insumo), `ot_herramientas`, `notifications`; se
+eliminan `detalle_ot.insumo_id`/`cantidad_insumo`; se quita `aprobada` de `solicitudes_insumo_ot`
+(Bodega de un paso); nuevo estado `cancelada` (OT terminal + tarea) y columnas
+`detalle_ot.finalizacion_solicitada_en`, `ordenes_trabajo.alertado_vencimiento_en`.
+
+Pendiente: **T098** (protocolo de pruebas de aceptación con los 5 roles — sesión conjunta con el
+cliente). Operativo en entornos con datos: re-seed de `RolesSeeder` (permiso `attend-ot-insumo`) +
+`permission:cache-reset`, y re-seed de `EstadosOtSeeder` (estado `cancelada`).
