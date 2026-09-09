@@ -319,7 +319,7 @@ D7 el Técnico solo ve sus OT · D8 cancelar OT / cancelar tarea.
 ### Fase 8 — Regresión y cierre
 - [x] T096 `php artisan test` completo en verde; actualizar contador en README y bitácora
 - [x] T097 `docs/BITACORA-2026-09-08.md` + marcar T050–T098 en este archivo
-- [ ] T098 Ejecutar el Protocolo de pruebas de aceptación (PLAN §4) con los 5 roles; registrar resultados
+- [x] T098 Protocolo de pruebas de aceptación ejecutado (2026-09-08): flujo A–K verificado end-to-end por script + paseo visual con los 5 roles (18 capturas). Todo OK; 1 ajuste (insumo rechazado retiene la finalización).
 
 ---
 
@@ -334,6 +334,10 @@ eliminan `detalle_ot.insumo_id`/`cantidad_insumo`; se quita `aprobada` de `solic
 (Bodega de un paso); nuevo estado `cancelada` (OT terminal + tarea) y columnas
 `detalle_ot.finalizacion_solicitada_en`, `ordenes_trabajo.alertado_vencimiento_en`.
 
-Pendiente: **T098** (protocolo de pruebas de aceptación con los 5 roles — sesión conjunta con el
-cliente). Operativo en entornos con datos: re-seed de `RolesSeeder` (permiso `attend-ot-insumo`) +
-`permission:cache-reset`, y re-seed de `EstadosOtSeeder` (estado `cancelada`).
+**T098 ejecutado (2026-09-08)**: `feature/ot-endurecimiento` mergeada a `main`; flujo A–K verificado
+end-to-end (script contra la BD real) + paseo visual con los 5 roles (18 capturas). Todo OK; único
+ajuste: un insumo **rechazado** por Bodega también retiene la finalización de la tarea hasta la
+confirmación del Jefe (antes solo lo hacía un insumo `pendiente`). Suite: 198 tests.
+
+Operativo en entornos con datos: re-seed de `RolesSeeder` (permiso `attend-ot-insumo`) +
+`permission:cache-reset`, y re-seed de `EstadosOtSeeder` (estado `cancelada`). Falta `git push`.
