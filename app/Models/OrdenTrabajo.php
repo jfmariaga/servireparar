@@ -45,6 +45,7 @@ class OrdenTrabajo extends Model
         'creado_por',
         'fecha_finalizacion',
         'fecha_entrega',
+        'alertado_vencimiento_en',
         'observaciones',
     ];
 
@@ -57,6 +58,7 @@ class OrdenTrabajo extends Model
             'salida_resuelta_en' => 'datetime',
             'fecha_finalizacion' => 'datetime',
             'fecha_entrega' => 'datetime',
+            'alertado_vencimiento_en' => 'datetime',
         ];
     }
 

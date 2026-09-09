@@ -127,6 +127,16 @@ para los 9 specs — el proyecto está listo para `/speckit-implement`.
 **Entorno de desarrollo local**: Laragon (Windows) con MySQL — mismo motor que producción (Hostinger), sin
 SQLite ni en tests, para evitar divergencias de comportamiento (ver constitución v1.2.0).
 
+**Tareas programadas (scheduler)**: hay comandos agendados en `routes/console.php` — `ot:revisar-vencimientos`
+(alertas de OT próximas a vencer, spec 002 FR-010) y `mantenimientos:revisar-preventivos` (spec 005).
+Para que corran:
+
+- **Desarrollo**: `php artisan schedule:work` en una terminal aparte.
+- **Producción**: una entrada de cron `* * * * * cd /ruta/al/proyecto && php artisan schedule:run >> /dev/null 2>&1`.
+
+Sin el scheduler corriendo, esas alertas no se disparan solas (se pueden ejecutar a mano con
+`php artisan ot:revisar-vencimientos`; añadir `--reenviar` para volver a avisar OT ya alertadas).
+
 Orden de implementación recomendado (respeta dependencias reales, no solo el orden de fases comercial):
 **000 → 001 → 002/003/004 (paralelizable entre sí tras 000+001) → 005/006 (paralelizable tras 000+002/
 003/004) → 007 (requiere 002/003/004/006) → 008 (requiere eventos de 002/003/005/006, pero su mecanismo

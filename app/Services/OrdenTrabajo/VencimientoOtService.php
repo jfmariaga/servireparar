@@ -14,7 +14,10 @@ use Illuminate\Support\Carbon;
  */
 class VencimientoOtService
 {
-    public function revisar(): int
+    /**
+     * @param  bool  $reenviar  vuelve a avisar aunque ya se haya alertado antes (H23: por defecto, una sola vez por OT).
+     */
+    public function revisar(bool $reenviar = false): int
     {
         $umbral = (int) config('ot.dias_umbral_vencimiento', 2);
         $hoy = Carbon::today();
@@ -22,15 +25,17 @@ class VencimientoOtService
 
         OrdenTrabajo::query()
             ->whereNotNull('tiempo_estimado_dias')
+            ->when(! $reenviar, fn ($q) => $q->whereNull('alertado_vencimiento_en'))
             ->whereHas('estado', fn ($q) => $q->where('es_terminal', false)->whereNot('slug', EstadoOt::FINALIZADA))
             ->with('estado')
-            ->chunkById(200, function ($ots) use ($umbral, $hoy, &$disparadas) {
+            ->chunkById(200, function ($ots) use ($umbral, $hoy, $reenviar, &$disparadas) {
                 foreach ($ots as $ot) {
                     $limite = Carbon::parse($ot->created_at)->addDays((float) $ot->tiempo_estimado_dias)->startOfDay();
                     $diasParaLimite = ($limite->getTimestamp() - $hoy->getTimestamp()) / 86400;
 
                     if ($diasParaLimite <= $umbral) {
                         OtProximaAVencer::dispatch($ot, $diasParaLimite < 0);
+                        $ot->forceFill(['alertado_vencimiento_en' => now()])->saveQuietly();
                         $disparadas++;
                     }
                 }

@@ -13,4 +13,13 @@ return [
     */
     'dias_umbral_vencimiento' => (int) env('OT_DIAS_UMBRAL_VENCIMIENTO', 2),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Refresco de la campana de notificaciones
+    |--------------------------------------------------------------------------
+    | Cada cuántos segundos la campana del layout consulta si hay avisos nuevos
+    | (Phase 11 / D5 — polling, sin websockets).
+    */
+    'notif_poll_segundos' => (int) env('OT_NOTIF_POLL_SEGUNDOS', 45),
+
 ];

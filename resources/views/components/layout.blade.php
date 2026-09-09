@@ -74,6 +74,8 @@
                     </nav>
 
                     <div class="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+                            @livewire('notificaciones.campana')
+
                             {{-- Preferencias de apariencia --}}
                             <div x-data="{ open: false }" class="relative">
                                 <button @click="open = !open" @click.outside="open = false"

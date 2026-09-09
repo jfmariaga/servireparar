@@ -7,6 +7,7 @@ use App\Models\DetalleOtInsumo;
 use App\Models\Inventario;
 use App\Models\SolicitudInsumoOt;
 use App\Models\User;
+use App\Services\Notificaciones\NotificadorOt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,6 +22,10 @@ use Illuminate\Validation\ValidationException;
  */
 class SolicitudInsumoService
 {
+    public function __construct(
+        private readonly NotificadorOt $notificador = new NotificadorOt(),
+    ) {}
+
     /**
      * Deja las líneas de insumo de la tarea (y sus solicitudes) igual a
      * `$lineasDeseadas` (lista de `['inventario_id' => int, 'cantidad' => float]`,
@@ -30,7 +35,8 @@ class SolicitudInsumoService
      */
     public function aplicarLineasInsumo(DetalleOt $tarea, array $lineasDeseadas, ?User $actor = null): DetalleOt
     {
-        return DB::transaction(function () use ($tarea, $lineasDeseadas, $actor) {
+        $tarea = DB::transaction(function () use ($tarea, $lineasDeseadas, $actor, &$creadas) {
+            $creadas = 0;
             $tarea->loadMissing('insumos', 'solicitudesInsumo', 'ordenTrabajo');
 
             $deseadas = collect($lineasDeseadas)
@@ -71,11 +77,19 @@ class SolicitudInsumoService
                 $linea->inventario_id = $invId;
                 $linea->save();
 
-                $this->sincronizarSolicitud($tarea, $linea, $solicitud, $actor);
+                if ($this->sincronizarSolicitud($tarea, $linea, $solicitud, $actor)) {
+                    $creadas++;
+                }
             }
 
-            return $tarea->fresh(['insumos.inventario', 'solicitudesInsumo']);
+            return $tarea->fresh(['insumos.inventario', 'solicitudesInsumo', 'ordenTrabajo.cliente']);
         });
+
+        if (($creadas ?? 0) > 0 && $tarea->ordenTrabajo) {
+            $this->notificador->solicitudInsumoCreada($tarea->ordenTrabajo, $creadas);
+        }
+
+        return $tarea;
     }
 
     /**
@@ -166,11 +180,12 @@ class SolicitudInsumoService
         );
     }
 
-    private function sincronizarSolicitud(DetalleOt $tarea, DetalleOtInsumo $linea, ?SolicitudInsumoOt $solicitud, ?User $actor): void
+    /** Devuelve true si creó una solicitud nueva (para avisar a Bodega). */
+    private function sincronizarSolicitud(DetalleOt $tarea, DetalleOtInsumo $linea, ?SolicitudInsumoOt $solicitud, ?User $actor): bool
     {
         // Bodega ya la entregó: no se toca.
         if ($solicitud && $solicitud->estado === 'entregada') {
-            return;
+            return false;
         }
 
         if ($solicitud) {
@@ -197,7 +212,7 @@ class SolicitudInsumoService
                 );
             }
 
-            return;
+            return false;
         }
 
         $nueva = SolicitudInsumoOt::create([
@@ -221,6 +236,8 @@ class SolicitudInsumoService
             ),
             $actor,
         );
+
+        return true;
     }
 
     private function nfmt(float|string|null $v): string

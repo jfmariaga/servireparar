@@ -6,6 +6,7 @@ use App\Events\OtEntregada;
 use App\Models\EstadoOt;
 use App\Models\OrdenTrabajo;
 use App\Models\User;
+use App\Services\Notificaciones\NotificadorOt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +23,7 @@ class SalidaEquipoService
 {
     public function __construct(
         private readonly EstadoOtService $estados = new EstadoOtService(),
+        private readonly NotificadorOt $notificador = new NotificadorOt(),
     ) {}
 
     public function solicitar(OrdenTrabajo $ot, User $actor): OrdenTrabajo
@@ -53,6 +55,7 @@ class SalidaEquipoService
         ]);
 
         $ot->registrarEvento('salida_solicitada', 'Solicitud de salida de equipo enviada para aprobación.', $actor);
+        $this->notificador->salidaSolicitada($ot);
 
         return $ot;
     }
@@ -93,6 +96,7 @@ class SalidaEquipoService
 
             // FR-013: la OT vuelve a "En curso" para que el Jefe de Taller corrija.
             $this->estados->reabrir($ot->fresh(), $actor, 'Reapertura por rechazo de salida de equipo');
+            $this->notificador->salidaRechazada($ot->fresh());
 
             return $ot->fresh(['estado']);
         });

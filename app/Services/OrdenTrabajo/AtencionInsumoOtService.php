@@ -6,6 +6,7 @@ use App\Exceptions\StockInsuficienteException;
 use App\Models\SolicitudInsumoOt;
 use App\Models\User;
 use App\Services\Inventario\MovimientoService;
+use App\Services\Notificaciones\NotificadorOt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -23,6 +24,7 @@ class AtencionInsumoOtService
 {
     public function __construct(
         private readonly MovimientoService $movimientos = new MovimientoService(),
+        private readonly NotificadorOt $notificador = new NotificadorOt(),
     ) {}
 
     public function entregar(SolicitudInsumoOt $solicitud, User $almacenista): SolicitudInsumoOt
@@ -61,6 +63,8 @@ class AtencionInsumoOtService
                 $almacenista,
             );
 
+            $this->notificador->solicitudInsumoEntregada($solicitud);
+
             return $solicitud->fresh();
         });
     }
@@ -80,6 +84,8 @@ class AtencionInsumoOtService
             sprintf('Bodega rechazó el insumo para la tarea «%s». Motivo: %s', str((string) $solicitud->tarea?->descripcion)->limit(40), $motivo),
             $almacenista,
         );
+
+        $this->notificador->solicitudInsumoRechazada($solicitud->fresh());
 
         return $solicitud->fresh();
     }

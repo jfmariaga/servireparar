@@ -66,16 +66,37 @@
         ],
     ];
 
-    $despachosPendientes = auth()->user()->hasAnyRole(['Almacenista', 'Administrador'])
+    $user = auth()->user();
+
+    $despachosPendientes = $user->hasAnyRole(['Almacenista', 'Administrador'])
         ? \App\Models\SolicitudDespacho::whereIn('estado', ['solicitada', 'recibida', 'remisionada'])->count()
         : 0;
+
+    // Contadores de acción pendiente por rol (Phase 11 / D5).
+    $insumosPendientes = $user->can('manage-inventario')
+        ? \App\Models\SolicitudInsumoOt::where('estado', 'pendiente')->count()
+        : 0;
+
+    $otPendientes = 0;
+    if ($user->can('manage-ot')) {
+        $otPendientes += \App\Models\OrdenTrabajo::whereHas('estado', fn ($q) => $q->where('slug', 'en_revision'))->count();
+        if ($user->hasRole('Administrador')) {
+            $otPendientes += \App\Models\OrdenTrabajo::where('salida_estado', 'solicitada')->count();
+        }
+    }
+
+    $badges = [
+        'despachos.index' => $despachosPendientes,
+        'insumos-ot' => $insumosPendientes,
+        'ordenes-trabajo.tablero' => $otPendientes,
+    ];
 @endphp
 
 @foreach ($items as $item)
     @continue($item['ability'] && ! auth()->user()->can($item['ability']))
     @php
         $isActive = request()->routeIs($item['activePattern'] ?? $item['route']);
-        $badge = $item['route'] === 'despachos.index' && $despachosPendientes > 0 ? $despachosPendientes : null;
+        $badge = ($badges[$item['route']] ?? 0) > 0 ? $badges[$item['route']] : null;
     @endphp
 
     @if ($variant === 'sidebar')

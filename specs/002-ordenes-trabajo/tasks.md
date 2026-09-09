@@ -300,15 +300,15 @@ D7 el Técnico solo ve sus OT · D8 cancelar OT / cancelar tarea.
 - [x] T082 [P] Tests: planificación obligatoria; entrega exige finalizada; reapertura invalida salida; cancelar libera reservas
 
 ### Fase 6 — Notificaciones in-app + alertas (D5 · H3, H12, H23)
-- [ ] T083 Migración `notifications` + `Notifiable` en `User`; `config/ot.php` `notif_poll_segundos` (45)
-- [ ] T084 Notifications: OtCreada→Jefes, SolicitudCreada→Almacén, SolicitudRechazada→Jefe+creador, SolicitudEntregada→técnico, SalidaSolicitada→Admins, SalidaRechazada→Jefe+creador, OtEntregada→creador, OtProximaAVencer→Jefe+Admin, StockBajo→Almacén
-- [ ] T085 Listeners para `OtCreada`/`OtEntregada`/`OtProximaAVencer`/`StockBajo` + disparo directo desde servicios sin evento
-- [ ] T086 `OtEntregada` → correo al cliente (FR-011): Mailable + plantilla
-- [ ] T087 Componente Volt `notificaciones-campana` (badge no leídas, dropdown, `wire:poll`) en el layout
-- [ ] T088 Badges en `nav-items.blade.php`: Insumos para OT (N) / Salidas por aprobar (N) / OT por planificar (N)
-- [ ] T089 Anti-spam de vencimientos: `ordenes_trabajo.alertado_vencimiento_en` (H23)
-- [ ] T090 README + bitácora: sección "Scheduler" (`schedule:work` dev, cron `schedule:run` prod) (H12)
-- [ ] T091 [P] Tests: cada notificación al rol correcto; campana lista no leídas; vencimiento no re-notifica
+- [x] T083 Migración `notifications` + `Notifiable` en `User`; `config/ot.php` `notif_poll_segundos` (45)
+- [x] T084 Notifications: OtCreada→Jefes, SolicitudCreada→Almacén, SolicitudRechazada→Jefe+creador, SolicitudEntregada→técnico, SalidaSolicitada→Admins, SalidaRechazada→Jefe+creador, OtEntregada→creador, OtProximaAVencer→Jefe+Admin, StockBajo→Almacén
+- [x] T085 Listeners para `OtCreada`/`OtEntregada`/`OtProximaAVencer`/`StockBajo` + disparo directo desde servicios sin evento
+- [x] T086 `OtEntregada` → correo al cliente (FR-011): Mailable + plantilla
+- [x] T087 Componente Volt `notificaciones-campana` (badge no leídas, dropdown, `wire:poll`) en el layout
+- [x] T088 Badges en `nav-items.blade.php`: Insumos para OT (N) / Salidas por aprobar (N) / OT por planificar (N)
+- [x] T089 Anti-spam de vencimientos: `ordenes_trabajo.alertado_vencimiento_en` (H23)
+- [x] T090 README + bitácora: sección "Scheduler" (`schedule:work` dev, cron `schedule:run` prod) (H12)
+- [x] T091 [P] Tests: cada notificación al rol correcto; campana lista no leídas; vencimiento no re-notifica
 
 ### Fase 7 — Roles, visibilidad, checklist (D7 · H16, H17, H18)
 - [ ] T092 `OrdenTrabajoPolicy::view` + scope `OrdenTrabajo::visiblesPara(User)` (Técnico solo sus OT); aplicar en `tablero`/`detalle`
