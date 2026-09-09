@@ -25,6 +25,7 @@ class FlujoEstadoTest extends TestCase
 
         Volt::actingAs($this->jefeDeTaller())
             ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->call('planificar')
             ->call('iniciarTarea', $tarea->id)
             ->assertHasNoErrors();
 
@@ -66,6 +67,7 @@ class FlujoEstadoTest extends TestCase
         $comp = Volt::actingAs($this->jefeDeTaller())
             ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot]);
 
+        $comp->call('planificar')->assertHasNoErrors();
         $comp->call('iniciarTarea', $tarea->id)->assertHasNoErrors();
         $comp->call('confirmarFinalizarTarea', $tarea->id)
             ->set('diasTrabajados', '3')

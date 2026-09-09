@@ -38,7 +38,9 @@ class OrdenTrabajoPolicy
 
     public function executeTareas(User $user, OrdenTrabajo $ot): bool
     {
-        return $user->can('execute-ot') && ! $ot->estaBloqueada();
+        return $user->can('execute-ot')
+            && ! $ot->estaBloqueada()
+            && in_array(optional($ot->estado)->slug, ['pendiente', 'en_curso'], true);
     }
 
     public function requestEquipmentExit(User $user, OrdenTrabajo $ot): bool

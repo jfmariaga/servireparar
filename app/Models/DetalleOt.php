@@ -27,6 +27,7 @@ class DetalleOt extends Model
         'estado_tarea',
         'fecha_inicio',
         'fecha_fin',
+        'finalizacion_solicitada_en',
         'dias_trabajados',
     ];
 
@@ -36,7 +37,14 @@ class DetalleOt extends Model
             'dias_trabajados' => 'decimal:2',
             'fecha_inicio' => 'datetime',
             'fecha_fin' => 'datetime',
+            'finalizacion_solicitada_en' => 'datetime',
         ];
+    }
+
+    /** El técnico marcó la tarea lista para finalizar y espera la confirmación del Jefe (D3). */
+    public function finalizacionPendiente(): bool
+    {
+        return $this->finalizacion_solicitada_en !== null && $this->estado_tarea !== 'finalizada';
     }
 
     public function ordenTrabajo(): BelongsTo

@@ -15,6 +15,7 @@ class EstadoOt extends Model
     public const EN_CURSO = 'en_curso';
     public const FINALIZADA = 'finalizada';
     public const ENTREGADA = 'entregada';
+    public const CANCELADA = 'cancelada';
 
     protected $table = 'estados_ot';
 

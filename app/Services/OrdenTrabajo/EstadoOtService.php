@@ -49,8 +49,10 @@ class EstadoOtService
     {
         $ot->loadMissing('tareas', 'checklist');
 
-        return $ot->tareas->isNotEmpty()
-            && $ot->tareas->every(fn ($t) => $t->estado_tarea === 'finalizada')
+        $activas = $ot->tareas->where('estado_tarea', '!=', 'cancelada');
+
+        return $activas->isNotEmpty()
+            && $activas->every(fn ($t) => $t->estado_tarea === 'finalizada')
             && $ot->checklistCompleto();
     }
 
@@ -97,9 +99,24 @@ class EstadoOtService
         return $this->transicionar($ot, EstadoOt::ENTREGADA, $actor, 'Entrega confirmada al cliente');
     }
 
+    /** Cancela la OT (estado terminal). Solo Administrador / Jefe de Taller, con motivo (D8). */
+    public function cancelar(OrdenTrabajo $ot, ?User $actor, string $motivo): OrdenTrabajo
+    {
+        $ot->loadMissing('estado');
+
+        if (optional($ot->estado)->es_terminal) {
+            throw ValidationException::withMessages([
+                'estado' => 'Una OT '.optional($ot->estado)->nombre.' no se puede cancelar.',
+            ]);
+        }
+
+        return $this->transicionar($ot, EstadoOt::CANCELADA, $actor, "OT cancelada. Motivo: {$motivo}");
+    }
+
     private function slugDerivado(OrdenTrabajo $ot): string
     {
-        $tareas = $ot->tareas;
+        // Las tareas canceladas no cuentan para derivar el estado de la OT.
+        $tareas = $ot->tareas->where('estado_tarea', '!=', 'cancelada');
 
         if ($tareas->isEmpty()) {
             return EstadoOt::EN_REVISION;
@@ -137,6 +154,23 @@ class EstadoOtService
             $ot->fecha_finalizacion = now();
         }
 
+        // Si la OT sale de "finalizada" hacia ejecución, una salida de equipo ya
+        // aprobada queda invalidada: el equipo no puede salir hasta re-aprobarla (H7).
+        $salidaInvalidada = $anterior === EstadoOt::FINALIZADA
+            && ! in_array($slug, [EstadoOt::FINALIZADA, EstadoOt::ENTREGADA, EstadoOt::CANCELADA], true)
+            && $ot->salida_estado === 'aprobada';
+
+        if ($salidaInvalidada) {
+            $ot->forceFill([
+                'salida_estado' => 'no_solicitada',
+                'salida_solicitada_por' => null,
+                'salida_solicitada_en' => null,
+                'salida_resuelta_por' => null,
+                'salida_resuelta_en' => null,
+                'salida_motivo_rechazo' => null,
+            ]);
+        }
+
         $ot->estado_id = EstadoOt::idPorSlug($slug);
         $ot->save();
         $ot->load('estado');
@@ -146,6 +180,10 @@ class EstadoOtService
             sprintf('%s: %s → %s', $descripcion, $anterior ?? '—', $slug),
             $actor,
         );
+
+        if ($salidaInvalidada) {
+            $ot->registrarEvento('correccion', 'Salida de equipo (aprobada) invalidada: la OT volvió a ejecución.', $actor);
+        }
 
         return $ot;
     }

@@ -19,6 +19,7 @@ class EstadosOtSeeder extends Seeder
             ['slug' => EstadoOt::EN_CURSO, 'nombre' => 'En curso', 'orden' => 3, 'es_terminal' => false],
             ['slug' => EstadoOt::FINALIZADA, 'nombre' => 'Finalizada', 'orden' => 4, 'es_terminal' => false],
             ['slug' => EstadoOt::ENTREGADA, 'nombre' => 'Entregada', 'orden' => 5, 'es_terminal' => true],
+            ['slug' => EstadoOt::CANCELADA, 'nombre' => 'Cancelada', 'orden' => 9, 'es_terminal' => true],
         ];
 
         foreach ($estados as $estado) {

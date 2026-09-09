@@ -45,6 +45,12 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public ?int $devolviendoHerramientaId = null;
     public string $estadoDevolucionHerramienta = 'disponible';
 
+    // Cancelación de OT / tarea (Phase 11 / D8)
+    public bool $cancelandoOt = false;
+    public string $motivoCancelacionOt = '';
+    public ?int $cancelandoTareaId = null;
+    public string $motivoCancelacionTarea = '';
+
     // Corrección (US4)
     public bool $editandoCabecera = false;
     public ?int $prioridadId = null;
@@ -107,20 +113,39 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         ];
     }
 
+    // --- Planificación (H6) ---
+
+    public function planificar(EstadoOtService $estados): void
+    {
+        Gate::authorize('update', $this->ot);
+        try {
+            $estados->planificar($this->ot, auth()->user());
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+        $this->ot->refresh();
+        $this->notifySuccess('OT planificada. Ya se puede ejecutar.');
+    }
+
     // --- US2: ejecución de tareas ---
 
     public function iniciarTarea(int $tareaId, EstadoOtService $estados): void
     {
         Gate::authorize('executeTareas', $this->ot);
-        $tarea = $this->ot->tareas()->findOrFail($tareaId);
 
-        if ($tarea->estado_tarea !== 'pendiente') {
-            $this->notifyError('La tarea ya fue iniciada.');
+        $afectadas = DetalleOt::where('id', $tareaId)
+            ->where('ot_id', $this->ot->id)
+            ->where('estado_tarea', 'pendiente')
+            ->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+
+        if (! $afectadas) {
+            $this->notifyError('La tarea ya fue iniciada o no está pendiente.');
 
             return;
         }
 
-        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
         $estados->recalcular($this->ot->fresh(), auth()->user());
         $this->ot->refresh();
         $this->notifySuccess('Tarea iniciada.');
@@ -133,7 +158,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->diasTrabajados = '';
     }
 
-    public function finalizarTarea(EstadoOtService $estados): void
+    public function finalizarTarea(OrdenTrabajoService $servicio): void
     {
         Gate::authorize('executeTareas', $this->ot);
 
@@ -143,23 +168,43 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
         $tarea = $this->ot->tareas()->findOrFail($this->finalizandoTareaId);
 
-        if ($tarea->estado_tarea === 'pendiente') {
+        if ($tarea->estado_tarea !== 'en_curso') {
             $this->notifyError('Inicia la tarea antes de finalizarla.');
 
             return;
         }
 
-        $tarea->update([
-            'estado_tarea' => 'finalizada',
-            'fecha_fin' => now(),
-            'dias_trabajados' => (float) $this->diasTrabajados,
-        ]);
+        try {
+            $tarea = $servicio->marcarTareaListaParaFinalizar($tarea, auth()->user(), (float) $this->diasTrabajados);
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
 
-        $estados->recalcular($this->ot->fresh(), auth()->user());
-        $this->ot->refresh();
+            return;
+        }
+
         $this->finalizandoTareaId = null;
         $this->diasTrabajados = '';
-        $this->notifySuccess('Tarea finalizada.');
+        $this->ot->refresh();
+        $this->notifySuccess($tarea->finalizacionPendiente()
+            ? 'Tarea marcada lista para finalizar. Falta la confirmación del Jefe (insumos sin entregar).'
+            : 'Tarea finalizada.');
+    }
+
+    public function confirmarFinalizacionJefe(int $tareaId, OrdenTrabajoService $servicio): void
+    {
+        Gate::authorize('update', $this->ot);
+        $tarea = $this->ot->tareas()->findOrFail($tareaId);
+
+        try {
+            $servicio->confirmarFinalizacionTarea($tarea, auth()->user());
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+
+        $this->ot->refresh();
+        $this->notifySuccess('Finalización de la tarea confirmada.');
     }
 
     public function subirEvidencia(): void
@@ -456,6 +501,47 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->ot->refresh();
         $this->notifySuccess('Tarea eliminada.');
     }
+
+    // --- Cancelación (Phase 11 / D8) ---
+
+    public function cancelarTareaConfirmar(OrdenTrabajoService $servicio): void
+    {
+        Gate::authorize('update', $this->ot);
+        $this->validate(['motivoCancelacionTarea' => 'required|string|max:500'], [], ['motivoCancelacionTarea' => 'motivo']);
+        $tarea = $this->ot->tareas()->findOrFail($this->cancelandoTareaId);
+
+        try {
+            $servicio->cancelarTarea($tarea, auth()->user(), $this->motivoCancelacionTarea);
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+
+        $this->cancelandoTareaId = null;
+        $this->motivoCancelacionTarea = '';
+        $this->ot->refresh();
+        $this->notifySuccess('Tarea cancelada.');
+    }
+
+    public function cancelarOtConfirmar(OrdenTrabajoService $servicio): void
+    {
+        Gate::authorize('update', $this->ot);
+        $this->validate(['motivoCancelacionOt' => 'required|string|max:500'], [], ['motivoCancelacionOt' => 'motivo']);
+
+        try {
+            $servicio->cancelarOt($this->ot, auth()->user(), $this->motivoCancelacionOt);
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+
+        $this->cancelandoOt = false;
+        $this->motivoCancelacionOt = '';
+        $this->ot->refresh();
+        $this->notifySuccess('OT '.$this->ot->numero_ot.' cancelada.');
+    }
 }; ?>
 
 @php
@@ -488,11 +574,28 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             @if ($puedeVerCosteo)
                 <a href="{{ route('ordenes-trabajo.costeo', $ot) }}" wire:navigate class="inline-flex items-center h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Costeo y utilidad</a>
             @endif
+            @if ($puedeGestionar && $ot->estado?->slug === 'en_revision')
+                <button wire:click="planificar" class="inline-flex items-center h-9 px-3.5 rounded-lg bg-brand-blue text-white text-[12.5px] font-semibold hover:bg-brand-blue-dark">Planificar OT</button>
+            @endif
             @if ($puedeGestionar && ! $editandoCabecera)
                 <button wire:click="editarCabecera" class="inline-flex items-center h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Corregir OT</button>
+                <button wire:click="$set('cancelandoOt', true)" class="inline-flex items-center h-9 px-3.5 rounded-lg border border-brand-red/40 text-brand-red text-[12.5px] font-semibold hover:bg-red-50 dark:hover:bg-red-900/20">Cancelar OT</button>
             @endif
         </div>
     </div>
+
+    @if ($cancelandoOt)
+        <div class="bg-white dark:bg-slate-900 border border-brand-red/40 rounded-2xl p-4 flex flex-col gap-2">
+            <p class="text-sm font-semibold text-brand-red">Cancelar la OT {{ $ot->numero_ot }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Se liberan las reservas de insumo pendientes. La OT queda cerrada (estado terminal) y no se puede reabrir.</p>
+            <textarea wire:model="motivoCancelacionOt" rows="2" placeholder="Motivo de la cancelación" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3 py-2 text-xs outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10"></textarea>
+            @error('motivoCancelacionOt') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+            <div class="flex gap-2">
+                <button wire:click="cancelarOtConfirmar" class="inline-flex items-center h-9 px-4 rounded-lg bg-brand-red text-white text-[12.5px] font-semibold hover:opacity-90">Confirmar cancelación</button>
+                <button wire:click="$set('cancelandoOt', false)" class="inline-flex items-center h-9 px-4 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold">Volver</button>
+            </div>
+        </div>
+    @endif
 
     <div class="grid gap-6 xl:grid-cols-3 items-start">
 
@@ -608,7 +711,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                             <div class="flex items-start justify-between gap-2">
                                 <p class="font-medium leading-snug">{{ $tarea->descripcion }}</p>
                                 <span class="shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold
-                                    {{ $tarea->estado_tarea === 'finalizada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : ($tarea->estado_tarea === 'en_curso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-slate-100 dark:bg-slate-800') }}">
+                                    {{ $tarea->estado_tarea === 'finalizada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : ($tarea->estado_tarea === 'en_curso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : ($tarea->estado_tarea === 'cancelada' ? 'bg-red-100 text-brand-red dark:bg-red-900/30' : 'bg-slate-100 dark:bg-slate-800')) }}">
                                     {{ str($tarea->estado_tarea)->replace('_', ' ')->ucfirst() }}
                                 </span>
                             </div>
@@ -616,6 +719,9 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 {{ $tarea->tecnico?->usuario?->name ?? 'Técnico #'.$tarea->tecnico_id }}
                                 @if ($tarea->estado_tarea === 'finalizada')<br>Días trabajados: {{ $nfmt($tarea->dias_trabajados) }}@endif
                             </p>
+                            @if ($tarea->finalizacionPendiente())
+                                <p class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">Lista para finalizar ({{ $nfmt($tarea->dias_trabajados) }} día(s)) — espera confirmación del Jefe.</p>
+                            @endif
                             @foreach ($tarea->insumos as $linea)
                                 @php $sol = $linea->solicitud; @endphp
                                 <p class="text-[11px] flex items-start gap-1
@@ -648,7 +754,10 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                         <button wire:click="confirmarFinalizarTarea({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Finalizar</button>
                                     @endif
                                 @endif
-                                @if ($puedeGestionar && $tarea->estado_tarea !== 'finalizada')
+                                @if ($puedeGestionar && $tarea->finalizacionPendiente())
+                                    <button wire:click="confirmarFinalizacionJefe({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar finalización</button>
+                                @endif
+                                @if ($puedeGestionar && ! in_array($tarea->estado_tarea, ['finalizada', 'cancelada'], true))
                                     <button wire:click="editarTarea({{ $tarea->id }})" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Editar</button>
                                 @endif
                                 @if ($puedeGestionar && $tarea->estado_tarea === 'pendiente' && $ot->tareas->count() > 1)
@@ -659,6 +768,18 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                                 confirmButtonText: 'Sí, quitar',
                                             }).then((ok) => ok && $wire.quitarTarea({{ $tarea->id }}))"
                                             class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-red hover:border-brand-red/40">Quitar</button>
+                                @endif
+                                @if ($puedeGestionar && in_array($tarea->estado_tarea, ['pendiente', 'en_curso'], true))
+                                    @if ($cancelandoTareaId === $tarea->id)
+                                        <div class="flex flex-wrap items-center gap-2 w-full">
+                                            <input type="text" wire:model="motivoCancelacionTarea" placeholder="Motivo de la cancelación" class="flex-1 min-w-[12rem] h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3 text-xs outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10">
+                                            <button wire:click="cancelarTareaConfirmar" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-brand-red text-brand-red">Confirmar</button>
+                                            <button wire:click="$set('cancelandoTareaId', null)" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">Cerrar</button>
+                                            @error('motivoCancelacionTarea') <span class="text-brand-red text-xs w-full">{{ $message }}</span> @enderror
+                                        </div>
+                                    @else
+                                        <button wire:click="$set('cancelandoTareaId', {{ $tarea->id }})" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-red hover:border-brand-red/40">Cancelar tarea</button>
+                                    @endif
                                 @endif
                             </div>
                         </div>

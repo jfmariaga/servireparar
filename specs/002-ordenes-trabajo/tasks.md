@@ -290,14 +290,14 @@ D7 el Técnico solo ve sus OT · D8 cancelar OT / cancelar tarea.
 - [x] T074 [P] Tests: asignar/devolver; entrega bloqueada; herramienta fuera del costeo
 
 ### Fase 5 — Máquina de estados y guardias (H4/D3, H6, H7, H14, H15/D8)
-- [ ] T075 Botón "Planificar OT" (Jefe) → `EstadoOtService::planificar()` en `detalle.blade.php`
-- [ ] T076 `executeTareas` + `iniciarTarea`: exigir `estado ∈ {pendiente, en_curso}`
-- [ ] T077 Confirmación del Jefe para finalizar tarea con insumo no entregado (`confirmarFinalizacionTarea`, `manage-ot`)
-- [ ] T078 `SalidaEquipoService::confirmarEntrega()`: exigir `ot.estado === finalizada`
-- [ ] T079 `reabrir()` + reapertura por `agregarTarea`: resetear `salida_*` + evento "salida invalidada"
-- [ ] T080 Updates condicionales (`where estado_tarea`) en `iniciarTarea`/`finalizarTarea`/`responderChecklist` (H14)
-- [ ] T081 Estado `cancelada` (OT terminal + tarea); `cancelarTarea()`/`cancelarOt()` liberan reservas y exigen devolución de herramientas; UI + guardas de cascada (H22)
-- [ ] T082 [P] Tests: planificación obligatoria; entrega exige finalizada; reapertura invalida salida; cancelar libera reservas
+- [x] T075 Botón "Planificar OT" (Jefe) → `EstadoOtService::planificar()` en `detalle.blade.php`
+- [x] T076 `executeTareas` + `iniciarTarea`: exigir `estado ∈ {pendiente, en_curso}`
+- [x] T077 Confirmación del Jefe para finalizar tarea con insumo no entregado (`confirmarFinalizacionTarea`, `manage-ot`)
+- [x] T078 `SalidaEquipoService::confirmarEntrega()`: exigir `ot.estado === finalizada`
+- [x] T079 `reabrir()` + reapertura por `agregarTarea`: resetear `salida_*` + evento "salida invalidada"
+- [x] T080 Updates condicionales (`where estado_tarea`) en `iniciarTarea`/`finalizarTarea`/`responderChecklist` (H14)
+- [x] T081 Estado `cancelada` (OT terminal + tarea); `cancelarTarea()`/`cancelarOt()` liberan reservas y exigen devolución de herramientas; UI + guardas de cascada (H22)
+- [x] T082 [P] Tests: planificación obligatoria; entrega exige finalizada; reapertura invalida salida; cancelar libera reservas
 
 ### Fase 6 — Notificaciones in-app + alertas (D5 · H3, H12, H23)
 - [ ] T083 Migración `notifications` + `Notifiable` en `User`; `config/ot.php` `notif_poll_segundos` (45)

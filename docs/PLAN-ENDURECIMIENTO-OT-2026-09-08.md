@@ -20,8 +20,9 @@ trazabilidad de qué se va a corregir, en qué orden, y cómo se prueba.
 | 2 — Reserva y bloqueo de stock (T059–T064) | ✅ hecho (2026-09-08). `Inventario::disponible()` = stock − comprometido; bloqueo duro con `lockForUpdate` al guardar la tarea; selectores muestran "disp. N"; panel "Insumos de la OT" en el detalle; costeo separa `repuestos_estimados`. 170 tests en verde. |
 | 3 — Bodega de un solo paso (T065–T068) | ✅ hecho (2026-09-08). Se elimina el estado `aprobada` de las solicitudes de insumo: `pendiente → entregada \| rechazada \| cancelada`. Pantalla de Bodega sin "Aprobar"/"Aprobadas"; muestra disponible vs solicitado. 173 tests. |
 | 4 — Herramientas en la OT (T069–T074) | ✅ hecho (2026-09-08). Tabla `ot_herramientas`; `OtHerramientaService::asignar/devolver` (movimientos `salida`/`devolucion` origen `ot`); sección "Herramientas asignadas" en el detalle; la salida del equipo se bloquea si quedan herramientas sin devolver; el costeo no cuenta herramientas. 178 tests. |
-| 5 — Máquina de estados y guardias | ⏳ siguiente |
-| 6–8 | pendientes |
+| 5 — Máquina de estados y guardias (T075–T082) | ✅ hecho (2026-09-08). Botón "Planificar OT" y `executeTareas` exige OT planificada (H6); finalizar tarea con insumo sin entregar → confirmación del Jefe (D3); reapertura de OT finalizada invalida la salida aprobada (H7); updates condicionales en iniciar/finalizar (H14); estado `cancelada` para OT (terminal) y tarea, con liberación de reservas y guardia de herramientas (D8). 186 tests. |
+| 6 — Notificaciones in-app + alertas | ⏳ siguiente |
+| 7–8 | pendientes |
 | extra — congelar OT tras aprobar la salida + `valor_proyecto` obligatorio antes de solicitarla + confirmaciones SweetAlert2 + datos demo de inventario | ✅ hecho (2026-09-08), fixes surgidos en pruebas. |
 
 ---

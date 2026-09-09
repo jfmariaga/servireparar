@@ -106,6 +106,10 @@ class SalidaEquipoService
             throw ValidationException::withMessages(['salida' => 'La salida del equipo debe estar aprobada antes de registrar la entrega.']);
         }
 
+        if (! $ot->estaEnEstado(EstadoOt::FINALIZADA)) {
+            throw ValidationException::withMessages(['salida' => 'La OT debe estar finalizada para registrar la entrega.']);
+        }
+
         return DB::transaction(function () use ($ot, $actor, $firmaCliente) {
             $ot->firma_cliente_url = $firmaCliente;
             $ot->save();

@@ -202,6 +202,145 @@ class OrdenTrabajoService
     }
 
     /**
+     * El técnico marca la tarea lista para finalizar (D3). Si todos sus insumos
+     * ya fueron entregados por Bodega, se finaliza directo; si no, queda a la
+     * espera de la confirmación del Jefe de Taller.
+     */
+    public function marcarTareaListaParaFinalizar(DetalleOt $tarea, User $actor, float $diasTrabajados): DetalleOt
+    {
+        if ($tarea->estado_tarea !== 'en_curso') {
+            throw ValidationException::withMessages(['tarea' => 'La tarea debe estar en curso para finalizarla.']);
+        }
+
+        return DB::transaction(function () use ($tarea, $actor, $diasTrabajados) {
+            if ($tarea->insumosPendientesDeEntrega()) {
+                $tarea->update([
+                    'dias_trabajados' => $diasTrabajados,
+                    'finalizacion_solicitada_en' => now(),
+                ]);
+                $tarea->ordenTrabajo?->registrarEvento(
+                    'correccion',
+                    sprintf('Tarea «%s» marcada lista para finalizar; espera confirmación del Jefe (insumos sin entregar).', str($tarea->descripcion)->limit(40)),
+                    $actor,
+                );
+
+                return $tarea->fresh();
+            }
+
+            return $this->finalizarTarea($tarea, $actor, $diasTrabajados);
+        });
+    }
+
+    /** El Jefe de Taller confirma la finalización de una tarea retenida por insumos sin entregar (D3). */
+    public function confirmarFinalizacionTarea(DetalleOt $tarea, User $actor): DetalleOt
+    {
+        if (! $tarea->finalizacionPendiente()) {
+            throw ValidationException::withMessages(['tarea' => 'Esta tarea no está a la espera de confirmación.']);
+        }
+
+        return $this->finalizarTarea($tarea, $actor, (float) $tarea->dias_trabajados, confirmadaPorJefe: true);
+    }
+
+    private function finalizarTarea(DetalleOt $tarea, User $actor, float $dias, bool $confirmadaPorJefe = false): DetalleOt
+    {
+        return DB::transaction(function () use ($tarea, $actor, $dias, $confirmadaPorJefe) {
+            $tarea->update([
+                'estado_tarea' => 'finalizada',
+                'fecha_fin' => now(),
+                'dias_trabajados' => $dias,
+                'finalizacion_solicitada_en' => null,
+            ]);
+
+            if ($confirmadaPorJefe) {
+                $tarea->ordenTrabajo?->registrarEvento(
+                    'correccion',
+                    sprintf('El Jefe de Taller confirmó la finalización de la tarea «%s».', str($tarea->descripcion)->limit(40)),
+                    $actor,
+                );
+            }
+
+            $this->estados->recalcular($tarea->ordenTrabajo->fresh(), $actor);
+
+            return $tarea->fresh();
+        });
+    }
+
+    /**
+     * Cancela una tarea no finalizada (D8). Libera las solicitudes de insumo
+     * pendientes; las ya entregadas quedan como costo real. La OT debe conservar
+     * al menos una tarea no cancelada.
+     */
+    public function cancelarTarea(DetalleOt $tarea, User $actor, string $motivo): DetalleOt
+    {
+        $ot = $tarea->ordenTrabajo;
+
+        if (in_array($tarea->estado_tarea, ['finalizada', 'cancelada'], true)) {
+            throw ValidationException::withMessages(['tarea' => 'Solo se puede cancelar una tarea pendiente o en curso.']);
+        }
+
+        if (trim($motivo) === '') {
+            throw ValidationException::withMessages(['motivo' => 'Indica el motivo de la cancelación.']);
+        }
+
+        if ($ot->tareas()->where('estado_tarea', '!=', 'cancelada')->count() <= 1) {
+            throw ValidationException::withMessages(['tarea' => 'La OT debe conservar al menos una tarea activa. Cancela la OT completa si aplica.']);
+        }
+
+        return DB::transaction(function () use ($ot, $tarea, $actor, $motivo) {
+            $this->liberarInsumosPendientes($tarea, $actor);
+
+            $tarea->update(['estado_tarea' => 'cancelada', 'finalizacion_solicitada_en' => null]);
+            $ot->registrarEvento('correccion', sprintf('Tarea «%s» cancelada. Motivo: %s', str($tarea->descripcion)->limit(40), $motivo), $actor);
+            $this->estados->recalcular($ot->fresh(), $actor);
+
+            return $tarea->fresh();
+        });
+    }
+
+    /**
+     * Cancela la OT completa (D8): estado terminal `cancelada`. Libera todas las
+     * reservas de insumo pendientes. Exige que no queden herramientas sin devolver.
+     */
+    public function cancelarOt(OrdenTrabajo $ot, User $actor, string $motivo): OrdenTrabajo
+    {
+        if (trim($motivo) === '') {
+            throw ValidationException::withMessages(['motivo' => 'Indica el motivo de la cancelación.']);
+        }
+
+        if ($ot->herramientas()->whereNull('devuelta_en')->exists()) {
+            throw ValidationException::withMessages(['ot' => 'Devuelve las herramientas asignadas antes de cancelar la OT.']);
+        }
+
+        return DB::transaction(function () use ($ot, $actor, $motivo) {
+            foreach ($ot->tareas()->whereNot('estado_tarea', 'finalizada')->get() as $tarea) {
+                $this->liberarInsumosPendientes($tarea, $actor);
+            }
+
+            $this->estados->cancelar($ot->fresh(['estado']), $actor, $motivo);
+
+            return $ot->fresh(['estado']);
+        });
+    }
+
+    private function liberarInsumosPendientes(DetalleOt $tarea, User $actor): void
+    {
+        $tarea->loadMissing('solicitudesInsumo.inventario');
+
+        foreach ($tarea->solicitudesInsumo->where('estado', 'pendiente') as $solicitud) {
+            $solicitud->update(['estado' => 'cancelada']);
+            $tarea->ordenTrabajo?->registrarEvento(
+                'insumo_cancelado',
+                sprintf('Solicitud de %s uds. de %s liberada al cancelar la tarea «%s».',
+                    rtrim(rtrim(number_format((float) $solicitud->cantidad, 2), '0'), '.'),
+                    $solicitud->inventario?->nombre ?? 'ítem',
+                    str((string) $tarea->descripcion)->limit(40),
+                ),
+                $actor,
+            );
+        }
+    }
+
+    /**
      * Descarta tareas sin descripción o sin técnico.
      *
      * @param  array<int, array<string, mixed>>  $tareas
