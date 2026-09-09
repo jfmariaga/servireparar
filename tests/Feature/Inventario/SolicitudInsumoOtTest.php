@@ -127,4 +127,22 @@ class SolicitudInsumoOtTest extends TestCase
             ->test('inventario.solicitudes-ot')
             ->assertForbidden();
     }
+
+    public function test_bodega_es_de_un_solo_paso_sin_aprobacion(): void
+    {
+        // Ya no existe el paso "aprobar" (Phase 11 / D2).
+        $this->assertFalse(method_exists(\App\Services\OrdenTrabajo\AtencionInsumoOtService::class, 'aprobar'));
+
+        [$ot, $solicitud, $item] = $this->otConSolicitud(stock: 20, cantidad: 3);
+        $this->assertSame('pendiente', $solicitud->estado);
+
+        // Se entrega directo desde pendiente, sin estado intermedio.
+        Volt::actingAs($this->almacenista())
+            ->test('inventario.solicitudes-ot')
+            ->call('entregar', $solicitud->id)
+            ->assertHasNoErrors();
+
+        $this->assertSame('entregada', $solicitud->fresh()->estado);
+        $this->assertEquals(17, (float) $item->fresh()->stock_actual);
+    }
 }

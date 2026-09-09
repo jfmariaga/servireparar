@@ -44,19 +44,6 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
         ];
     }
 
-    public function aprobar(int $id, AtencionInsumoOtService $svc): void
-    {
-        Gate::authorize('viewAny', Inventario::class);
-        try {
-            $svc->aprobar(SolicitudInsumoOt::findOrFail($id), auth()->user());
-        } catch (ValidationException $e) {
-            $this->notifyError($e->getMessage());
-
-            return;
-        }
-        $this->notifySuccess('Solicitud aprobada.');
-    }
-
     public function entregar(int $id, AtencionInsumoOtService $svc): void
     {
         Gate::authorize('viewAny', Inventario::class);
@@ -100,7 +87,7 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
     </div>
 
     <div class="flex flex-wrap gap-2">
-        @foreach (['pendiente' => 'Pendientes', 'aprobada' => 'Aprobadas', 'entregada' => 'Entregadas', 'rechazada' => 'Rechazadas', 'todas' => 'Todas'] as $k => $label)
+        @foreach (['pendiente' => 'Pendientes', 'entregada' => 'Entregadas', 'rechazada' => 'Rechazadas', 'cancelada' => 'Canceladas', 'todas' => 'Todas'] as $k => $label)
             <button wire:click="$set('estado', '{{ $k }}')"
                     class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition
                            {{ $estado === $k ? 'bg-brand-blue text-white' : 'border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800' }}">
@@ -128,8 +115,10 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
             <tbody>
                 @forelse ($solicitudes as $s)
                     @php
-                        $falta = $s->inventario && $s->inventario->tipo === 'consumible' && (float) $s->inventario->stock_actual < (float) $s->cantidad;
                         $nfmt = fn ($v) => rtrim(rtrim(number_format((float) $v, 2), '0'), '.');
+                        $esConsumible = $s->inventario && $s->inventario->tipo === 'consumible';
+                        $falta = $s->estado === 'pendiente' && $esConsumible && (float) $s->inventario->stock_actual < (float) $s->cantidad;
+                        $disp = $esConsumible ? $s->inventario->disponible() : null;
                     @endphp
                     <tr wire:key="sol-{{ $s->id }}" class="border-b border-slate-50 dark:border-slate-800/60 align-top">
                         <td class="px-4 py-3">
@@ -139,10 +128,15 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
                         <td class="px-4 py-3 max-w-[16rem] text-slate-500 dark:text-slate-400">{{ $s->tarea?->descripcion }}</td>
                         <td class="px-4 py-3">{{ $s->inventario?->nombre }} <span class="text-xs text-slate-400">({{ $s->inventario?->codigo }})</span></td>
                         <td class="px-4 py-3 text-right">{{ $nfmt($s->cantidad) }}</td>
-                        <td class="px-4 py-3 text-right {{ $falta ? 'text-brand-red font-semibold' : '' }}">{{ $nfmt($s->inventario?->stock_actual ?? 0) }}</td>
+                        <td class="px-4 py-3 text-right {{ $falta ? 'text-brand-red font-semibold' : '' }}">
+                            {{ $nfmt($s->inventario?->stock_actual ?? 0) }}
+                            @if ($disp !== null)
+                                <div class="text-[10px] font-normal {{ $disp < (float) $s->cantidad ? 'text-brand-red' : 'text-slate-400' }}">disp. {{ $nfmt($disp) }}</div>
+                            @endif
+                        </td>
                         <td class="px-4 py-3">
                             <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold
-                                {{ $s->estado === 'entregada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : ($s->estado === 'rechazada' ? 'bg-red-100 text-brand-red dark:bg-red-900/30' : ($s->estado === 'aprobada' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-slate-100 dark:bg-slate-800')) }}">
+                                {{ $s->estado === 'entregada' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : ($s->estado === 'rechazada' ? 'bg-red-100 text-brand-red dark:bg-red-900/30' : 'bg-slate-100 dark:bg-slate-800') }}">
                                 {{ ucfirst($s->estado) }}
                             </span>
                             @if ($s->estado === 'rechazada' && $s->motivo_rechazo)
@@ -150,7 +144,7 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
                             @endif
                         </td>
                         <td class="px-4 py-3">
-                            @if (in_array($s->estado, ['pendiente', 'aprobada'], true))
+                            @if ($s->estado === 'pendiente')
                                 @if ($rechazandoId === $s->id)
                                     <div class="flex flex-col gap-2 w-56">
                                         <input type="text" wire:model="motivoRechazo" placeholder="Motivo del rechazo" class="h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3 text-xs outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10">
@@ -162,9 +156,6 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
                                     </div>
                                 @else
                                     <div class="flex flex-wrap gap-2">
-                                        @if ($s->estado === 'pendiente')
-                                            <button wire:click="aprobar({{ $s->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Aprobar</button>
-                                        @endif
                                         <button type="button"
                                                 x-on:click="Notify.confirmDanger({
                                                     title: '¿Entregar el insumo?',

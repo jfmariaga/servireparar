@@ -186,7 +186,7 @@ class OrdenTrabajoService
         }
 
         $procesada = $tarea->solicitudesInsumo()
-            ->whereIn('estado', ['aprobada', 'entregada'])
+            ->where('estado', 'entregada')
             ->exists();
 
         if ($procesada) {

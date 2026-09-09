@@ -130,7 +130,7 @@ class SolicitudInsumoService
      */
     private function asegurarNoProcesada(?SolicitudInsumoOt $solicitud, DetalleOtInsumo $linea, string $accion): void
     {
-        if (! $solicitud || ! in_array($solicitud->estado, ['aprobada', 'entregada'], true)) {
+        if (! $solicitud || $solicitud->estado !== 'entregada') {
             return;
         }
 
@@ -138,10 +138,9 @@ class SolicitudInsumoService
 
         throw ValidationException::withMessages([
             'tarea' => sprintf(
-                'No se puede %s el insumo «%s»: Bodega ya lo %s. Si sobra, regístralo como devolución en Inventario.',
+                'No se puede %s el insumo «%s»: Bodega ya lo entregó. Si sobra, regístralo como devolución en Inventario.',
                 $accion,
                 $linea->inventario?->nombre ?? 'ítem #'.$linea->inventario_id,
-                $solicitud->estado === 'entregada' ? 'entregó' : 'aprobó',
             ),
         ]);
     }
@@ -169,8 +168,8 @@ class SolicitudInsumoService
 
     private function sincronizarSolicitud(DetalleOt $tarea, DetalleOtInsumo $linea, ?SolicitudInsumoOt $solicitud, ?User $actor): void
     {
-        // Bodega ya la procesó: no se toca.
-        if ($solicitud && in_array($solicitud->estado, ['aprobada', 'entregada'], true)) {
+        // Bodega ya la entregó: no se toca.
+        if ($solicitud && $solicitud->estado === 'entregada') {
             return;
         }
 

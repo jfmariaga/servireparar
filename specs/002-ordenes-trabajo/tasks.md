@@ -276,10 +276,10 @@ D7 el Técnico solo ve sus OT · D8 cancelar OT / cancelar tarea.
 - [x] T064 [P] Tests: reserva descuenta disponible; 2.ª OT no sobre-compromete; costeo ignora rechazadas
 
 ### Fase 3 — Bodega de un solo paso (D2 · H10, H11)
-- [ ] T065 `AtencionInsumoOtService`: eliminar `aprobar()`; enum estado → `('pendiente','entregada','rechazada')` + migración de datos
-- [ ] T066 `inventario/solicitudes-ot.blade.php`: quitar "Aprobar"/"Aprobadas"; disponible vs solicitado con alerta
-- [ ] T067 Eventos `insumo_cancelado`/`insumo_modificado` en `ot_eventos` al editar tareas
-- [ ] T068 [P] Tests: sin paso aprobar; entregar desde pendiente; rechazo con evento; edición registra cambio
+- [x] T065 `AtencionInsumoOtService`: eliminar `aprobar()`; enum estado → `('pendiente','entregada','rechazada')` + migración de datos
+- [x] T066 `inventario/solicitudes-ot.blade.php`: quitar "Aprobar"/"Aprobadas"; disponible vs solicitado con alerta
+- [x] T067 Eventos `insumo_cancelado`/`insumo_modificado` en `ot_eventos` al editar tareas
+- [x] T068 [P] Tests: sin paso aprobar; entregar desde pendiente; rechazo con evento; edición registra cambio
 
 ### Fase 4 — Herramientas en la OT (D4 · H9)
 - [ ] T069 Migración `create_ot_herramientas_table` (asignación + devolución + `movimiento_*_id`)

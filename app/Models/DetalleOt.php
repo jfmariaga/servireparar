@@ -77,7 +77,7 @@ class DetalleOt extends Model
         $this->loadMissing('solicitudesInsumo');
 
         return $this->solicitudesInsumo
-            ->whereIn('estado', ['pendiente', 'aprobada'])
+            ->where('estado', 'pendiente')
             ->isNotEmpty();
     }
 }

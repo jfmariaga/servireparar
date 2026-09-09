@@ -803,7 +803,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                             @endforeach
                         </tbody>
                     </table>
-                    @php $pendientes = $lineasOt->filter(fn ($l) => in_array(optional($l->solicitud)->estado, ['pendiente','aprobada'], true))->count(); @endphp
+                    @php $pendientes = $lineasOt->filter(fn ($l) => optional($l->solicitud)->estado === 'pendiente')->count(); @endphp
                     @if ($pendientes > 0)
                         <p class="text-[11px] text-amber-600 dark:text-amber-400">{{ $pendientes }} insumo(s) aún sin entregar por Bodega.</p>
                     @endif

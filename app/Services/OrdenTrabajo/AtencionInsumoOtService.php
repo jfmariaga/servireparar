@@ -11,8 +11,9 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Atención por Bodega de las solicitudes de insumo generadas por las tareas de
- * una OT (spec 003, US1). Flujo: `pendiente → (aprobada) → entregada`, o
- * `rechazada` con motivo.
+ * una OT (spec 003, US1). Flujo de un solo paso (Phase 11 / D2):
+ * `pendiente → entregada`, o `pendiente → rechazada` con motivo. No hay paso
+ * intermedio de "aprobación".
  *
  * La entrega es el único punto que descuenta stock: genera un movimiento de
  * salida con `origen = 'ot'` (costeo FIFO) y enlaza la solicitud a ese
@@ -24,18 +25,9 @@ class AtencionInsumoOtService
         private readonly MovimientoService $movimientos = new MovimientoService(),
     ) {}
 
-    public function aprobar(SolicitudInsumoOt $solicitud, User $almacenista): SolicitudInsumoOt
-    {
-        $this->asegurarEstado($solicitud, ['pendiente']);
-
-        $solicitud->update(['estado' => 'aprobada', 'motivo_rechazo' => null]);
-
-        return $solicitud->fresh();
-    }
-
     public function entregar(SolicitudInsumoOt $solicitud, User $almacenista): SolicitudInsumoOt
     {
-        $this->asegurarEstado($solicitud, ['pendiente', 'aprobada']);
+        $this->asegurarPendiente($solicitud);
         $solicitud->loadMissing('inventario', 'ordenTrabajo', 'tarea');
 
         return DB::transaction(function () use ($solicitud, $almacenista) {
@@ -75,7 +67,7 @@ class AtencionInsumoOtService
 
     public function rechazar(SolicitudInsumoOt $solicitud, User $almacenista, string $motivo): SolicitudInsumoOt
     {
-        $this->asegurarEstado($solicitud, ['pendiente', 'aprobada']);
+        $this->asegurarPendiente($solicitud);
 
         if (trim($motivo) === '') {
             throw ValidationException::withMessages(['motivo' => 'Indica el motivo del rechazo.']);
@@ -92,12 +84,9 @@ class AtencionInsumoOtService
         return $solicitud->fresh();
     }
 
-    /**
-     * @param  array<int, string>  $permitidos
-     */
-    private function asegurarEstado(SolicitudInsumoOt $solicitud, array $permitidos): void
+    private function asegurarPendiente(SolicitudInsumoOt $solicitud): void
     {
-        if (! in_array($solicitud->estado, $permitidos, true)) {
+        if ($solicitud->estado !== 'pendiente') {
             throw ValidationException::withMessages([
                 'solicitud' => 'La solicitud ya fue '.$solicitud->estado.'; no admite esta acción.',
             ]);

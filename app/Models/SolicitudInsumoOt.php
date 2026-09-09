@@ -63,7 +63,7 @@ class SolicitudInsumoOt extends Model
     /** Solicitudes que aún comprometen stock (pendientes de despacho por Bodega). */
     public function scopeComprometidas(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
-        return $query->whereIn('estado', ['pendiente', 'aprobada']);
+        return $query->where('estado', 'pendiente');
     }
 
     public function scopePendientesDe(\Illuminate\Database\Eloquent\Builder $query, int $inventarioId): \Illuminate\Database\Eloquent\Builder
