@@ -36,6 +36,10 @@ class SalidaEquipoService
             throw ValidationException::withMessages(['salida' => 'Define el valor del proyecto en el costeo (lo hace el Administrador) antes de solicitar la salida.']);
         }
 
+        if ($ot->tieneHerramientasSinDevolver()) {
+            throw ValidationException::withMessages(['salida' => 'Hay herramientas de esta OT sin devolver. Regístralas como devueltas antes de solicitar la salida del equipo.']);
+        }
+
         if (! in_array($ot->salida_estado, ['no_solicitada', 'rechazada'], true)) {
             throw ValidationException::withMessages(['salida' => 'La salida ya fue solicitada.']);
         }

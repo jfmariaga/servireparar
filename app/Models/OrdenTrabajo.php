@@ -115,6 +115,19 @@ class OrdenTrabajo extends Model
         return $this->hasMany(SolicitudInsumoOt::class, 'ot_id');
     }
 
+    public function herramientas(): HasMany
+    {
+        return $this->hasMany(OtHerramienta::class, 'ot_id');
+    }
+
+    /** ¿Hay herramientas asignadas a la OT que aún no se han devuelto? (Phase 11 / D4) */
+    public function tieneHerramientasSinDevolver(): bool
+    {
+        $rel = $this->relationLoaded('herramientas') ? $this->herramientas : $this->herramientas();
+
+        return $rel->whereNull('devuelta_en')->count() > 0;
+    }
+
     /** El checklist está resuelto cuando existe al menos un ítem y ninguno queda con `cumple` null. */
     public function checklistCompleto(): bool
     {

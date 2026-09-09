@@ -282,12 +282,12 @@ D7 el Técnico solo ve sus OT · D8 cancelar OT / cancelar tarea.
 - [x] T068 [P] Tests: sin paso aprobar; entregar desde pendiente; rechazo con evento; edición registra cambio
 
 ### Fase 4 — Herramientas en la OT (D4 · H9)
-- [ ] T069 Migración `create_ot_herramientas_table` (asignación + devolución + `movimiento_*_id`)
-- [ ] T070 `OtHerramientaService`: `asignar()` (valida disponible, `MovimientoService::salida` origen `ot`) / `devolver()` (`MovimientoService::devolucion`)
-- [ ] T071 UI "Herramientas asignadas" en `detalle.blade.php`; selector de insumos filtrado a `tipo=consumible`
-- [ ] T072 Guardia: no confirmar entrega del equipo con herramientas sin devolver
-- [ ] T073 `CosteoOtService`: herramientas asignadas no suman a repuestos
-- [ ] T074 [P] Tests: asignar/devolver; entrega bloqueada; herramienta fuera del costeo
+- [x] T069 Migración `create_ot_herramientas_table` (asignación + devolución + `movimiento_*_id`)
+- [x] T070 `OtHerramientaService`: `asignar()` (valida disponible, `MovimientoService::salida` origen `ot`) / `devolver()` (`MovimientoService::devolucion`)
+- [x] T071 UI "Herramientas asignadas" en `detalle.blade.php`; selector de insumos filtrado a `tipo=consumible`
+- [x] T072 Guardia: no confirmar entrega del equipo con herramientas sin devolver
+- [x] T073 `CosteoOtService`: herramientas asignadas no suman a repuestos
+- [x] T074 [P] Tests: asignar/devolver; entrega bloqueada; herramienta fuera del costeo
 
 ### Fase 5 — Máquina de estados y guardias (H4/D3, H6, H7, H14, H15/D8)
 - [ ] T075 Botón "Planificar OT" (Jefe) → `EstadoOtService::planificar()` en `detalle.blade.php`

@@ -19,8 +19,9 @@ trazabilidad de qué se va a corregir, en qué orden, y cómo se prueba.
 | 1 — Multi-insumo por tarea (T051–T058) | ✅ hecho (2026-09-08). Tabla `detalle_ot_insumos`; 1 solicitud por línea; estado `cancelada` con traza; costeo excluye rechazada/cancelada. + bloqueo de quitar/re-cantidad de línea ya entregada. |
 | 2 — Reserva y bloqueo de stock (T059–T064) | ✅ hecho (2026-09-08). `Inventario::disponible()` = stock − comprometido; bloqueo duro con `lockForUpdate` al guardar la tarea; selectores muestran "disp. N"; panel "Insumos de la OT" en el detalle; costeo separa `repuestos_estimados`. 170 tests en verde. |
 | 3 — Bodega de un solo paso (T065–T068) | ✅ hecho (2026-09-08). Se elimina el estado `aprobada` de las solicitudes de insumo: `pendiente → entregada \| rechazada \| cancelada`. Pantalla de Bodega sin "Aprobar"/"Aprobadas"; muestra disponible vs solicitado. 173 tests. |
-| 4 — Herramientas en la OT | ⏳ siguiente |
-| 5–8 | pendientes |
+| 4 — Herramientas en la OT (T069–T074) | ✅ hecho (2026-09-08). Tabla `ot_herramientas`; `OtHerramientaService::asignar/devolver` (movimientos `salida`/`devolucion` origen `ot`); sección "Herramientas asignadas" en el detalle; la salida del equipo se bloquea si quedan herramientas sin devolver; el costeo no cuenta herramientas. 178 tests. |
+| 5 — Máquina de estados y guardias | ⏳ siguiente |
+| 6–8 | pendientes |
 | extra — congelar OT tras aprobar la salida + `valor_proyecto` obligatorio antes de solicitarla + confirmaciones SweetAlert2 + datos demo de inventario | ✅ hecho (2026-09-08), fixes surgidos en pruebas. |
 
 ---
