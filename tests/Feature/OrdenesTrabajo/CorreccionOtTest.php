@@ -86,11 +86,24 @@ class CorreccionOtTest extends TestCase
 
     public function test_el_tecnico_no_puede_corregir_la_cabecera(): void
     {
-        $ot = $this->crearOt();
+        $ot = $this->crearOt(tareas: 1);
+        // El técnico tiene una tarea en la OT: puede verla pero no corregir la cabecera.
+        $tecnicoUser = $this->tecnicoUser();
+        $tecnico = \App\Models\Tecnico::factory()->conSueldo()->create(['usuario_id' => $tecnicoUser->id]);
+        $ot->tareas()->update(['tecnico_id' => $tecnico->id]);
+
+        Volt::actingAs($tecnicoUser)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->call('editarCabecera')
+            ->assertForbidden();
+    }
+
+    public function test_el_tecnico_sin_tareas_no_ve_la_ot(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
 
         Volt::actingAs($this->tecnicoUser())
             ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
-            ->call('editarCabecera')
             ->assertForbidden();
     }
 

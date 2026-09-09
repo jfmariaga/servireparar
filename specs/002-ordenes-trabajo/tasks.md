@@ -311,10 +311,10 @@ D7 el Técnico solo ve sus OT · D8 cancelar OT / cancelar tarea.
 - [x] T091 [P] Tests: cada notificación al rol correcto; campana lista no leídas; vencimiento no re-notifica
 
 ### Fase 7 — Roles, visibilidad, checklist (D7 · H16, H17, H18)
-- [ ] T092 `OrdenTrabajoPolicy::view` + scope `OrdenTrabajo::visiblesPara(User)` (Técnico solo sus OT); aplicar en `tablero`/`detalle`
-- [ ] T093 Permiso `attend-ot-insumo` (Almacenista, Admin) en `RolesSeeder`; usarlo en `inventario/solicitudes-ot.blade.php` (H18)
-- [ ] T094 Checklist genérico por defecto (`config/ot.php` `checklist_por_defecto`) + mensaje "Faltan N respuestas…" (H16)
-- [ ] T095 [P] Tests: técnico no ve OT ajena (403); almacenista sin permiso no atiende; checklist por defecto presente
+- [x] T092 `OrdenTrabajoPolicy::view` + scope `OrdenTrabajo::visiblesPara(User)` (Técnico solo sus OT); aplicar en `tablero`/`detalle`
+- [x] T093 Permiso `attend-ot-insumo` (Almacenista, Admin) en `RolesSeeder`; usarlo en `inventario/solicitudes-ot.blade.php` (H18)
+- [x] T094 Checklist genérico por defecto (`config/ot.php` `checklist_por_defecto`) + mensaje "Faltan N respuestas…" (H16)
+- [x] T095 [P] Tests: técnico no ve OT ajena (403); almacenista sin permiso no atiende; checklist por defecto presente
 
 ### Fase 8 — Regresión y cierre
 - [ ] T096 `php artisan test` completo en verde; actualizar contador en README y bitácora

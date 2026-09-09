@@ -789,6 +789,11 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
             {{-- Checklist --}}
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3">
+                @php
+                    $chkSinResponder = $ot->checklist->whereNull('cumple')->count();
+                    $tareasActivasListas = $ot->tareas->where('estado_tarea', '!=', 'cancelada')->isNotEmpty()
+                        && $ot->tareas->where('estado_tarea', '!=', 'cancelada')->every(fn ($t) => $t->estado_tarea === 'finalizada');
+                @endphp
                 <div class="flex items-center justify-between">
                     <h2 class="font-bold text-sm">Checklist de cierre</h2>
                     @if ($puedeFinalizar)
@@ -797,6 +802,15 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                         <span class="text-xs text-amber-600 dark:text-amber-400">Pendiente para poder finalizar</span>
                     @endif
                 </div>
+                @if (! $puedeFinalizar && $tareasActivasListas && $chkSinResponder > 0)
+                    <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                        Todas las tareas están listas. Faltan {{ $chkSinResponder }} respuesta(s) del checklist para finalizar la OT.
+                    </p>
+                @elseif (! $puedeFinalizar && $tareasActivasListas && $ot->checklist->isEmpty())
+                    <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                        Todas las tareas están listas. Agrega y responde al menos un ítem de checklist para finalizar la OT.
+                    </p>
+                @endif
                 <div class="flex flex-col">
                     @forelse ($ot->checklist as $item)
                         <div wire:key="chk-{{ $item->id }}" class="flex items-center justify-between gap-3 text-sm border-b border-slate-50 dark:border-slate-800/60 py-2.5">

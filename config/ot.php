@@ -22,4 +22,20 @@ return [
     */
     'notif_poll_segundos' => (int) env('OT_NOTIF_POLL_SEGUNDOS', 45),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Checklist de cierre por defecto
+    |--------------------------------------------------------------------------
+    | Ítems que se crean automáticamente al abrir una OT (Phase 11 / H16). El Jefe
+    | de Taller puede agregar o quitar ítems; ninguna OT finaliza con ítems sin
+    | responder (spec 002, FR-007). Dejar el array vacío para no precargar nada.
+    */
+    'checklist_por_defecto' => [
+        'Pruebas de funcionamiento correctas',
+        'Sin fugas, ruidos ni vibraciones anómalas',
+        'Equipo limpio y sin daños nuevos',
+        'Repuestos sobrantes y herramientas retirados',
+        'Registro fotográfico de salida cargado',
+    ],
+
 ];

@@ -68,6 +68,10 @@ class OrdenTrabajoService
                 $this->insumos->aplicarLineasInsumo($detalle, $this->lineasInsumo($tarea), $actor);
             }
 
+            foreach ((array) config('ot.checklist_por_defecto', []) as $item) {
+                $ot->checklist()->create(['item' => $item]);
+            }
+
             $ot->registrarEvento('creacion', 'OT creada con '.count($tareas).' tarea(s).', $actor);
 
             $ot = $ot->fresh(['estado', 'tareas', 'cliente']);

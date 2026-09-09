@@ -73,7 +73,13 @@ trait OtScenario
 
     protected function completarChecklist(OrdenTrabajo $ot, bool $cumple = true): void
     {
-        ChecklistOt::factory()->for($ot, 'ordenTrabajo')->create(['cumple' => $cumple]);
+        if ($ot->checklist()->count() === 0) {
+            ChecklistOt::factory()->for($ot, 'ordenTrabajo')->create(['cumple' => $cumple]);
+
+            return;
+        }
+
+        $ot->checklist()->update(['cumple' => $cumple]);
     }
 
     protected function finalizarTodasLasTareas(OrdenTrabajo $ot, float $dias = 2): void

@@ -22,8 +22,8 @@ trazabilidad de qué se va a corregir, en qué orden, y cómo se prueba.
 | 4 — Herramientas en la OT (T069–T074) | ✅ hecho (2026-09-08). Tabla `ot_herramientas`; `OtHerramientaService::asignar/devolver` (movimientos `salida`/`devolucion` origen `ot`); sección "Herramientas asignadas" en el detalle; la salida del equipo se bloquea si quedan herramientas sin devolver; el costeo no cuenta herramientas. 178 tests. |
 | 5 — Máquina de estados y guardias (T075–T082) | ✅ hecho (2026-09-08). Botón "Planificar OT" y `executeTareas` exige OT planificada (H6); finalizar tarea con insumo sin entregar → confirmación del Jefe (D3); reapertura de OT finalizada invalida la salida aprobada (H7); updates condicionales en iniciar/finalizar (H14); estado `cancelada` para OT (terminal) y tarea, con liberación de reservas y guardia de herramientas (D8). 186 tests. |
 | 6 — Notificaciones in-app + alertas (T083–T091) | ✅ hecho (2026-09-08). Tabla `notifications`; `OtNotificacion` + `NotificadorOt` (avisos por rol); listener `NotificarEventosOt` para OtCreada/OtEntregada/OtProximaAVencer/StockBajo + disparo directo desde los servicios de Bodega/salida; correo `OtEntregadaCliente` (FR-011); campana Volt con `wire:poll` en el layout; badges en el menú (OT por planificar / insumos pendientes / salidas por aprobar); anti-spam de vencimientos (`alertado_vencimiento_en` + `--reenviar`). 193 tests. |
-| 7 — Roles, visibilidad, checklist | ⏳ siguiente |
-| 8 | pendiente |
+| 7 — Roles, visibilidad, checklist (T092–T095) | ✅ hecho (2026-09-08). `OrdenTrabajo::scopeVisiblesPara()` + `OrdenTrabajoPolicy::view` — el Técnico solo ve las OT donde tiene tareas (D7); permiso `attend-ot-insumo` (Almacenista + Admin) en la pantalla de Bodega (H18); checklist de cierre por defecto (`config/ot.php` `checklist_por_defecto`) + aviso "Faltan N respuestas…" (H16). 197 tests. |
+| 8 — Regresión y cierre | ⏳ siguiente |
 | extra — congelar OT tras aprobar la salida + `valor_proyecto` obligatorio antes de solicitarla + confirmaciones SweetAlert2 + datos demo de inventario | ✅ hecho (2026-09-08), fixes surgidos en pruebas. |
 
 ---

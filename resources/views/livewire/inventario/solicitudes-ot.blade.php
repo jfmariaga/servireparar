@@ -23,7 +23,7 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
 
     public function mount(): void
     {
-        Gate::authorize('viewAny', Inventario::class);
+        Gate::authorize('attend-ot-insumo');
     }
 
     public function updatingEstado(): void
@@ -46,7 +46,7 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
 
     public function entregar(int $id, AtencionInsumoOtService $svc): void
     {
-        Gate::authorize('viewAny', Inventario::class);
+        Gate::authorize('attend-ot-insumo');
         try {
             $svc->entregar(SolicitudInsumoOt::findOrFail($id), auth()->user());
         } catch (ValidationException $e) {
@@ -65,7 +65,7 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
 
     public function rechazar(AtencionInsumoOtService $svc): void
     {
-        Gate::authorize('viewAny', Inventario::class);
+        Gate::authorize('attend-ot-insumo');
         $this->validate(['motivoRechazo' => 'required|string|max:500'], [], ['motivoRechazo' => 'motivo']);
         try {
             $svc->rechazar(SolicitudInsumoOt::findOrFail($this->rechazandoId), auth()->user(), $this->motivoRechazo);

@@ -23,7 +23,14 @@ class OrdenTrabajoPolicy
 
     public function view(User $user, OrdenTrabajo $ot): bool
     {
-        return $user->canAny(['manage-ot', 'execute-ot']);
+        if ($user->can('manage-ot')) {
+            return true;
+        }
+
+        // Técnico: solo las OT donde tiene alguna tarea asignada (Phase 11 / D7).
+        return $user->can('execute-ot')
+            && $user->tecnico
+            && $ot->tareas()->where('tecnico_id', $user->tecnico->id)->exists();
     }
 
     public function create(User $user): bool

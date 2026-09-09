@@ -188,6 +188,23 @@ class OrdenTrabajo extends Model
         ]);
     }
 
+    /**
+     * Limita las OT visibles para un usuario (Phase 11 / D7): Administrador y
+     * Jefe de Taller ven todas; un Técnico solo las OT donde tiene alguna tarea.
+     */
+    public function scopeVisiblesPara(Builder $query, User $user): Builder
+    {
+        if ($user->can('manage-ot')) {
+            return $query;
+        }
+
+        $tecnicoId = $user->tecnico?->id;
+
+        return $tecnicoId
+            ? $query->whereHas('tareas', fn (Builder $t) => $t->where('tecnico_id', $tecnicoId))
+            : $query->whereRaw('1 = 0');
+    }
+
     public function scopeBuscar(Builder $query, ?string $termino): Builder
     {
         if (blank($termino)) {

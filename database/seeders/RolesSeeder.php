@@ -33,6 +33,8 @@ class RolesSeeder extends Seeder
             // Órdenes de Trabajo (spec 002)
             'manage-ot',
             'execute-ot',
+            // Bodega atiende las solicitudes de insumo de OT (spec 002, Phase 11 / H18)
+            'attend-ot-insumo',
             // Equipos (spec 005)
             'manage-equipos',
             // Inventario / Bodega (spec 003)
@@ -56,7 +58,7 @@ class RolesSeeder extends Seeder
 
         /** @var Role $almacenista */
         $almacenista = Role::findByName(RolPrioridad::Almacenista->value);
-        $almacenista->syncPermissions(['manage-inventario', 'manage-despachos']);
+        $almacenista->syncPermissions(['manage-inventario', 'manage-despachos', 'attend-ot-insumo']);
 
         /** @var Role $vendedor */
         $vendedor = Role::findByName(RolPrioridad::Vendedor->value);

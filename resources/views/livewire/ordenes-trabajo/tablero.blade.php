@@ -46,6 +46,7 @@ new #[Layout('components.layout', ['title' => 'Órdenes de trabajo'])] class ext
     public function with(): array
     {
         $ots = OrdenTrabajo::query()
+            ->visiblesPara(auth()->user())
             ->with(['cliente:id,nombre', 'estado', 'prioridad:id,nombre'])
             ->buscar($this->buscar)
             ->when($this->estado !== '', fn ($q) => $q->whereHas('estado', fn ($e) => $e->where('slug', $this->estado)))
