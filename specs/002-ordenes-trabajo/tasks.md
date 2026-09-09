@@ -339,5 +339,6 @@ end-to-end (script contra la BD real) + paseo visual con los 5 roles (18 captura
 ajuste: un insumo **rechazado** por Bodega también retiene la finalización de la tarea hasta la
 confirmación del Jefe (antes solo lo hacía un insumo `pendiente`). Suite: 198 tests.
 
-Operativo en entornos con datos: re-seed de `RolesSeeder` (permiso `attend-ot-insumo`) +
-`permission:cache-reset`, y re-seed de `EstadosOtSeeder` (estado `cancelada`). Falta `git push`.
+Despliegue: basta `php artisan migrate --force` (migraciones de datos idempotentes crean el estado
+`cancelada` y el permiso `attend-ot-insumo` + limpian el caché de permisos). Ver
+`docs/DESPLIEGUE-PHASE-11.md`. Falta `git push origin main`.
