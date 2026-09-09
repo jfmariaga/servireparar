@@ -32,6 +32,10 @@ class SalidaEquipoService
             throw ValidationException::withMessages(['salida' => 'Solo se puede solicitar la salida de una OT finalizada.']);
         }
 
+        if ($ot->valor_proyecto === null) {
+            throw ValidationException::withMessages(['salida' => 'Define el valor del proyecto en el costeo (lo hace el Administrador) antes de solicitar la salida.']);
+        }
+
         if (! in_array($ot->salida_estado, ['no_solicitada', 'rechazada'], true)) {
             throw ValidationException::withMessages(['salida' => 'La salida ya fue solicitada.']);
         }

@@ -156,6 +156,13 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public function subirEvidencia(): void
     {
         Gate::authorize('view', $this->ot);
+
+        if ($this->ot->estaBloqueada()) {
+            $this->notifyError('La OT está bloqueada (salida aprobada o entregada): no admite más cambios.');
+
+            return;
+        }
+
         $this->validate([
             'evidencia' => 'required|file|max:10240',
             'evidenciaDescripcion' => 'nullable|string|max:255',
@@ -418,6 +425,12 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         <div class="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-sm rounded-lg px-4 py-2.5">{{ session('ok') }}</div>
     @endif
 
+    @if ($ot->estaBloqueada() && $ot->estado?->slug !== 'entregada')
+        <div class="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm rounded-lg px-4 py-2.5">
+            OT congelada: la salida del equipo fue aprobada. No admite más cambios; solo queda confirmar la entrega al cliente.
+        </div>
+    @endif
+
     {{-- Barra superior --}}
     <div class="flex flex-wrap items-center gap-3">
         <a href="{{ route('ordenes-trabajo.tablero') }}" wire:navigate class="text-sm text-slate-400 hover:text-brand-blue">← Tablero</a>
@@ -676,7 +689,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @endforelse
                 </div>
 
-                <div class="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-col sm:flex-row sm:items-start gap-3">
+                <div class="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-col sm:flex-row sm:items-start gap-3" @if ($ot->estaBloqueada()) hidden @endif>
                     @if ($evidencia)
                         <div class="shrink-0">
                             @if (str((string) $evidencia->getMimeType())->startsWith('image/'))

@@ -33,12 +33,12 @@ class OrdenTrabajoPolicy
 
     public function update(User $user, OrdenTrabajo $ot): bool
     {
-        return $user->can('manage-ot') && ! optional($ot->estado)->es_terminal;
+        return $user->can('manage-ot') && ! $ot->estaBloqueada();
     }
 
     public function executeTareas(User $user, OrdenTrabajo $ot): bool
     {
-        return $user->can('execute-ot') && ! optional($ot->estado)->es_terminal;
+        return $user->can('execute-ot') && ! $ot->estaBloqueada();
     }
 
     public function requestEquipmentExit(User $user, OrdenTrabajo $ot): bool
@@ -54,5 +54,11 @@ class OrdenTrabajoPolicy
     public function viewCosteo(User $user, OrdenTrabajo $ot): bool
     {
         return $user->hasRole(RolPrioridad::Administrador->value);
+    }
+
+    /** Editar el costeo (contratistas, valor del proyecto): Admin y solo si la OT no está congelada. */
+    public function manageCosteo(User $user, OrdenTrabajo $ot): bool
+    {
+        return $user->hasRole(RolPrioridad::Administrador->value) && ! $ot->estaBloqueada();
     }
 }

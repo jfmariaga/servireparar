@@ -128,6 +128,20 @@ class OrdenTrabajo extends Model
         return optional($this->estado)->slug === $slug;
     }
 
+    public function salidaAprobada(): bool
+    {
+        return $this->salida_estado === 'aprobada';
+    }
+
+    /**
+     * La OT está congelada (Phase 11): una vez aprobada la salida del equipo —o
+     * ya entregada— no se puede tocar nada; solo queda confirmar la entrega.
+     */
+    public function estaBloqueada(): bool
+    {
+        return $this->salidaAprobada() || optional($this->estado)->es_terminal;
+    }
+
     /** Suma de días efectivamente trabajados en las tareas (spec 002, FR-005). */
     public function diasTrabajadosTotales(): float
     {

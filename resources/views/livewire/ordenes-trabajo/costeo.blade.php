@@ -38,12 +38,13 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
             'costeo' => app(CosteoOtService::class)->calcular($this->ot),
             'contratistas' => Contratista::where('estado', 'activo')->orderBy('nombre')->get(['id', 'nombre']),
             'Moneda' => Moneda::class,
+            'puedeEditar' => Gate::allows('manageCosteo', $this->ot),
         ];
     }
 
     public function guardarValorProyecto(): void
     {
-        Gate::authorize('viewCosteo', $this->ot);
+        Gate::authorize('manageCosteo', $this->ot);
         $this->validate(['valorProyecto' => 'nullable|numeric|min:0'], [], ['valorProyecto' => 'valor del proyecto']);
 
         $this->ot->update(['valor_proyecto' => $this->valorProyecto !== '' ? (float) $this->valorProyecto : null]);
@@ -53,7 +54,7 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
 
     public function agregarContratista(): void
     {
-        Gate::authorize('viewCosteo', $this->ot);
+        Gate::authorize('manageCosteo', $this->ot);
         $datos = $this->validate([
             'contratistaId' => 'required|exists:contratistas,id',
             'especialidad' => 'nullable|string|max:100',
@@ -75,7 +76,7 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
 
     public function quitarContratista(int $id): void
     {
-        Gate::authorize('viewCosteo', $this->ot);
+        Gate::authorize('manageCosteo', $this->ot);
         $this->ot->manoObraContratistas()->whereKey($id)->delete();
         $this->notifySuccess('Línea de contratista eliminada.');
     }
@@ -86,6 +87,12 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
         <a href="{{ route('ordenes-trabajo.detalle', $ot) }}" wire:navigate class="text-sm text-brand-blue hover:underline">← {{ $ot->numero_ot }}</a>
         <h1 class="text-lg font-bold">Costeo y utilidad neta</h1>
     </div>
+
+    @unless ($puedeEditar)
+        <div class="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-xs rounded-lg px-4 py-2.5">
+            Esta OT está congelada ({{ $ot->estaEnEstado('entregada') ? 'ya entregada' : 'salida de equipo aprobada' }}): el costeo es solo de consulta.
+        </div>
+    @endunless
 
     {{-- Mano de obra propia --}}
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-2 text-sm">
@@ -115,24 +122,28 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
                 <span>{{ $mo->contratista?->nombre }} @if ($mo->especialidad)· {{ $mo->especialidad }}@endif · x{{ rtrim(rtrim(number_format((float) $mo->cantidad, 2), '0'), '.') }}</span>
                 <span class="flex items-center gap-3">
                     <span class="text-slate-500">{{ $Moneda::cop($mo->valor) }}</span>
-                    <button wire:click="quitarContratista({{ $mo->id }})" class="text-xs text-slate-400 hover:text-brand-red">✕</button>
+                    @if ($puedeEditar)
+                        <button wire:click="quitarContratista({{ $mo->id }})" class="text-xs text-slate-400 hover:text-brand-red">✕</button>
+                    @endif
                 </span>
             </div>
         @empty
             <p class="text-xs text-slate-400">Sin contratistas registrados.</p>
         @endforelse
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-2">
-            <select wire:model="contratistaId" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
-                <option value="">Contratista…</option>
-                @foreach ($contratistas as $c)<option value="{{ $c->id }}">{{ $c->nombre }}</option>@endforeach
-            </select>
-            <input type="text" wire:model="especialidad" placeholder="Especialidad" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
-            <input type="number" step="0.01" min="0.01" wire:model="cantidad" placeholder="Cant." class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
-            <input type="number" step="1" min="0" wire:model="valor" placeholder="Valor" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
-        </div>
-        @error('contratistaId') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
-        @error('valor') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
-        <button wire:click="agregarContratista" class="self-start text-[12.5px] font-semibold px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Agregar contratista</button>
+        @if ($puedeEditar)
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-2">
+                <select wire:model="contratistaId" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
+                    <option value="">Contratista…</option>
+                    @foreach ($contratistas as $c)<option value="{{ $c->id }}">{{ $c->nombre }}</option>@endforeach
+                </select>
+                <input type="text" wire:model="especialidad" placeholder="Especialidad" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
+                <input type="number" step="0.01" min="0.01" wire:model="cantidad" placeholder="Cant." class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
+                <input type="number" step="1" min="0" wire:model="valor" placeholder="Valor" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
+            </div>
+            @error('contratistaId') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+            @error('valor') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+            <button wire:click="agregarContratista" class="self-start text-[12.5px] font-semibold px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Agregar contratista</button>
+        @endif
         <div class="flex justify-between font-semibold pt-1">
             <span>Subtotal contratistas</span><span>{{ $Moneda::cop($costeo['contratistas']) }}</span>
         </div>
@@ -150,8 +161,12 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
 
         <div class="flex items-center gap-2 pt-3">
             <label class="font-semibold">Valor del proyecto (cliente)</label>
-            <input type="number" step="1" min="0" wire:model="valorProyecto" class="w-40 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-1.5">
-            <button wire:click="guardarValorProyecto" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Guardar</button>
+            @if ($puedeEditar)
+                <input type="number" step="1" min="0" wire:model="valorProyecto" class="w-40 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-1.5">
+                <button wire:click="guardarValorProyecto" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Guardar</button>
+            @else
+                <span class="font-semibold">{{ $costeo['valor_proyecto'] === null ? '— sin definir' : $Moneda::cop($costeo['valor_proyecto']) }}</span>
+            @endif
         </div>
         @error('valorProyecto') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
 

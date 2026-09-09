@@ -23,6 +23,7 @@ class EntregaEquipoTest extends TestCase
     private function otFinalizada(): \App\Models\OrdenTrabajo
     {
         $ot = $this->crearOt(tareas: 1);
+        $ot->update(['valor_proyecto' => 1_000_000]); // requerido para solicitar la salida (Phase 11)
         $this->finalizarTodasLasTareas($ot);
         $this->completarChecklist($ot);
         app(EstadoOtService::class)->recalcular($ot->fresh());
@@ -101,5 +102,40 @@ class EntregaEquipoTest extends TestCase
 
         $this->expectException(\Illuminate\Validation\ValidationException::class);
         app(SalidaEquipoService::class)->solicitar($ot, $this->jefeDeTaller());
+    }
+
+    public function test_no_se_puede_solicitar_salida_sin_valor_de_proyecto(): void
+    {
+        $ot = $this->otFinalizada();
+        $ot->update(['valor_proyecto' => null]);
+
+        try {
+            app(SalidaEquipoService::class)->solicitar($ot->fresh(['estado']), $this->jefeDeTaller());
+            $this->fail('Debía exigir el valor del proyecto.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertStringContainsString('valor del proyecto', $e->getMessage());
+        }
+
+        $this->assertSame('no_solicitada', $ot->fresh()->salida_estado);
+    }
+
+    public function test_ot_con_salida_aprobada_queda_congelada(): void
+    {
+        $ot = $this->otFinalizada();
+        $salida = app(SalidaEquipoService::class);
+        $salida->solicitar($ot, $this->jefeDeTaller());
+        $salida->aprobar($ot->fresh(['estado']), $this->administrador());
+
+        $ot = $ot->fresh(['estado']);
+        $jefe = $this->jefeDeTaller();
+        $admin = $this->administrador();
+
+        $this->assertTrue($ot->estaBloqueada());
+        $this->assertTrue($jefe->cannot('update', $ot), 'No se puede corregir una OT con salida aprobada');
+        $this->assertTrue($admin->cannot('manageCosteo', $ot), 'No se puede editar el costeo de una OT con salida aprobada');
+
+        // La entrega sí sigue disponible.
+        $salida->confirmarEntrega($ot, $jefe, 'Firma');
+        $this->assertSame('entregada', $ot->fresh()->estado->slug);
     }
 }
