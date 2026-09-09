@@ -4,6 +4,7 @@ use App\Models\Cliente;
 use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
 use App\Models\Prioridad;
+use App\Models\SolicitudInsumoOt;
 use App\Models\Tecnico;
 use App\Services\OrdenTrabajo\OrdenTrabajoService;
 use Illuminate\Support\Facades\Gate;
@@ -49,8 +50,31 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'prioridades' => Prioridad::orderBy('nivel')->get(['id', 'nombre']),
             'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
                 ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id]),
-            'insumos' => Inventario::activos()->orderBy('nombre')->get(['id', 'nombre', 'codigo', 'tipo']),
+            'insumos' => $this->insumosDisponibles(),
         ];
+    }
+
+    /**
+     * Consumibles activos con su disponible real (stock − comprometido en solicitudes
+     * de insumo de OT sin despachar). Phase 11 / D1.
+     *
+     * @return \Illuminate\Support\Collection<int, array{id:int, nombre:string, codigo:string, disponible:float}>
+     */
+    private function insumosDisponibles(): \Illuminate\Support\Collection
+    {
+        $comprometido = SolicitudInsumoOt::comprometidas()
+            ->selectRaw('inventario_id, SUM(cantidad) total')
+            ->groupBy('inventario_id')
+            ->pluck('total', 'inventario_id');
+
+        return Inventario::activos()->where('tipo', 'consumible')->orderBy('nombre')
+            ->get(['id', 'nombre', 'codigo', 'stock_actual'])
+            ->map(fn (Inventario $i) => [
+                'id' => $i->id,
+                'nombre' => $i->nombre,
+                'codigo' => $i->codigo,
+                'disponible' => (float) $i->stock_actual - (float) ($comprometido[$i->id] ?? 0),
+            ]);
     }
 
     public function agregarTarea(): void
@@ -264,6 +288,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                 </button>
             </header>
             @error('tareas') <p class="text-xs font-medium text-brand-red">{{ $message }}</p> @enderror
+            @error('tarea') <p class="text-xs font-medium text-brand-red">{{ $message }}</p> @enderror
 
             <div class="flex flex-col gap-4">
                 @foreach ($tareas as $i => $tarea)
@@ -304,7 +329,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                                     <div wire:key="{{ ($tarea['uid'] ?? $i).'-ins-'.$li }}" class="grid grid-cols-[1fr_7rem_auto] gap-2 items-start">
                                         <x-select wire:model="tareas.{{ $i }}.insumos.{{ $li }}.inventario_id" :reset-key="'ins-'.($tarea['uid'] ?? $i).'-'.$li">
                                             @foreach ($insumos as $ins)
-                                                <option value="{{ $ins->id }}">{{ $ins->nombre }} ({{ $ins->codigo }})</option>
+                                                <option value="{{ $ins['id'] }}">{{ $ins['nombre'] }} ({{ $ins['codigo'] }}) — disp. {{ rtrim(rtrim(number_format((float) $ins['disponible'], 2), '0'), '.') }}</option>
                                             @endforeach
                                         </x-select>
                                         <x-input type="number" step="0.01" min="0.01" placeholder="Cantidad" wire:model="tareas.{{ $i }}.insumos.{{ $li }}.cantidad" />

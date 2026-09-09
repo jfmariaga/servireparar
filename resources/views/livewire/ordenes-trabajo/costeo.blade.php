@@ -136,6 +136,9 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
     {{-- Resumen --}}
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-2 text-sm">
         <div class="flex justify-between"><span>Repuestos / insumos</span><span>{{ $Moneda::cop($costeo['repuestos']) }}</span></div>
+        @if (($costeo['repuestos_estimados'] ?? 0) > 0)
+            <div class="flex justify-between text-[11px] text-amber-600 dark:text-amber-400"><span>· incluye estimado (aún no despachado por Bodega)</span><span>{{ $Moneda::cop($costeo['repuestos_estimados']) }}</span></div>
+        @endif
         <div class="flex justify-between"><span>Mano de obra propia</span><span>{{ $Moneda::cop($costeo['mano_obra_propia']) }}</span></div>
         <div class="flex justify-between"><span>Mano de obra contratista</span><span>{{ $Moneda::cop($costeo['contratistas']) }}</span></div>
         <div class="flex justify-between font-bold border-t border-slate-200 dark:border-slate-700 pt-2 mt-1"><span>Costo total del proyecto</span><span>{{ $Moneda::cop($costeo['costo_total']) }}</span></div>

@@ -4,6 +4,7 @@ namespace App\Services\OrdenTrabajo;
 
 use App\Models\DetalleOt;
 use App\Models\DetalleOtInsumo;
+use App\Models\Inventario;
 use App\Models\SolicitudInsumoOt;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,8 @@ class SolicitudInsumoService
                     $this->asegurarNoProcesada($solicitud, $linea, 'cambiar la cantidad de');
                 }
 
+                $this->asegurarStockDisponible($invId, $cantidad, $solicitud);
+
                 $linea->cantidad = $cantidad;
                 $linea->detalle_ot_id = $tarea->id;
                 $linea->inventario_id = $invId;
@@ -73,6 +76,51 @@ class SolicitudInsumoService
 
             return $tarea->fresh(['insumos.inventario', 'solicitudesInsumo']);
         });
+    }
+
+    /**
+     * Bloqueo duro de stock (Phase 11 / D1, H1/H2): una línea de insumo consumible
+     * no puede pedir más de lo que hay realmente disponible = `stock_actual` menos
+     * lo ya comprometido por otras solicitudes sin despachar. No se bloquea mantener
+     * o reducir una reserva existente, solo crearla o aumentarla por encima del
+     * disponible (evita atascar el guardado si el ítem ya venía sobre-comprometido).
+     */
+    private function asegurarStockDisponible(int $inventarioId, float $cantidad, ?SolicitudInsumoOt $solicitudActual): void
+    {
+        // lockForUpdate: serializa el chequeo entre OT que reservan el mismo ítem
+        // a la vez (estamos dentro de la transacción de aplicarLineasInsumo).
+        $item = Inventario::whereKey($inventarioId)->lockForUpdate()->first();
+
+        if (! $item || $item->tipo !== 'consumible') {
+            return;
+        }
+
+        $reservadoPorEstaLinea = $solicitudActual && $solicitudActual->estado === 'pendiente'
+            ? (float) $solicitudActual->cantidad
+            : 0.0;
+
+        // No empeora la situación: mantener o reducir siempre se permite.
+        if ($cantidad <= $reservadoPorEstaLinea) {
+            return;
+        }
+
+        $comprometidoPorOtras = (float) SolicitudInsumoOt::pendientesDe($inventarioId)
+            ->when($solicitudActual?->id, fn ($q) => $q->whereKeyNot($solicitudActual->id))
+            ->sum('cantidad');
+
+        $disponible = (float) $item->stock_actual - $comprometidoPorOtras;
+
+        if ($cantidad > $disponible) {
+            throw ValidationException::withMessages([
+                'tarea' => sprintf(
+                    'Solo hay %s uds. disponibles de «%s» (%s ya comprometidas en otras solicitudes). No se puede reservar %s.',
+                    $this->nfmt(max($disponible, 0)),
+                    $item->nombre,
+                    $this->nfmt($comprometidoPorOtras),
+                    $this->nfmt($cantidad),
+                ),
+            ]);
+        }
     }
 
     /**

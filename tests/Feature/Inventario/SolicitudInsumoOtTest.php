@@ -79,7 +79,10 @@ class SolicitudInsumoOtTest extends TestCase
 
     public function test_stock_insuficiente_bloquea_la_entrega(): void
     {
-        [$ot, $solicitud, $item] = $this->otConSolicitud(stock: 1, cantidad: 5);
+        // Reserva válida (stock 5 ≥ 5) y luego el stock baja (ajuste/auditoría):
+        // la entrega debe seguir bloqueada por MovimientoService::salida.
+        [$ot, $solicitud, $item] = $this->otConSolicitud(stock: 5, cantidad: 5);
+        $item->update(['stock_actual' => 1]);
 
         Volt::actingAs($this->almacenista())
             ->test('inventario.solicitudes-ot')

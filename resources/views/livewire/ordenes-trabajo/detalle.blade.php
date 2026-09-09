@@ -74,9 +74,19 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             'manoObraContratistas.contratista',
         ]);
 
+        $comprometido = \App\Models\SolicitudInsumoOt::comprometidas()
+            ->selectRaw('inventario_id, SUM(cantidad) total')->groupBy('inventario_id')->pluck('total', 'inventario_id');
+
         return [
             'prioridades' => Prioridad::orderBy('nivel')->get(['id', 'nombre']),
-            'insumos' => Inventario::activos()->orderBy('nombre')->get(['id', 'nombre', 'codigo']),
+            'insumos' => Inventario::activos()->where('tipo', 'consumible')->orderBy('nombre')
+                ->get(['id', 'nombre', 'codigo', 'stock_actual'])
+                ->map(fn (Inventario $i) => [
+                    'id' => $i->id,
+                    'nombre' => $i->nombre,
+                    'codigo' => $i->codigo,
+                    'disponible' => (float) $i->stock_actual - (float) ($comprometido[$i->id] ?? 0),
+                ]),
             'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
                 ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id]),
             'puedeGestionar' => Gate::allows('update', $this->ot),
@@ -511,7 +521,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 @foreach (($tareaForm['insumos'] ?? []) as $li => $linea)
                                     <div wire:key="tf-ins-{{ $li }}" class="grid grid-cols-[1fr_7rem_auto] gap-2 items-start">
                                         <x-select wire:model="tareaForm.insumos.{{ $li }}.inventario_id" :reset-key="'tf-ins-'.($editandoTareaId ?? 'new').'-'.$li">
-                                            @foreach ($insumos as $ins)<option value="{{ $ins->id }}">{{ $ins->nombre }}</option>@endforeach
+                                            @foreach ($insumos as $ins)<option value="{{ $ins['id'] }}">{{ $ins['nombre'] }} — disp. {{ $nfmt($ins['disponible']) }}</option>@endforeach
                                         </x-select>
                                         <x-input type="number" step="0.01" min="0.01" placeholder="Cantidad" wire:model="tareaForm.insumos.{{ $li }}.cantidad" />
                                         <button type="button" wire:click="quitarInsumoForm({{ $li }})" class="h-10 px-2 text-slate-400 hover:text-brand-red text-sm">✕</button>
@@ -749,6 +759,37 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @endif
                 </div>
             </div>
+
+            {{-- Insumos de la OT (consolidado) --}}
+            @php $lineasOt = $ot->tareas->flatMap(fn ($t) => $t->insumos); @endphp
+            @if ($lineasOt->isNotEmpty())
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3 text-sm">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-bold text-sm">Insumos de la OT</h2>
+                        <a href="{{ route('insumos-ot') }}" wire:navigate class="text-[11px] font-semibold text-brand-blue hover:underline">Ver en Bodega →</a>
+                    </div>
+                    <table class="w-full text-xs">
+                        <tbody>
+                            @foreach ($lineasOt as $linea)
+                                @php $sol = $linea->solicitud; @endphp
+                                <tr wire:key="ot-ins-{{ $linea->id }}" class="border-b border-slate-50 dark:border-slate-800/60 last:border-0">
+                                    <td class="py-1.5 pr-2">{{ $linea->inventario?->nombre }}</td>
+                                    <td class="py-1.5 pr-2 text-right tabular-nums">{{ $nfmt($linea->cantidad) }}</td>
+                                    <td class="py-1.5 text-right">
+                                        <span class="font-semibold {{ $sol?->estado === 'entregada' ? 'text-emerald-600 dark:text-emerald-400' : ($sol && in_array($sol->estado, ['rechazada','cancelada'], true) ? 'text-brand-red' : 'text-amber-600 dark:text-amber-400') }}">
+                                            {{ $sol?->estado ?? 'sin solicitud' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                    @php $pendientes = $lineasOt->filter(fn ($l) => in_array(optional($l->solicitud)->estado, ['pendiente','aprobada'], true))->count(); @endphp
+                    @if ($pendientes > 0)
+                        <p class="text-[11px] text-amber-600 dark:text-amber-400">{{ $pendientes }} insumo(s) aún sin entregar por Bodega.</p>
+                    @endif
+                </div>
+            @endif
 
             {{-- Trazabilidad --}}
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-2 text-sm">

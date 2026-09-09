@@ -79,6 +79,25 @@ class Inventario extends Model
         return $this->tipo === 'consumible' && $this->stock_actual < $this->stock_minimo;
     }
 
+    /**
+     * Stock ya comprometido por solicitudes de insumo de OT aún no despachadas
+     * (spec 002, Phase 11 / D1). Solo aplica a consumibles.
+     */
+    public function comprometido(): float
+    {
+        if ($this->tipo !== 'consumible') {
+            return 0.0;
+        }
+
+        return (float) SolicitudInsumoOt::pendientesDe($this->id)->sum('cantidad');
+    }
+
+    /** Stock realmente disponible = actual − comprometido (Phase 11 / D1). */
+    public function disponible(): float
+    {
+        return (float) $this->stock_actual - $this->comprometido();
+    }
+
     public function scopeActivos(Builder $query): Builder
     {
         return $query->where('activo', true);

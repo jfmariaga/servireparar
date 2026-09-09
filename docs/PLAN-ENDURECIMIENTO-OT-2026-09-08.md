@@ -16,9 +16,10 @@ trazabilidad de qué se va a corregir, en qué orden, y cómo se prueba.
 | Fase | Estado |
 |------|--------|
 | 0 — Base y respaldo | ✅ hecho (2026-09-08). Rama `feature/ot-endurecimiento`; baseline 159 tests en verde. |
-| 1 — Multi-insumo por tarea (T051–T058) | ✅ hecho (2026-09-08). Tabla `detalle_ot_insumos`; 1 solicitud por línea; estado `cancelada` con traza; costeo excluye rechazada/cancelada. 163 tests en verde. |
-| 2 — Reserva y bloqueo de stock | ⏳ siguiente |
-| 3–8 | pendientes |
+| 1 — Multi-insumo por tarea (T051–T058) | ✅ hecho (2026-09-08). Tabla `detalle_ot_insumos`; 1 solicitud por línea; estado `cancelada` con traza; costeo excluye rechazada/cancelada. + bloqueo de quitar/re-cantidad de línea ya entregada. |
+| 2 — Reserva y bloqueo de stock (T059–T064) | ✅ hecho (2026-09-08). `Inventario::disponible()` = stock − comprometido; bloqueo duro con `lockForUpdate` al guardar la tarea; selectores muestran "disp. N"; panel "Insumos de la OT" en el detalle; costeo separa `repuestos_estimados`. 170 tests en verde. |
+| 3 — Bodega de un solo paso | ⏳ siguiente |
+| 4–8 | pendientes |
 
 ---
 

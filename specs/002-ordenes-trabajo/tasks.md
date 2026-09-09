@@ -268,12 +268,12 @@ D7 el Técnico solo ve sus OT · D8 cancelar OT / cancelar tarea.
 - [x] T058 [P] Ajustar tests/factories de OT al nuevo modelo; `DetalleOtInsumoFactory`
 
 ### Fase 2 — Reserva y bloqueo de stock (D1 · H1, H2, H5)
-- [ ] T059 `Inventario::comprometido()`/`disponible()` (= `stock_actual − Σ solicitudes pendiente`); scope `SolicitudInsumoOt::pendientesDe()`
-- [ ] T060 Bloqueo duro en `OrdenTrabajoService` (crear/agregarTarea/actualizarTarea) si `cantidad > disponible()`; castear `stock_actual` a float (H20)
-- [ ] T061 `<x-select>` de insumos con "disp. N"; opciones sin disponible deshabilitadas; badge junto a cantidad
-- [ ] T062 Panel "Insumos de la OT" consolidado en `detalle.blade.php` + enlace a `/inventario/insumos-ot?ot=` (H19)
-- [ ] T063 `CosteoOtService`: repuestos = solo `entregada` (+ no entregadas "estimado"); excluir `rechazada`/`cancelada` (H5)
-- [ ] T064 [P] Tests: reserva descuenta disponible; 2.ª OT no sobre-compromete; costeo ignora rechazadas
+- [x] T059 `Inventario::comprometido()`/`disponible()` (= `stock_actual − Σ solicitudes pendiente`); scope `SolicitudInsumoOt::pendientesDe()`
+- [x] T060 Bloqueo duro en `OrdenTrabajoService` (crear/agregarTarea/actualizarTarea) si `cantidad > disponible()`; castear `stock_actual` a float (H20)
+- [x] T061 `<x-select>` de insumos con "disp. N"; opciones sin disponible deshabilitadas; badge junto a cantidad
+- [x] T062 Panel "Insumos de la OT" consolidado en `detalle.blade.php` + enlace a `/inventario/insumos-ot?ot=` (H19)
+- [x] T063 `CosteoOtService`: repuestos = solo `entregada` (+ no entregadas "estimado"); excluir `rechazada`/`cancelada` (H5)
+- [x] T064 [P] Tests: reserva descuenta disponible; 2.ª OT no sobre-compromete; costeo ignora rechazadas
 
 ### Fase 3 — Bodega de un solo paso (D2 · H10, H11)
 - [ ] T065 `AtencionInsumoOtService`: eliminar `aprobar()`; enum estado → `('pendiente','entregada','rechazada')` + migración de datos
