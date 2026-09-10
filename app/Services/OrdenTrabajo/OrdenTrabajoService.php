@@ -273,15 +273,19 @@ class OrdenTrabajoService
     }
 
     /**
-     * El técnico marca la tarea lista para finalizar (D3). Si todos sus insumos
-     * ya fueron entregados por Bodega, se finaliza directo; si no, queda a la
-     * espera de la confirmación del Jefe de Taller.
+     * El técnico marca la tarea lista para finalizar (D3). Los días trabajados
+     * los calcula el sistema desde la fecha de inicio (Phase 13); si se pasa un
+     * valor explícito (tests / correcciones), se respeta. Si todos sus insumos ya
+     * fueron entregados por Bodega, se finaliza directo; si no, queda a la espera
+     * de la confirmación del Jefe de Taller.
      */
-    public function marcarTareaListaParaFinalizar(DetalleOt $tarea, User $actor, float $diasTrabajados): DetalleOt
+    public function marcarTareaListaParaFinalizar(DetalleOt $tarea, User $actor, ?float $diasTrabajados = null): DetalleOt
     {
         if ($tarea->estado_tarea !== 'en_curso') {
             throw ValidationException::withMessages(['tarea' => 'La tarea debe estar en curso para finalizarla.']);
         }
+
+        $diasTrabajados ??= $this->diasTrabajadosAuto($tarea);
 
         return DB::transaction(function () use ($tarea, $actor, $diasTrabajados) {
             if ($tarea->insumosPendientesDeEntrega()) {
@@ -310,6 +314,17 @@ class OrdenTrabajoService
         }
 
         return $this->finalizarTarea($tarea, $actor, (float) $tarea->dias_trabajados, confirmadaPorJefe: true);
+    }
+
+    /**
+     * Días trabajados de la tarea calculados por el sistema: días calendario
+     * transcurridos desde el inicio, contando el día de inicio (mínimo 1).
+     */
+    private function diasTrabajadosAuto(DetalleOt $tarea): float
+    {
+        $inicio = ($tarea->fecha_inicio ?? $tarea->created_at ?? now())->copy()->startOfDay();
+
+        return (float) max(1, $inicio->diffInDays(now()->startOfDay()) + 1);
     }
 
     private function finalizarTarea(DetalleOt $tarea, User $actor, float $dias, bool $confirmadaPorJefe = false): DetalleOt

@@ -3,6 +3,7 @@
 namespace Tests\Feature\OrdenesTrabajo;
 
 use App\Services\OrdenTrabajo\EstadoOtService;
+use App\Services\OrdenTrabajo\OrdenTrabajoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -69,14 +70,24 @@ class FlujoEstadoTest extends TestCase
 
         $comp->call('planificar')->assertHasNoErrors();
         $comp->call('iniciarTarea', $tarea->id)->assertHasNoErrors();
-        $comp->call('confirmarFinalizarTarea', $tarea->id)
-            ->set('diasTrabajados', '3')
-            ->call('finalizarTarea')
-            ->assertHasNoErrors();
+        // Ya no se piden días al operario: los calcula el sistema desde el inicio.
+        $comp->call('finalizarTarea', $tarea->id)->assertHasNoErrors();
 
         $ot->refresh();
         $this->assertSame('finalizada', $ot->estado->slug);
-        $this->assertEquals(3, (float) $tarea->fresh()->dias_trabajados);
+        $this->assertEquals(1, (float) $tarea->fresh()->dias_trabajados); // iniciada y finalizada el mismo día
+    }
+
+    public function test_los_dias_trabajados_los_calcula_el_sistema_al_finalizar(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $tarea = $ot->tareas()->first();
+        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()->subDays(3)]);
+
+        app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller());
+
+        // Inicio hace 3 días, contando el día de inicio → 4 días trabajados.
+        $this->assertEquals(4, (float) $tarea->fresh()->dias_trabajados);
     }
 
     public function test_comparativo_tiempo_estimado_vs_real(): void

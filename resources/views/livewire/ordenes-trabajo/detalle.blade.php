@@ -25,10 +25,6 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
     public OrdenTrabajo $ot;
 
-    // Finalizar tarea
-    public ?int $finalizandoTareaId = null;
-    public string $diasTrabajados = '';
-
     // Evidencia de proceso
     public $evidencia = null;
     public string $evidenciaDescripcion = '';
@@ -184,22 +180,15 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->notifySuccess('Tarea iniciada.');
     }
 
-    public function confirmarFinalizarTarea(int $tareaId): void
-    {
-        Gate::authorize('executeTareas', $this->ot);
-        $this->finalizandoTareaId = $tareaId;
-        $this->diasTrabajados = '';
-    }
-
-    public function finalizarTarea(OrdenTrabajoService $servicio): void
+    /**
+     * El operario finaliza la tarea. Los días trabajados los calcula el sistema
+     * automáticamente desde la fecha de inicio (Phase 13); no se piden al técnico.
+     */
+    public function finalizarTarea(int $tareaId, OrdenTrabajoService $servicio): void
     {
         Gate::authorize('executeTareas', $this->ot);
 
-        $this->validate([
-            'diasTrabajados' => 'required|numeric|min:0',
-        ], [], ['diasTrabajados' => 'días trabajados']);
-
-        $tarea = $this->ot->tareas()->findOrFail($this->finalizandoTareaId);
+        $tarea = $this->ot->tareas()->findOrFail($tareaId);
 
         if ($tarea->estado_tarea !== 'en_curso') {
             $this->notifyError('Inicia la tarea antes de finalizarla.');
@@ -208,15 +197,13 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         }
 
         try {
-            $tarea = $servicio->marcarTareaListaParaFinalizar($tarea, auth()->user(), (float) $this->diasTrabajados);
+            $tarea = $servicio->marcarTareaListaParaFinalizar($tarea, auth()->user());
         } catch (ValidationException $e) {
             $this->notifyError($e->getMessage());
 
             return;
         }
 
-        $this->finalizandoTareaId = null;
-        $this->diasTrabajados = '';
         $this->ot->refresh();
         $this->notifySuccess($tarea->finalizacionPendiente()
             ? 'Tarea marcada lista para finalizar. Falta la confirmación del Jefe (insumos sin entregar).'
@@ -869,16 +856,13 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                     @endif
                                 @endif
                                 @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso')
-                                    @if ($finalizandoTareaId === $tarea->id)
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <input type="number" step="0.5" min="0" wire:model="diasTrabajados" placeholder="Días" class="w-24 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3 text-xs outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10">
-                                            <button wire:click="finalizarTarea" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar</button>
-                                            <button wire:click="$set('finalizandoTareaId', null)" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">Cancelar</button>
-                                        </div>
-                                        @error('diasTrabajados') <span class="text-brand-red text-xs w-full">{{ $message }}</span> @enderror
-                                    @else
-                                        <button wire:click="confirmarFinalizarTarea({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Finalizar</button>
-                                    @endif
+                                    <button type="button"
+                                            x-on:click="Notify.confirmDanger({
+                                                title: '¿Finalizar esta tarea?',
+                                                text: 'El sistema registrará automáticamente los días trabajados desde el inicio.',
+                                                confirmButtonText: 'Sí, finalizar',
+                                            }).then((ok) => ok && $wire.finalizarTarea({{ $tarea->id }}))"
+                                            class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Finalizar</button>
                                 @endif
                                 @if ($puedeGestionar && $tarea->finalizacionPendiente())
                                     <button wire:click="confirmarFinalizacionJefe({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar finalización</button>
