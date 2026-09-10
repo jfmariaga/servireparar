@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             EstadosOtSeeder::class,
             UsuariosDemoSeeder::class,
             InventarioDemoSeeder::class,
+            FlujoOtDemoSeeder::class,
         ]);
     }
 }
