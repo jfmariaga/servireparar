@@ -377,14 +377,14 @@ reconvertida a `PrestamoHerramienta`.
 - [x] T109 Botón "Iniciar" deshabilitado con `title` cuando la tarea está bloqueada por prerrequisitos
 - [x] T110 [P] `PrerrequisitosTareaTest` (7): no inicia con prerrequisito pendiente; sí al finalizarlo; ciclo rechazado en creación y edición; multi-prerrequisito; cancelar libera dependiente; estado se sigue derivando. Suite: 209 tests
 
-### Fase 12.3 — "Liberar OT" y notificaciones diferidas (D12, D13 · H27)
-- [ ] T111 `EstadoOtService::planificar()` → `liberar()` (evento "OT liberada"); alias `@deprecated` temporal
-- [ ] T112 Renombrar el `nombre` del estado `en_revision` a "Planificación" (seeder + migración de datos); slug intacto
-- [ ] T113 `detalle.blade.php`: botón "Planificar OT" → "Liberar OT" (`liberar`); no tocar `estaBloqueada()` ("Corregir OT" sigue visible)
-- [ ] T114 Quitar de la creación las notificaciones a técnicos y Almacén (`crear`, `NotificarEventosOt`, `OtCreada`)
-- [ ] T115 En `liberar()`: `OtLiberadaNotification` → técnicos de la OT; `SolicitudInsumoPendienteNotification` → Almacén solo si hay líneas `pendiente`
-- [ ] T116 `SolicitudInsumoService::sincronizarDesdeTarea()`: crea/reserva sin notificar a Bodega; notifica solo si se agrega insumo tras liberar
-- [ ] T117 [P] Tests: crear no notifica; liberar notifica técnicos; liberar con insumos notifica Bodega, sin insumos no; insumo nuevo tras liberar notifica
+### Fase 12.3 — "Liberar OT" y notificaciones diferidas (D12, D13 · H27) — ✅ 2026-09-10
+- [x] T111 `EstadoOtService::liberar()` (evento "OT liberada por el Jefe de Taller: en_revision → pendiente"); `planificar()` queda como alias `@deprecated`. `EstadoOtService` recibe `NotificadorOt`
+- [x] T112 Migración `rename_en_revision_estado_ot_a_planificacion` + `EstadosOtSeeder`: `nombre` "En revisión" → "Planificación"; slug `en_revision` intacto
+- [x] T113 `detalle`: método `liberar()` (+ alias `planificar()`), botón "Planificar OT" → "Liberar OT"; `estaBloqueada()` sin cambios
+- [x] T114 En creación ya no se avisa a Bodega: `aplicarLineasInsumo` calla la notificación mientras la OT está `en_revision`. `OtCreada`→Jefes se mantiene (no es técnico/Almacén)
+- [x] T115 `liberar()`: `NotificadorOt::otLiberada()` → técnicos con tarea activa; `insumosPendientesAlLiberar()` → Almacén solo si hay `solicitud_insumo_ot` en `pendiente`
+- [x] T116 `SolicitudInsumoService::aplicarLineasInsumo()`: crea/reserva siempre; notifica a Bodega solo si la OT ya no está `en_revision` (insumo agregado tras liberar)
+- [x] T117 [P] `LiberarOtTest` (7) + `NotificacionesOtTest` actualizado: crear no notifica a técnico/Bodega pero reserva stock; liberar notifica técnicos; con insumos pendientes notifica Bodega, sin insumos no; alias `planificar`; la OT no se congela. Suite: 216 tests
 
 ### Fase 12.4 — Insumo al encargado de la tarea (D14 · H28)
 - [ ] T118 Migración: `solicitudes_insumo_ot.entregado_a_tecnico_id` (nullable FK `tecnicos`) + backfill desde la tarea

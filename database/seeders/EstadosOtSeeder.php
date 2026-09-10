@@ -14,7 +14,7 @@ class EstadosOtSeeder extends Seeder
     public function run(): void
     {
         $estados = [
-            ['slug' => EstadoOt::EN_REVISION, 'nombre' => 'En revisión', 'orden' => 1, 'es_terminal' => false],
+            ['slug' => EstadoOt::EN_REVISION, 'nombre' => 'Planificación', 'orden' => 1, 'es_terminal' => false],
             ['slug' => EstadoOt::PENDIENTE, 'nombre' => 'Pendiente', 'orden' => 2, 'es_terminal' => false],
             ['slug' => EstadoOt::EN_CURSO, 'nombre' => 'En curso', 'orden' => 3, 'es_terminal' => false],
             ['slug' => EstadoOt::FINALIZADA, 'nombre' => 'Finalizada', 'orden' => 4, 'es_terminal' => false],

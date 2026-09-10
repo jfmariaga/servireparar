@@ -36,6 +36,39 @@ class NotificadorOt
         ));
     }
 
+    /**
+     * OT liberada por el Jefe de Taller (Phase 12 / D13): avisa a cada técnico
+     * con una tarea activa en la OT que ya puede ejecutar su trabajo.
+     */
+    public function otLiberada(OrdenTrabajo $ot): void
+    {
+        $ot->loadMissing('tareas.tecnico.usuario');
+
+        $tecnicos = $ot->tareas
+            ->where('estado_tarea', '!=', 'cancelada')
+            ->map(fn ($t) => $t->tecnico?->usuario)
+            ->filter();
+
+        $this->enviar(collect($tecnicos), new OtNotificacion(
+            'OT liberada para ejecución',
+            "La OT {$ot->numero_ot} — {$ot->cliente?->nombre} fue liberada. Ya puedes ejecutar tus tareas.",
+            $this->url($ot),
+        ));
+    }
+
+    /**
+     * Al liberar la OT, si quedan solicitudes de insumo en `pendiente`, avisa a
+     * Bodega una sola vez (Phase 12 / D13).
+     */
+    public function insumosPendientesAlLiberar(OrdenTrabajo $ot): void
+    {
+        $this->aRoles([RolPrioridad::Almacenista->value], new OtNotificacion(
+            'Insumos pendientes de una OT liberada',
+            "La OT {$ot->numero_ot} — {$ot->cliente?->nombre} se liberó con solicitudes de insumo por atender.",
+            route('insumos-ot'),
+        ));
+    }
+
     public function solicitudInsumoEntregada(SolicitudInsumoOt $s): void
     {
         $s->loadMissing('tarea.tecnico.usuario', 'inventario', 'ordenTrabajo');

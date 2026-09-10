@@ -52,13 +52,17 @@ class NotificacionesOtTest extends TestCase
         $this->assertSame('Nueva OT por planificar', $jefe->notifications()->first()->data['titulo']);
     }
 
-    public function test_nueva_solicitud_de_insumo_avisa_al_almacen(): void
+    public function test_insumo_agregado_tras_liberar_avisa_al_almacen(): void
     {
+        // Phase 12 / D13: antes de liberar, las solicitudes de insumo son silenciosas.
         $almacen = $this->conRol(RolPrioridad::Almacenista);
         $ot = $this->crearOt(tareas: 1);
         $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 50]);
 
-        app(OrdenTrabajoService::class)->agregarTarea($ot, $this->jefeDeTaller(), [
+        app(EstadoOtService::class)->liberar($ot, $this->jefeDeTaller());
+        $this->assertSame(0, $this->noLeidas($almacen->fresh()), 'Liberar sin insumos pendientes no avisa a Bodega.');
+
+        app(OrdenTrabajoService::class)->agregarTarea($ot->fresh(), $this->jefeDeTaller(), [
             'descripcion' => 'X', 'tecnico_id' => Tecnico::factory()->conSueldo()->create()->id,
             'insumos' => [['inventario_id' => $item->id, 'cantidad' => 2]],
         ]);

@@ -4,6 +4,7 @@ namespace App\Services\OrdenTrabajo;
 
 use App\Models\DetalleOt;
 use App\Models\DetalleOtInsumo;
+use App\Models\EstadoOt;
 use App\Models\Inventario;
 use App\Models\SolicitudInsumoOt;
 use App\Models\User;
@@ -85,8 +86,12 @@ class SolicitudInsumoService
             return $tarea->fresh(['insumos.inventario', 'solicitudesInsumo', 'ordenTrabajo.cliente']);
         });
 
-        if (($creadas ?? 0) > 0 && $tarea->ordenTrabajo) {
-            $this->notificador->solicitudInsumoCreada($tarea->ordenTrabajo, $creadas);
+        // Phase 12 / D13: las solicitudes se crean y reservan stock siempre, pero
+        // Bodega solo se entera cuando la OT ya fue liberada (estado != en_revision).
+        // Al liberar, EstadoOtService avisa de las que quedaran pendientes.
+        $ot = $tarea->ordenTrabajo;
+        if (($creadas ?? 0) > 0 && $ot && ! $ot->estaEnEstado(EstadoOt::EN_REVISION)) {
+            $this->notificador->solicitudInsumoCreada($ot, $creadas);
         }
 
         return $tarea;

@@ -5,6 +5,7 @@ namespace App\Services\OrdenTrabajo;
 use App\Models\EstadoOt;
 use App\Models\OrdenTrabajo;
 use App\Models\User;
+use App\Services\Notificaciones\NotificadorOt;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -21,6 +22,10 @@ use Illuminate\Validation\ValidationException;
  */
 class EstadoOtService
 {
+    public function __construct(
+        private readonly NotificadorOt $notificador = new NotificadorOt(),
+    ) {}
+
     /** Estado con el que nace toda OT. */
     public function estadoInicialId(): int
     {
@@ -52,16 +57,37 @@ class EstadoOtService
         return $ot->tareasActivasFinalizadas() && $ot->checklistCompleto();
     }
 
-    /** El Jefe de Taller marca la OT como planificada/lista para ejecutar. */
-    public function planificar(OrdenTrabajo $ot, ?User $actor = null): OrdenTrabajo
+    /**
+     * El Jefe de Taller libera la OT para ejecución (Phase 12 / D12): pasa de
+     * "Planificación" (`en_revision`) a "Pendiente". Al liberar se avisa a los
+     * técnicos de la OT y —si hay solicitudes de insumo pendientes— a Bodega (D13).
+     * La OT NO se congela: "Corregir OT" sigue disponible (FR-009).
+     */
+    public function liberar(OrdenTrabajo $ot, ?User $actor = null): OrdenTrabajo
     {
         if (! $ot->estaEnEstado(EstadoOt::EN_REVISION)) {
             throw ValidationException::withMessages([
-                'estado' => 'Solo una OT en revisión puede pasar a pendiente.',
+                'estado' => 'Solo una OT en planificación puede liberarse.',
             ]);
         }
 
-        return $this->transicionar($ot, EstadoOt::PENDIENTE, $actor, 'OT planificada por el Jefe de Taller');
+        $ot = $this->transicionar($ot, EstadoOt::PENDIENTE, $actor, 'OT liberada por el Jefe de Taller');
+
+        $this->notificador->otLiberada($ot);
+
+        if ($ot->solicitudesInsumo()->where('estado', 'pendiente')->exists()) {
+            $this->notificador->insumosPendientesAlLiberar($ot);
+        }
+
+        return $ot;
+    }
+
+    /**
+     * @deprecated Usa liberar(). Alias temporal para llamadas/tests de Phase 11.
+     */
+    public function planificar(OrdenTrabajo $ot, ?User $actor = null): OrdenTrabajo
+    {
+        return $this->liberar($ot, $actor);
     }
 
     /**

@@ -114,20 +114,26 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         ];
     }
 
-    // --- Planificación (H6) ---
+    // --- Liberar OT (Phase 12 / D12) ---
 
-    public function planificar(EstadoOtService $estados): void
+    public function liberar(EstadoOtService $estados): void
     {
         Gate::authorize('update', $this->ot);
         try {
-            $estados->planificar($this->ot, auth()->user());
+            $estados->liberar($this->ot, auth()->user());
         } catch (ValidationException $e) {
             $this->notifyError($e->getMessage());
 
             return;
         }
         $this->ot->refresh();
-        $this->notifySuccess('OT planificada. Ya se puede ejecutar.');
+        $this->notifySuccess('OT liberada. Los técnicos ya pueden ejecutar sus tareas.');
+    }
+
+    /** @deprecated Alias de liberar() para compatibilidad. */
+    public function planificar(EstadoOtService $estados): void
+    {
+        $this->liberar($estados);
     }
 
     // --- US2: ejecución de tareas ---
@@ -626,7 +632,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 <a href="{{ route('ordenes-trabajo.costeo', $ot) }}" wire:navigate class="inline-flex items-center h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Costeo y utilidad</a>
             @endif
             @if ($puedeGestionar && $ot->estado?->slug === 'en_revision')
-                <button wire:click="planificar" class="inline-flex items-center h-9 px-3.5 rounded-lg bg-brand-blue text-white text-[12.5px] font-semibold hover:bg-brand-blue-dark">Planificar OT</button>
+                <button wire:click="liberar" class="inline-flex items-center h-9 px-3.5 rounded-lg bg-brand-blue text-white text-[12.5px] font-semibold hover:bg-brand-blue-dark">Liberar OT</button>
             @endif
             @if ($puedeGestionar && ! $editandoCabecera)
                 <button wire:click="editarCabecera" class="inline-flex items-center h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Corregir OT</button>
