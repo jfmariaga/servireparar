@@ -80,6 +80,24 @@ class FlujoEstadoTest extends TestCase
         $this->assertEquals(1, (float) $tarea->fresh()->dias_trabajados); // iniciada y finalizada el mismo día
     }
 
+    public function test_tras_marcar_lista_para_finalizar_no_reaparece_el_boton_finalizar(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $tarea = $ot->tareas()->first();
+        $tarea->update([
+            'estado_tarea' => 'en_curso',
+            'fecha_inicio' => now(),
+            'dias_trabajados' => 2,
+            'finalizacion_solicitada_en' => now(), // lista para finalizar, espera al Jefe
+        ]);
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
+
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->assertSee('espera confirmación del Jefe')
+            ->assertDontSee('Sí, finalizar'); // el diálogo del botón "Finalizar" ya no se ofrece
+    }
+
     public function test_no_se_finaliza_una_tarea_sin_imagen_de_evidencia(): void
     {
         $ot = $this->crearOt(tareas: 1);

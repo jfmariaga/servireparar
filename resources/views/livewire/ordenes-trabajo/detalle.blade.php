@@ -874,10 +874,11 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                             @endforeach
 
                             {{-- Evidencia de la tarea (imagen obligatoria para finalizar, Phase 13) --}}
-                            @if ($tarea->evidencias->isNotEmpty() || ($puedeEjecutar && $tarea->estado_tarea === 'en_curso'))
+                            @php $puedeSubirEvidencia = $puedeEjecutar && $tarea->estado_tarea === 'en_curso' && ! $tarea->finalizacionPendiente(); @endphp
+                            @if ($tarea->evidencias->isNotEmpty() || $puedeSubirEvidencia)
                                 <div class="flex flex-col gap-1.5 pt-1">
-                                    <span class="text-[11px] font-bold uppercase tracking-wide {{ $tarea->tieneEvidenciaImagen() || $tarea->estado_tarea !== 'en_curso' ? 'text-slate-400' : 'text-brand-red' }}">
-                                        Evidencia {{ $tarea->tieneEvidenciaImagen() || $tarea->estado_tarea !== 'en_curso' ? '' : '(obligatoria para finalizar)' }}
+                                    <span class="text-[11px] font-bold uppercase tracking-wide {{ $tarea->tieneEvidenciaImagen() || ! $puedeSubirEvidencia ? 'text-slate-400' : 'text-brand-red' }}">
+                                        Evidencia {{ $tarea->tieneEvidenciaImagen() || ! $puedeSubirEvidencia ? '' : '(obligatoria para finalizar)' }}
                                     </span>
                                     @if ($tarea->evidencias->isNotEmpty())
                                         <div class="flex flex-wrap gap-1.5">
@@ -893,7 +894,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                             @endforeach
                                         </div>
                                     @endif
-                                    @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso')
+                                    @if ($puedeSubirEvidencia)
                                         <div class="flex flex-wrap items-center gap-2">
                                             <input type="file" accept="image/*" wire:model="evidenciaTareaFile" wire:key="evtf-{{ $tarea->id }}"
                                                    class="text-[11px] text-slate-500 dark:text-slate-400 file:mr-2 file:rounded-md file:border-0 file:bg-brand-blue-tint file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-brand-blue dark:file:bg-brand-navy-active dark:file:text-white">
@@ -920,7 +921,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                         <button wire:click="iniciarTarea({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-blue text-white hover:bg-brand-blue-dark">Iniciar</button>
                                     @endif
                                 @endif
-                                @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso')
+                                @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso' && ! $tarea->finalizacionPendiente())
                                     @if (! $tarea->tieneEvidenciaImagen())
                                         <button type="button" disabled title="Sube una imagen de evidencia antes de finalizar" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-slate-200 text-slate-400 dark:bg-slate-800 cursor-not-allowed">Finalizar</button>
                                     @else
