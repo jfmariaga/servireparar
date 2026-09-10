@@ -54,11 +54,12 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public ?int $prioridadId = null;
     public string $descripcion = '';
     public string $tipoServicio = 'taller';
+    public string $direccionServicio = '';
     public string $tiempoEstimadoDias = '';
     // Alta / edición de tareas en una OT existente (US4 / FR-009)
     public bool $agregandoTarea = false;
     /** @var array<string, mixed> */
-    public array $tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumos' => [], 'prerrequisitos' => []];
+    public array $tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'dias_cumplimiento' => '', 'insumos' => [], 'prerrequisitos' => []];
     public ?int $editandoTareaId = null;
 
     public function mount(OrdenTrabajo $ordenTrabajo): void
@@ -73,6 +74,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->prioridadId = $this->ot->prioridad_id;
         $this->descripcion = $this->ot->descripcion;
         $this->tipoServicio = $this->ot->tipo_servicio;
+        $this->direccionServicio = (string) ($this->ot->direccion_servicio ?? '');
         $this->tiempoEstimadoDias = (string) ($this->ot->tiempo_estimado_dias ?? '');
     }
 
@@ -113,12 +115,15 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     ->whereIn('estado', ['solicitada', 'entregada'])
                     ->with('inventario:id,nombre')->latest('id')->get()
                 : collect(),
-            'puedeGestionar' => Gate::allows('update', $this->ot),
+            'puedeGestionar' => $puedeGestionar = Gate::allows('update', $this->ot),
             'puedeEjecutar' => Gate::allows('executeTareas', $this->ot),
             'puedeAprobarSalida' => Gate::allows('approveEquipmentExit', $this->ot),
             'puedeSolicitarSalida' => Gate::allows('requestEquipmentExit', $this->ot),
-            'puedeVerCosteo' => Gate::allows('viewCosteo', $this->ot),
+            'puedeVerCosteo' => $puedeVerCosteo = Gate::allows('viewCosteo', $this->ot),
             'puedeFinalizar' => app(EstadoOtService::class)->puedeFinalizar($this->ot),
+            // Vista reducida del técnico (Phase 13 / D19): solo sus tareas, sin
+            // checklist, sin trazabilidad, sin enlaces a Bodega/herramientas.
+            'vistaTecnico' => $tecnicoActual && ! $puedeGestionar && ! $puedeVerCosteo,
         ];
     }
 
@@ -402,15 +407,25 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             'prioridadId' => 'required|exists:prioridades,id',
             'descripcion' => 'required|string|max:2000',
             'tipoServicio' => 'required|in:taller,domicilio',
+            'direccionServicio' => 'nullable|string|max:255|required_if:tipoServicio,domicilio',
             'tiempoEstimadoDias' => 'nullable|numeric|min:0',
-        ], [], ['prioridadId' => 'prioridad']);
+        ], [
+            'direccionServicio.required_if' => 'La dirección del servicio es obligatoria para OT a domicilio.',
+        ], ['prioridadId' => 'prioridad', 'direccionServicio' => 'dirección del servicio']);
 
-        $servicio->corregir($this->ot, auth()->user(), [
-            'prioridad_id' => (int) $datos['prioridadId'],
-            'descripcion' => $datos['descripcion'],
-            'tipo_servicio' => $datos['tipoServicio'],
-            'tiempo_estimado_dias' => $datos['tiempoEstimadoDias'] !== '' ? (float) $datos['tiempoEstimadoDias'] : null,
-        ]);
+        try {
+            $servicio->corregir($this->ot, auth()->user(), [
+                'prioridad_id' => (int) $datos['prioridadId'],
+                'descripcion' => $datos['descripcion'],
+                'tipo_servicio' => $datos['tipoServicio'],
+                'direccion_servicio' => $datos['tipoServicio'] === 'domicilio' ? ($datos['direccionServicio'] ?: null) : null,
+                'tiempo_estimado_dias' => $datos['tiempoEstimadoDias'] !== '' ? (float) $datos['tiempoEstimadoDias'] : null,
+            ]);
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
 
         $this->editandoCabecera = false;
         $this->ot->refresh();
@@ -421,7 +436,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
     private function resetTareaForm(): void
     {
-        $this->tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumos' => [], 'prerrequisitos' => []];
+        $this->tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'dias_cumplimiento' => '', 'insumos' => [], 'prerrequisitos' => []];
     }
 
     /** Sube o baja una tarea en el orden de la lista (persiste `detalle_ot.orden`). */
@@ -473,8 +488,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         Gate::authorize('update', $this->ot);
         $tarea = $this->ot->tareas()->with('insumos', 'prerrequisitos')->findOrFail($tareaId);
 
-        if ($tarea->estado_tarea === 'finalizada') {
-            $this->notifyError('Una tarea finalizada no se puede editar ni reasignar.');
+        if ($tarea->estado_tarea !== 'pendiente') {
+            $this->notifyError('Solo se puede editar una tarea que aún no se ha iniciado.');
 
             return;
         }
@@ -484,6 +499,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->tareaForm = [
             'descripcion' => $tarea->descripcion,
             'tecnico_id' => $tarea->tecnico_id,
+            'dias_cumplimiento' => (string) ($tarea->dias_cumplimiento ?? ''),
             'insumos' => $tarea->insumos
                 ->map(fn ($l) => ['inventario_id' => $l->inventario_id, 'cantidad' => (string) $l->cantidad])
                 ->values()
@@ -506,6 +522,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $datos = $this->validate([
             'tareaForm.descripcion' => 'required|string|max:1000',
             'tareaForm.tecnico_id' => 'required|exists:tecnicos,id',
+            'tareaForm.dias_cumplimiento' => 'nullable|numeric|min:0.5',
             'tareaForm.insumos' => 'array',
             'tareaForm.insumos.*.inventario_id' => 'required|exists:inventario,id',
             'tareaForm.insumos.*.cantidad' => 'required|numeric|min:0.01',
@@ -514,6 +531,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         ], [], [
             'tareaForm.descripcion' => 'descripción',
             'tareaForm.tecnico_id' => 'técnico',
+            'tareaForm.dias_cumplimiento' => 'plazo de la tarea',
             'tareaForm.insumos.*.inventario_id' => 'insumo',
             'tareaForm.insumos.*.cantidad' => 'cantidad de insumo',
         ])['tareaForm'];
@@ -671,13 +689,17 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                             </x-select>
                         </x-field>
                         <x-field label="Tipo de servicio">
-                            <x-select wire:model="tipoServicio" :placeholder="null">
+                            <x-select wire:model.live="tipoServicio" :placeholder="null">
                                 <option value="taller">Taller</option>
                                 <option value="domicilio">Domicilio</option>
                             </x-select>
                         </x-field>
                         <x-field label="Tiempo estimado (días)">
                             <x-input type="number" step="0.5" min="0" wire:model="tiempoEstimadoDias" />
+                        </x-field>
+                        <x-field label="Dirección del servicio" class="sm:col-span-2" x-show="$wire.tipoServicio === 'domicilio'" x-cloak>
+                            <x-input wire:model="direccionServicio" placeholder="Dónde se presta el servicio" />
+                            @error('direccionServicio') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                         </x-field>
                         <div class="sm:col-span-2 flex gap-2">
                             <button wire:click="guardarCabecera" class="inline-flex items-center h-10 px-4 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white text-[13px] font-semibold">Guardar</button>
@@ -688,6 +710,9 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     <div>
                         <h2 class="text-[13px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Servicio solicitado</h2>
                         <p class="text-sm leading-relaxed">{{ $ot->descripcion }}</p>
+                        <p class="text-xs text-slate-400 mt-1.5">
+                            <span class="capitalize">{{ $ot->tipo_servicio }}</span>@if ($ot->tipo_servicio === 'domicilio' && $ot->direccion_servicio) · {{ $ot->direccion_servicio }}@endif
+                        </p>
                     </div>
                     @if ($ot->equipo_marca || $ot->equipo_descripcion || $ot->equipo_id || $ot->equipo_estado_ingreso)
                         <div class="grid gap-2 sm:grid-cols-2 text-sm border-t border-slate-100 dark:border-slate-800 pt-4">
@@ -702,9 +727,10 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
             {{-- Tareas --}}
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3">
+                @php $tareasVista = $vistaTecnico ? $ot->tareas->where('tecnico_id', $tecnicoActual?->id)->values() : $ot->tareas; @endphp
                 <div class="flex items-center justify-between">
-                    <h2 class="font-bold text-sm">Tareas <span class="text-slate-400 font-normal">({{ $ot->tareas->count() }})</span>
-                        <span class="text-xs text-slate-400 font-normal">· {{ $ot->tareas->where('estado_tarea', 'finalizada')->count() }} finalizadas</span>
+                    <h2 class="font-bold text-sm">{{ $vistaTecnico ? 'Mis tareas' : 'Tareas' }} <span class="text-slate-400 font-normal">({{ $tareasVista->count() }})</span>
+                        <span class="text-xs text-slate-400 font-normal">· {{ $tareasVista->where('estado_tarea', 'finalizada')->count() }} finalizadas</span>
                     </h2>
                     @if ($puedeGestionar && $ot->estado?->slug !== 'entregada' && ! $agregandoTarea && ! $editandoTareaId)
                         <button wire:click="nuevaTarea"
@@ -731,6 +757,10 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                     @foreach ($tecnicos as $t)<option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>@endforeach
                                 </x-select>
                                 @error('tareaForm.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                            </x-field>
+                            <x-field label="Plazo de la tarea (días)" hint="Debe caber en el tiempo estimado de la OT.">
+                                <x-input type="number" step="0.5" min="0.5" wire:model="tareaForm.dias_cumplimiento" placeholder="Ej. 2" />
+                                @error('tareaForm.dias_cumplimiento') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                             </x-field>
                             <div class="sm:col-span-2 flex flex-col gap-2">
                                 <div class="flex items-center justify-between">
@@ -776,7 +806,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 @endif
 
                 <div class="grid gap-3 md:grid-cols-2">
-                    @foreach ($ot->tareas as $tarea)
+                    @forelse ($tareasVista as $tarea)
                         @php
                             $prereqPend = $tarea->prerrequisitosPendientes();
                             $bloqueadaPrereq = $tarea->estado_tarea === 'pendiente' && $prereqPend->isNotEmpty();
@@ -793,6 +823,12 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 {{ $tarea->tecnico?->usuario?->name ?? 'Técnico #'.$tarea->tecnico_id }}
                                 @if ($tarea->estado_tarea === 'finalizada')<br>Días trabajados: {{ $nfmt($tarea->dias_trabajados) }}@endif
                             </p>
+                            @if ($tarea->dias_cumplimiento !== null && ! in_array($tarea->estado_tarea, ['finalizada', 'cancelada'], true))
+                                <p class="text-[11px] {{ $tarea->estaAtrasada() ? 'text-brand-red font-semibold' : 'text-slate-400' }}">
+                                    Plazo: {{ $nfmt($tarea->dias_cumplimiento) }} día(s)@if ($tarea->fechaLimitePlazo()) · vence {{ $tarea->fechaLimitePlazo()->format('d/m/Y') }}@endif
+                                    @if ($tarea->estaAtrasada()) · <span class="uppercase">Atrasada</span>@endif
+                                </p>
+                            @endif
                             @if ($tarea->prerrequisitos->isNotEmpty())
                                 <p class="text-[11px] {{ $bloqueadaPrereq ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-slate-400' }}">
                                     @if ($bloqueadaPrereq)Bloqueada — requiere finalizar: @else Requiere: @endif
@@ -847,7 +883,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 @if ($puedeGestionar && $tarea->finalizacionPendiente())
                                     <button wire:click="confirmarFinalizacionJefe({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar finalización</button>
                                 @endif
-                                @if ($puedeGestionar && ! in_array($tarea->estado_tarea, ['finalizada', 'cancelada'], true))
+                                @if ($puedeGestionar && $tarea->estado_tarea === 'pendiente')
                                     <button wire:click="editarTarea({{ $tarea->id }})" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Editar</button>
                                 @endif
                                 @if ($puedeGestionar && $tarea->estado_tarea === 'pendiente' && $ot->tareas->count() > 1)
@@ -873,11 +909,14 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 @endif
                             </div>
                         </div>
-                    @endforeach
+                    @empty
+                        <p class="text-xs text-slate-400 md:col-span-2">{{ $vistaTecnico ? 'No tienes tareas en esta OT.' : 'Sin tareas.' }}</p>
+                    @endforelse
                 </div>
             </div>
 
-            {{-- Checklist --}}
+            {{-- Checklist (oculto en la vista del técnico) --}}
+            @unless ($vistaTecnico)
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3">
                 @php
                     $chkSinResponder = $ot->checklist->whereNull('cumple')->count();
@@ -936,6 +975,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @error('nuevoItem') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                 @endif
             </div>
+            @endunless
 
             {{-- Evidencias --}}
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
@@ -1063,7 +1103,9 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3 text-sm">
                     <div class="flex items-center justify-between">
                         <h2 class="font-bold text-sm">Mis herramientas en préstamo</h2>
-                        <a href="{{ route('prestamos-herramienta') }}" wire:navigate class="text-[11px] font-semibold text-brand-blue hover:underline">Ver todo →</a>
+                        @unless ($vistaTecnico)
+                            <a href="{{ route('prestamos-herramienta') }}" wire:navigate class="text-[11px] font-semibold text-brand-blue hover:underline">Ver todo →</a>
+                        @endunless
                     </div>
                     @forelse ($misPrestamos as $p)
                         <div wire:key="prh-{{ $p->id }}" class="flex items-center justify-between gap-2 border-b border-slate-50 dark:border-slate-800/60 pb-2 last:border-0">
@@ -1086,9 +1128,9 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 </div>
             @endif
 
-            {{-- Insumos de la OT (consolidado) --}}
+            {{-- Insumos de la OT (consolidado) — oculto en la vista del técnico --}}
             @php $lineasOt = $ot->tareas->flatMap(fn ($t) => $t->insumos); @endphp
-            @if ($lineasOt->isNotEmpty())
+            @if ($lineasOt->isNotEmpty() && ! $vistaTecnico)
                 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3 text-sm">
                     <div class="flex items-center justify-between">
                         <h2 class="font-bold text-sm">Insumos de la OT</h2>
@@ -1117,7 +1159,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 </div>
             @endif
 
-            {{-- Trazabilidad --}}
+            {{-- Trazabilidad (oculta en la vista del técnico) --}}
+            @unless ($vistaTecnico)
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-2 text-sm">
                 <h2 class="font-bold text-sm">Trazabilidad</h2>
                 <div class="flex flex-col gap-0 max-h-96 overflow-y-auto -mx-1 px-1">
@@ -1132,6 +1175,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @endforeach
                 </div>
             </div>
+            @endunless
         </div>
     </div>
 </div>

@@ -26,6 +26,7 @@ class DetalleOt extends Model
         'ot_id',
         'descripcion',
         'orden',
+        'dias_cumplimiento',
         'tecnico_id',
         'estado_tarea',
         'fecha_inicio',
@@ -38,10 +39,48 @@ class DetalleOt extends Model
     {
         return [
             'dias_trabajados' => 'decimal:2',
+            'dias_cumplimiento' => 'decimal:2',
             'fecha_inicio' => 'datetime',
             'fecha_fin' => 'datetime',
             'finalizacion_solicitada_en' => 'datetime',
         ];
+    }
+
+    /**
+     * Fecha desde la que corre el plazo de la tarea (Phase 13 / D17): su
+     * `fecha_inicio` si ya se inició; si no, la fecha en que se liberó la OT.
+     */
+    public function fechaReferenciaPlazo(): ?\Illuminate\Support\Carbon
+    {
+        if ($this->fecha_inicio) {
+            return $this->fecha_inicio;
+        }
+
+        return $this->relationLoaded('ordenTrabajo')
+            ? $this->ordenTrabajo?->fechaLiberacion()
+            : $this->ordenTrabajo()->first()?->fechaLiberacion();
+    }
+
+    /** Fecha límite de la tarea según su plazo de cumplimiento, o null si no aplica. */
+    public function fechaLimitePlazo(): ?\Illuminate\Support\Carbon
+    {
+        $ref = $this->fechaReferenciaPlazo();
+
+        return ($ref && $this->dias_cumplimiento !== null)
+            ? $ref->copy()->addDays((float) $this->dias_cumplimiento)
+            : null;
+    }
+
+    /** ¿La tarea está atrasada? No finalizada/cancelada y con el plazo vencido (D17). */
+    public function estaAtrasada(): bool
+    {
+        if (in_array($this->estado_tarea, ['finalizada', 'cancelada'], true)) {
+            return false;
+        }
+
+        $limite = $this->fechaLimitePlazo();
+
+        return $limite !== null && $limite->isPast();
     }
 
     /** El técnico marcó la tarea lista para finalizar y espera la confirmación del Jefe (D3). */
