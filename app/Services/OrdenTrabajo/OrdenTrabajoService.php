@@ -337,16 +337,13 @@ class OrdenTrabajoService
 
     /**
      * Cancela la OT completa (D8): estado terminal `cancelada`. Libera todas las
-     * reservas de insumo pendientes. Exige que no queden herramientas sin devolver.
+     * reservas de insumo pendientes. Las herramientas en préstamo son ajenas al
+     * ciclo de la OT y no la bloquean (Phase 12 / D15).
      */
     public function cancelarOt(OrdenTrabajo $ot, User $actor, string $motivo): OrdenTrabajo
     {
         if (trim($motivo) === '') {
             throw ValidationException::withMessages(['motivo' => 'Indica el motivo de la cancelación.']);
-        }
-
-        if ($ot->herramientas()->whereNull('devuelta_en')->exists()) {
-            throw ValidationException::withMessages(['ot' => 'Devuelve las herramientas asignadas antes de cancelar la OT.']);
         }
 
         return DB::transaction(function () use ($ot, $actor, $motivo) {

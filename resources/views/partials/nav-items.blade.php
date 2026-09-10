@@ -52,6 +52,13 @@
             'icon' => 'M20 7L9 18l-5-5|M13 5h7v7',
         ],
         [
+            'route' => 'prestamos-herramienta',
+            'activePattern' => 'prestamos-herramienta',
+            'label' => 'Préstamos de herramienta',
+            'ability' => 'attend-ot-insumo',
+            'icon' => 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z',
+        ],
+        [
             'route' => 'despachos.index',
             'activePattern' => 'despachos.*',
             'label' => 'Despachos',
@@ -77,6 +84,10 @@
         ? \App\Models\SolicitudInsumoOt::where('estado', 'pendiente')->count()
         : 0;
 
+    $prestamosPendientes = $user->can('attend-ot-insumo')
+        ? \App\Models\PrestamoHerramienta::where('estado', 'solicitada')->count()
+        : 0;
+
     $otPendientes = 0;
     if ($user->can('manage-ot')) {
         $otPendientes += \App\Models\OrdenTrabajo::whereHas('estado', fn ($q) => $q->where('slug', 'en_revision'))->count();
@@ -88,6 +99,7 @@
     $badges = [
         'despachos.index' => $despachosPendientes,
         'insumos-ot' => $insumosPendientes,
+        'prestamos-herramienta' => $prestamosPendientes,
         'ordenes-trabajo.tablero' => $otPendientes,
     ];
 @endphp

@@ -6,8 +6,9 @@ use App\Models\Inventario;
 use App\Models\SolicitudInsumoOt;
 use App\Models\Tecnico;
 use App\Services\OrdenTrabajo\EstadoOtService;
+use App\Models\PrestamoHerramienta;
 use App\Services\OrdenTrabajo\OrdenTrabajoService;
-use App\Services\OrdenTrabajo\OtHerramientaService;
+use App\Services\OrdenTrabajo\PrestamoHerramientaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
@@ -156,19 +157,20 @@ class GuardiasFlujoTest extends TestCase
         $this->assertSame(0, SolicitudInsumoOt::where('ot_id', $ot->id)->where('estado', 'pendiente')->count());
     }
 
-    public function test_no_se_cancela_la_ot_con_herramientas_sin_devolver(): void
+    public function test_un_prestamo_de_herramienta_sin_devolver_no_bloquea_cancelar_la_ot(): void
     {
+        // Phase 12 / D15: las herramientas están fuera del ciclo de la OT.
         $ot = $this->crearOt(tareas: 1);
+        $tecnico = $ot->tareas()->first()->tecnico;
         $tool = Inventario::factory()->herramienta()->create();
-        app(OtHerramientaService::class)->asignar($ot, $tool, $this->jefeDeTaller());
+        app(PrestamoHerramientaService::class)->entregar(
+            app(PrestamoHerramientaService::class)->solicitar($tecnico, $tool, $ot->tareas()->first()),
+            $this->usuarioConRol('Almacenista'),
+        );
 
-        try {
-            app(OrdenTrabajoService::class)->cancelarOt($ot->fresh(['estado']), $this->jefeDeTaller(), 'motivo');
-            $this->fail('Debía exigir devolver las herramientas.');
-        } catch (ValidationException $e) {
-            $this->assertStringContainsString('herramientas', $e->getMessage());
-        }
+        app(OrdenTrabajoService::class)->cancelarOt($ot->fresh(['estado']), $this->jefeDeTaller(), 'motivo');
 
-        $this->assertNotSame('cancelada', $ot->fresh()->estado->slug);
+        $this->assertSame('cancelada', $ot->fresh()->estado->slug);
+        $this->assertSame('entregada', PrestamoHerramienta::first()->estado, 'El préstamo sigue vivo tras cancelar la OT.');
     }
 }

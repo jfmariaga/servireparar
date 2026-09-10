@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function () {
     Volt::route('/inventario/catalogo', 'inventario.catalogo')->name('inventario.catalogo');
     Volt::route('/inventario/solicitudes', 'inventario.movimientos')->name('inventario.movimientos');
     Volt::route('/inventario/insumos-ot', 'inventario.solicitudes-ot')->name('insumos-ot');
+    Volt::route('/inventario/prestamos-herramienta', 'inventario.prestamos-herramienta')->name('prestamos-herramienta');
     Volt::route('/inventario/auditorias', 'inventario.auditoria')->name('inventario.auditoria');
     Volt::route('/inventario/categorias', 'inventario.catalogos')->name('inventario.catalogos');
     Route::get('/inventario/{inventario}/etiqueta', InventarioEtiquetaController::class)->name('inventario.etiqueta');

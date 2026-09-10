@@ -7,10 +7,10 @@ use App\Models\OrdenTrabajo;
 use App\Models\Prioridad;
 use App\Models\Tecnico;
 use App\Livewire\Concerns\Notifies;
-use App\Models\OtHerramienta;
+use App\Models\PrestamoHerramienta;
 use App\Services\OrdenTrabajo\EstadoOtService;
 use App\Services\OrdenTrabajo\OrdenTrabajoService;
-use App\Services\OrdenTrabajo\OtHerramientaService;
+use App\Services\OrdenTrabajo\PrestamoHerramientaService;
 use App\Services\OrdenTrabajo\SalidaEquipoService;
 use App\Services\OrdenTrabajo\SolicitudInsumoService;
 use Illuminate\Support\Facades\Gate;
@@ -40,10 +40,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public string $motivoRechazoSalida = '';
     public string $firmaCliente = '';
 
-    // Herramientas de la OT (Phase 11 / D4)
-    public ?int $herramientaAsignarId = null;
-    public ?int $devolviendoHerramientaId = null;
-    public string $estadoDevolucionHerramienta = 'disponible';
+    // Préstamo de herramienta que pide el técnico (Phase 12 / D15)
+    public ?int $herramientaPrestamoId = null;
 
     // Cancelación de OT / tarea (Phase 11 / D8)
     public bool $cancelandoOt = false;
@@ -85,8 +83,10 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             'tareas' => fn ($q) => $q->orderBy('orden')->orderBy('id'),
             'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud', 'tareas.prerrequisitos',
             'evidencias.subidaPor', 'checklist', 'eventos.usuario',
-            'manoObraContratistas.contratista', 'herramientas.inventario',
+            'manoObraContratistas.contratista',
         ]);
+
+        $tecnicoActual = auth()->user()->tecnico;
 
         $comprometido = \App\Models\SolicitudInsumoOt::comprometidas()
             ->selectRaw('inventario_id, SUM(cantidad) total')->groupBy('inventario_id')->pluck('total', 'inventario_id');
@@ -103,8 +103,16 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 ]),
             'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
                 ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id]),
-            'herramientasDisponibles' => Inventario::activos()->where('tipo', 'herramienta')
-                ->where('estado_herramienta', 'disponible')->orderBy('nombre')->get(['id', 'nombre', 'codigo']),
+            'tecnicoActual' => $tecnicoActual,
+            'herramientasParaPrestamo' => $tecnicoActual
+                ? Inventario::activos()->where('tipo', 'herramienta')->where('estado_herramienta', 'disponible')
+                    ->orderBy('nombre')->get(['id', 'nombre', 'codigo'])
+                : collect(),
+            'misPrestamos' => $tecnicoActual
+                ? PrestamoHerramienta::where('tecnico_id', $tecnicoActual->id)
+                    ->whereIn('estado', ['solicitada', 'entregada'])
+                    ->with('inventario:id,nombre')->latest('id')->get()
+                : collect(),
             'puedeGestionar' => Gate::allows('update', $this->ot),
             'puedeEjecutar' => Gate::allows('executeTareas', $this->ot),
             'puedeAprobarSalida' => Gate::allows('approveEquipmentExit', $this->ot),
@@ -349,43 +357,33 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->notifySuccess('Entrega confirmada. OT '.$this->ot->numero_ot.' entregada.');
     }
 
-    // --- Herramientas de la OT (Phase 11 / D4) ---
+    // --- Préstamo de herramienta que pide el técnico (Phase 12 / D15) ---
 
-    public function asignarHerramienta(OtHerramientaService $svc): void
+    public function solicitarPrestamo(PrestamoHerramientaService $svc): void
     {
-        Gate::authorize('update', $this->ot);
-        $this->validate(['herramientaAsignarId' => 'required|exists:inventario,id'], [], ['herramientaAsignarId' => 'herramienta']);
+        Gate::authorize('view', $this->ot);
+        $tecnico = auth()->user()->tecnico;
+
+        if (! $tecnico) {
+            $this->notifyError('Solo un técnico puede pedir herramientas en préstamo.');
+
+            return;
+        }
+
+        $this->validate(['herramientaPrestamoId' => 'required|exists:inventario,id'], [], ['herramientaPrestamoId' => 'herramienta']);
+
+        $tareaPropia = $this->ot->tareas()->where('tecnico_id', $tecnico->id)->first();
 
         try {
-            $svc->asignar($this->ot, Inventario::findOrFail($this->herramientaAsignarId), auth()->user());
+            $svc->solicitar($tecnico, Inventario::findOrFail($this->herramientaPrestamoId), $tareaPropia);
         } catch (ValidationException $e) {
             $this->notifyError($e->getMessage());
 
             return;
         }
 
-        $this->herramientaAsignarId = null;
-        $this->ot->refresh();
-        $this->notifySuccess('Herramienta asignada a la OT.');
-    }
-
-    public function devolverHerramienta(OtHerramientaService $svc): void
-    {
-        Gate::authorize('update', $this->ot);
-        $asignacion = OtHerramienta::where('ot_id', $this->ot->id)->findOrFail($this->devolviendoHerramientaId);
-
-        try {
-            $svc->devolver($asignacion, auth()->user(), $this->estadoDevolucionHerramienta);
-        } catch (ValidationException $e) {
-            $this->notifyError($e->getMessage());
-
-            return;
-        }
-
-        $this->devolviendoHerramientaId = null;
-        $this->estadoDevolucionHerramienta = 'disponible';
-        $this->ot->refresh();
-        $this->notifySuccess('Herramienta devuelta al inventario.');
+        $this->herramientaPrestamoId = null;
+        $this->notifySuccess('Préstamo solicitado. Bodega debe entregarte la herramienta.');
     }
 
     // --- US4: correcciones ---
@@ -1060,49 +1058,31 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 </div>
             </div>
 
-            {{-- Herramientas asignadas (Phase 11 / D4) --}}
-            @if ($puedeGestionar || $ot->herramientas->isNotEmpty())
+            {{-- Herramientas en préstamo del técnico (Phase 12 / D15) --}}
+            @if ($tecnicoActual)
                 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3 text-sm">
-                    <h2 class="font-bold text-sm">Herramientas asignadas</h2>
-                    @forelse ($ot->herramientas as $h)
-                        <div wire:key="hrr-{{ $h->id }}" class="flex flex-col gap-1.5 border-b border-slate-50 dark:border-slate-800/60 pb-2 last:border-0">
-                            <div class="flex items-center justify-between gap-2">
-                                <span>{{ $h->inventario?->nombre }}</span>
-                                @if ($h->estaDevuelta())
-                                    <span class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">devuelta · {{ str($h->estado_devolucion)->replace('_', ' ') }}</span>
-                                @else
-                                    <span class="text-[11px] font-semibold text-amber-600 dark:text-amber-400">en uso</span>
-                                @endif
-                            </div>
-                            @if (! $h->estaDevuelta() && $puedeGestionar)
-                                @if ($devolviendoHerramientaId === $h->id)
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <select wire:model="estadoDevolucionHerramienta" class="h-8 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xs px-2">
-                                            <option value="disponible">Disponible</option>
-                                            <option value="dañada">Dañada</option>
-                                            <option value="en_mantenimiento">En mantenimiento</option>
-                                        </select>
-                                        <button wire:click="devolverHerramienta" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar devolución</button>
-                                        <button wire:click="$set('devolviendoHerramientaId', null)" class="text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">Cancelar</button>
-                                    </div>
-                                @else
-                                    <button wire:click="$set('devolviendoHerramientaId', {{ $h->id }})" class="self-start text-[11px] font-semibold text-brand-blue hover:underline">Devolver</button>
-                                @endif
-                            @endif
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-bold text-sm">Mis herramientas en préstamo</h2>
+                        <a href="{{ route('prestamos-herramienta') }}" wire:navigate class="text-[11px] font-semibold text-brand-blue hover:underline">Ver todo →</a>
+                    </div>
+                    @forelse ($misPrestamos as $p)
+                        <div wire:key="prh-{{ $p->id }}" class="flex items-center justify-between gap-2 border-b border-slate-50 dark:border-slate-800/60 pb-2 last:border-0">
+                            <span>{{ $p->inventario?->nombre }}</span>
+                            <span class="text-[11px] font-semibold {{ $p->estado === 'entregada' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400' }}">
+                                {{ $p->estado === 'entregada' ? 'en tu poder' : 'solicitada' }} · {{ $p->solicitada_en?->format('d/m/Y') }}
+                            </span>
                         </div>
                     @empty
-                        <p class="text-xs text-slate-400">Sin herramientas asignadas.</p>
+                        <p class="text-xs text-slate-400">No tienes herramientas en préstamo.</p>
                     @endforelse
 
-                    @if ($puedeGestionar && ! $ot->estaBloqueada())
-                        <div class="flex flex-wrap items-center gap-2 pt-1">
-                            <x-select wire:model="herramientaAsignarId" :reset-key="'hrr-'.$ot->herramientas->count()" class="flex-1 min-w-[10rem]">
-                                @foreach ($herramientasDisponibles as $hd)<option value="{{ $hd->id }}">{{ $hd->nombre }} ({{ $hd->codigo }})</option>@endforeach
-                            </x-select>
-                            <button wire:click="asignarHerramienta" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Asignar</button>
-                        </div>
-                        @error('herramientaAsignarId') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
-                    @endif
+                    <div class="flex flex-wrap items-center gap-2 pt-1">
+                        <x-select wire:model="herramientaPrestamoId" :reset-key="'prh-'.$misPrestamos->count()" class="flex-1 min-w-[10rem]">
+                            @foreach ($herramientasParaPrestamo as $hd)<option value="{{ $hd->id }}">{{ $hd->nombre }} ({{ $hd->codigo }})</option>@endforeach
+                        </x-select>
+                        <button wire:click="solicitarPrestamo" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Solicitar</button>
+                    </div>
+                    @error('herramientaPrestamoId') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                 </div>
             @endif
 

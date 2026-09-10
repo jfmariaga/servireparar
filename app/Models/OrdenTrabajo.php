@@ -124,17 +124,10 @@ class OrdenTrabajo extends Model
         return $this->hasMany(SolicitudInsumoOt::class, 'ot_id');
     }
 
-    public function herramientas(): HasMany
+    /** Préstamos de herramienta que usan esta OT como contexto (Phase 12 / D15). */
+    public function prestamosHerramienta(): HasMany
     {
-        return $this->hasMany(OtHerramienta::class, 'ot_id');
-    }
-
-    /** ¿Hay herramientas asignadas a la OT que aún no se han devuelto? (Phase 11 / D4) */
-    public function tieneHerramientasSinDevolver(): bool
-    {
-        $rel = $this->relationLoaded('herramientas') ? $this->herramientas : $this->herramientas();
-
-        return $rel->whereNull('devuelta_en')->count() > 0;
+        return $this->hasMany(PrestamoHerramienta::class, 'ot_id');
     }
 
     /**

@@ -393,19 +393,19 @@ reconvertida a `PrestamoHerramienta`.
 - [x] T121 `inventario/solicitudes-ot.blade.php`: columna "Entregar a" (solo lectura, con fallback al técnico de la tarea)
 - [x] T122 [P] `InsumoAlTecnicoTest` (4): la solicitud lleva el técnico de su tarea; cambia al reasignar antes de entregar; no cambia tras `entregada`; el movimiento nombra al técnico. Suite: 98 tests OT
 
-### Fase 12.5 — Herramientas: préstamo por técnico (D15, D16 · H29)
-- [ ] T123 Migración: reconvertir `ot_herramientas` (`tecnico_id` NOT NULL, `estado`, `solicitada_en`, `entregada_por`, `recibida_por`, `motivo_rechazo`, `detalle_ot_id` nullable, `ot_id` nullable) + `movimientos_inventario.origen` += `'prestamo'` + migración de datos
-- [ ] T124 Modelo `PrestamoHerramienta` (tabla reutilizada); scopes `pendientesDe(Tecnico)`, `sinDevolver()`, `enColaDeBodega()`
-- [ ] T125 `OtHerramientaService` → `PrestamoHerramientaService`: `solicitar()` / `entregar()` / `rechazar()` / `registrarDevolucion()` (movimientos `origen='prestamo'`)
-- [ ] T126 Quitar del detalle de la OT la sección "Herramientas asignadas" y sus métodos/props
-- [ ] T127 Quitar las guardas de herramienta de `SalidaEquipoService` (solicitar/confirmar) y de `OrdenTrabajoService::cancelarOt`
-- [ ] T128 Vista del Técnico: "Solicitar herramienta" + lista "Mis herramientas en préstamo"
-- [ ] T129 Vista de Bodega: cola de préstamos (`solicitada` → Entregar/Rechazar; `entregada` → Registrar devolución); permiso `attend-ot-insumo` o `attend-prestamo`
-- [ ] T130 Panel "Herramientas por técnico" (Bodega/Jefe/Admin, solo lectura)
-- [ ] T131 `CosteoOtService`: verificar que no quede referencia a `ot->herramientas`
-- [ ] T132 Notificaciones: `PrestamoSolicitado` → Almacén; `PrestamoEntregado`/`PrestamoRechazado` → técnico solicitante
-- [ ] T133 `nav-items.blade.php`: badge "Préstamos por atender (N)" (Almacenista); no tocar los badges existentes
-- [ ] T134 [P] Tests: técnico solicita; almacenista entrega (`en_uso`, movimiento `prestamo`); rechazo con motivo; devolución la registra el almacenista; la OT cierra con préstamos pendientes; el Jefe no ve acciones de herramienta
+### Fase 12.5 — Herramientas: préstamo por técnico (D15, D16 · H29) — ✅ 2026-09-10
+- [x] T123 Migraciones `add_prestamo_to_movimientos_inventario_origen` + `reconvert_ot_herramientas_a_prestamos`: `tecnico_id` NOT NULL, `detalle_ot_id`/`ot_id` nullable (`nullOnDelete`), `estado` enum(solicitada/entregada/rechazada/devuelta), `solicitada_en`, `entregada_por`, `recibida_por`, `motivo_rechazo`; se quitan `asignada_por`/`asignada_en`; backfill de filas Phase 11 (técnico = técnico de la 1.ª tarea, estado según `devuelta_en`)
+- [x] T124 Modelo `PrestamoHerramienta` (tabla `ot_herramientas`) + `PrestamoHerramientaFactory`; scopes `pendientesDe(int)`, `sinDevolver()`, `enColaDeBodega()`. `OrdenTrabajo::herramientas()`/`tieneHerramientasSinDevolver()` → `prestamosHerramienta()`
+- [x] T125 `PrestamoHerramientaService` (reemplaza `OtHerramientaService`): `solicitar(Tecnico, Inventario, ?DetalleOt)` / `entregar()` (movimiento `origen='prestamo'`, herramienta `en_uso`) / `rechazar()` / `registrarDevolucion()` (lo hace el Almacenista)
+- [x] T126 `detalle`: fuera la sección "Herramientas asignadas", `asignarHerramienta`/`devolverHerramienta`, `herramientasDisponibles` y props
+- [x] T127 Fuera la guarda `tieneHerramientasSinDevolver` de `SalidaEquipoService::solicitar()` y el bloque de herramientas de `OrdenTrabajoService::cancelarOt()`
+- [x] T128 `detalle`: tarjeta del técnico "Mis herramientas en préstamo" + "Solicitar" (herramientas disponibles); la tarea propia de la OT queda como contexto
+- [x] T129 Volt `inventario/prestamos-herramienta` (ruta `prestamos-herramienta`): cola `solicitada` → Entregar/Rechazar, `entregada` → Registrar devolución; gate `attend-ot-insumo`; vista de solo-lectura de sus propios préstamos para el técnico
+- [x] T130 Panel "Herramientas por técnico (sin devolver)" en esa misma pantalla (oculto en la vista de técnico)
+- [x] T131 `CosteoOtService`: sin referencias a herramientas (verificado)
+- [x] T132 `NotificadorOt::prestamoSolicitado()` → Almacenistas; `prestamoResuelto()` → técnico solicitante (entregado/rechazado)
+- [x] T133 `nav-items`: ítem + badge "Préstamos de herramienta (N)" para `attend-ot-insumo`; badges existentes intactos
+- [x] T134 [P] `PrestamoHerramientaTest` (7) + `GuardiasFlujoTest` actualizado: técnico solicita; almacenista entrega (`en_uso`, movimiento `prestamo`); no disponible bloquea; rechazo con motivo + aviso; devolución la registra el almacenista; la OT finaliza/entrega/cancela con préstamos vivos. Suite: 222 tests
 
 ### Fase 12.6 — Regresión y cierre
 - [ ] T135 `php artisan test` completo en verde; actualizar contador en README

@@ -5,6 +5,7 @@ namespace App\Services\Notificaciones;
 use App\Enums\RolPrioridad;
 use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
+use App\Models\PrestamoHerramienta;
 use App\Models\SolicitudInsumoOt;
 use App\Models\User;
 use App\Notifications\OtNotificacion;
@@ -127,6 +128,33 @@ class NotificadorOt
             "La OT {$ot->numero_ot} — {$ot->cliente?->nombre} ".($vencida ? 'pasó su tiempo estimado.' : 'está por alcanzar su tiempo estimado.'),
             $this->url($ot),
             'alerta',
+        ));
+    }
+
+    /** Un técnico pidió una herramienta en préstamo (Phase 12 / D16). */
+    public function prestamoSolicitado(PrestamoHerramienta $p): void
+    {
+        $p->loadMissing('inventario', 'tecnico.usuario');
+
+        $this->aRoles([RolPrioridad::Almacenista->value], new OtNotificacion(
+            'Préstamo de herramienta por atender',
+            "{$p->tecnico?->usuario?->name} pidió «{$p->inventario?->nombre}» en préstamo.",
+            route('prestamos-herramienta'),
+        ));
+    }
+
+    /** Bodega resolvió el préstamo: avisa al técnico solicitante (Phase 12 / D16). */
+    public function prestamoResuelto(PrestamoHerramienta $p, bool $entregado): void
+    {
+        $p->loadMissing('inventario', 'tecnico.usuario');
+
+        $p->tecnico?->usuario?->notify(new OtNotificacion(
+            $entregado ? 'Herramienta entregada' : 'Préstamo de herramienta rechazado',
+            $entregado
+                ? "Bodega te entregó «{$p->inventario?->nombre}» en préstamo."
+                : "Bodega rechazó tu préstamo de «{$p->inventario?->nombre}»: {$p->motivo_rechazo}",
+            route('prestamos-herramienta'),
+            $entregado ? 'info' : 'alerta',
         ));
     }
 
