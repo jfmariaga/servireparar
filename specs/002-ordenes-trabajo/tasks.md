@@ -439,3 +439,21 @@ Rama `feature/ot-phase-13`. **234 tests en verde**.
 Migraciones: `add_dias_cumplimiento_to_detalle_ot`, `add_direccion_servicio_to_ordenes_trabajo`.
 Tests nuevos: `PlazoTareaTest` (9), `VistaTecnicoTest` (4). `FlujoOtDemoSeeder` actualizado
 con plazos y direcciones de domicilio.
+
+### Phase 13 (cont.) — Revisión del flujo por perfiles (2026-09-10)
+
+- **D21 · Insumo pendiente bloquea *iniciar*, no *finalizar*.** Sustituye a D3 (Phase 11).
+  Una tarea con alguna `solicitud_insumo_ot` que NO esté `entregada` (es decir `pendiente`
+  o `rechazada`) **no se puede iniciar**. Bodega entrega (o el Jefe quita/cancela la línea)
+  y entonces el técnico inicia y finaliza normal. **Se elimina** el paso "lista para
+  finalizar / el Jefe confirma", el estado intermedio, `DetalleOt::finalizacionPendiente()`,
+  `OrdenTrabajoService::confirmarFinalizacionTarea()` y el componente `confirmarFinalizacionJefe`.
+  `marcarTareaListaParaFinalizar()` → `finalizarTareaOperario()`. Nuevos helpers
+  `DetalleOt::insumosSinEntregar()` / `bloqueadaPorInsumos()` / `puedeIniciarse()`.
+  Guarda en `detalle→iniciarTarea()`; botón "Iniciar" deshabilitado con motivo; el dashboard
+  del técnico marca esas tareas "Esperando insumos". La columna `detalle_ot.finalizacion_solicitada_en`
+  queda sin uso (no se dropea).
+- **Almacenista: detalle de OT en solo lectura.** `OrdenTrabajoPolicy::viewAny`/`view` aceptan
+  `attend-ot-insumo`; el detalle muestra "Vista de solo lectura" y ninguna acción (todas las
+  gates ya devolvían false). Arregla el enlace roto desde `/inventario/insumos-ot`.
+- `subirEvidencia()` (evidencia a nivel OT) pasa a exigir `update` (Jefe/Admin), no `view`.

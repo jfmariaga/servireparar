@@ -18,12 +18,14 @@ class OrdenTrabajoPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->canAny(['manage-ot', 'execute-ot']);
+        return $user->canAny(['manage-ot', 'execute-ot', 'attend-ot-insumo']);
     }
 
     public function view(User $user, OrdenTrabajo $ot): bool
     {
-        if ($user->can('manage-ot')) {
+        // Gestión (Admin/Jefe) y Bodega (solo lectura, para dar contexto a lo que
+        // entrega desde la cola de insumos/préstamos — Phase 13).
+        if ($user->canAny(['manage-ot', 'attend-ot-insumo'])) {
             return true;
         }
 

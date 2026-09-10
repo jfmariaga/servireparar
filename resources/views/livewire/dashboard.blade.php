@@ -17,7 +17,7 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
         $tareas = DetalleOt::query()
             ->where('tecnico_id', $tecnico->id)
             ->whereIn('estado_tarea', ['pendiente', 'en_curso'])
-            ->with(['ordenTrabajo:id,numero_ot,cliente_id,estado_id', 'ordenTrabajo.cliente:id,nombre', 'ordenTrabajo.estado:id,slug,nombre', 'ordenTrabajo.eventos', 'prerrequisitos'])
+            ->with(['ordenTrabajo:id,numero_ot,cliente_id,estado_id', 'ordenTrabajo.cliente:id,nombre', 'ordenTrabajo.estado:id,slug,nombre', 'ordenTrabajo.eventos', 'prerrequisitos', 'solicitudesInsumo'])
             ->orderBy('orden')->orderBy('id')
             ->get()
             // Solo tareas de OT ya liberadas o en ejecución (no en "Planificación").
@@ -90,7 +90,8 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
                 @forelse ($lista as $t)
                     @php
                         $limite = $t->fechaLimitePlazo();
-                        $bloqueada = $t->estado_tarea === 'pendiente' && $t->prerrequisitosPendientes()->isNotEmpty();
+                        $bloqueadaPrereq = $t->estado_tarea === 'pendiente' && $t->prerrequisitosPendientes()->isNotEmpty();
+                        $bloqueadaInsumo = $t->bloqueadaPorInsumos();
                     @endphp
                     <a href="{{ route('ordenes-trabajo.detalle', $t->ot_id) }}" wire:navigate wire:key="dash-t-{{ $t->id }}"
                        class="grid sm:grid-cols-[7rem_1fr_auto] gap-2 sm:gap-4 items-start text-sm border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 hover:ring-2 hover:ring-brand-blue/20">
@@ -106,7 +107,9 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
                             @if ($t->estaAtrasada())
                                 <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-red-100 text-brand-red dark:bg-red-900/30">Atrasada</span>
                             @endif
-                            @if ($bloqueada)
+                            @if ($bloqueadaInsumo)
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Esperando insumos</span>
+                            @elseif ($bloqueadaPrereq)
                                 <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800">Bloqueada</span>
                             @endif
                             <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold

@@ -273,13 +273,13 @@ class OrdenTrabajoService
     }
 
     /**
-     * El técnico marca la tarea lista para finalizar (D3). Los días trabajados
-     * los calcula el sistema desde la fecha de inicio (Phase 13); si se pasa un
-     * valor explícito (tests / correcciones), se respeta. Si todos sus insumos ya
-     * fueron entregados por Bodega, se finaliza directo; si no, queda a la espera
-     * de la confirmación del Jefe de Taller.
+     * El técnico finaliza su tarea. Los días trabajados los calcula el sistema
+     * desde la fecha de inicio (Phase 13); un valor explícito (tests /
+     * correcciones) se respeta. Requiere una imagen de evidencia. Una tarea con
+     * insumos sin entregar no se puede iniciar (Phase 13 / D21), así que al
+     * llegar aquí ya están todos entregados; no hay confirmación del Jefe.
      */
-    public function marcarTareaListaParaFinalizar(DetalleOt $tarea, User $actor, ?float $diasTrabajados = null): DetalleOt
+    public function finalizarTareaOperario(DetalleOt $tarea, User $actor, ?float $diasTrabajados = null): DetalleOt
     {
         if ($tarea->estado_tarea !== 'en_curso') {
             throw ValidationException::withMessages(['tarea' => 'La tarea debe estar en curso para finalizarla.']);
@@ -289,35 +289,7 @@ class OrdenTrabajoService
             throw ValidationException::withMessages(['tarea' => 'Sube una imagen de evidencia de la tarea antes de finalizarla.']);
         }
 
-        $diasTrabajados ??= $this->diasTrabajadosAuto($tarea);
-
-        return DB::transaction(function () use ($tarea, $actor, $diasTrabajados) {
-            if ($tarea->insumosPendientesDeEntrega()) {
-                $tarea->update([
-                    'dias_trabajados' => $diasTrabajados,
-                    'finalizacion_solicitada_en' => now(),
-                ]);
-                $tarea->ordenTrabajo?->registrarEvento(
-                    'correccion',
-                    sprintf('Tarea «%s» marcada lista para finalizar; espera confirmación del Jefe (insumos sin entregar).', str($tarea->descripcion)->limit(40)),
-                    $actor,
-                );
-
-                return $tarea->fresh();
-            }
-
-            return $this->finalizarTarea($tarea, $actor, $diasTrabajados);
-        });
-    }
-
-    /** El Jefe de Taller confirma la finalización de una tarea retenida por insumos sin entregar (D3). */
-    public function confirmarFinalizacionTarea(DetalleOt $tarea, User $actor): DetalleOt
-    {
-        if (! $tarea->finalizacionPendiente()) {
-            throw ValidationException::withMessages(['tarea' => 'Esta tarea no está a la espera de confirmación.']);
-        }
-
-        return $this->finalizarTarea($tarea, $actor, (float) $tarea->dias_trabajados, confirmadaPorJefe: true);
+        return $this->finalizarTarea($tarea, $actor, $diasTrabajados ?? $this->diasTrabajadosAuto($tarea));
     }
 
     /**
@@ -331,23 +303,14 @@ class OrdenTrabajoService
         return (float) max(1, $inicio->diffInDays(now()->startOfDay()) + 1);
     }
 
-    private function finalizarTarea(DetalleOt $tarea, User $actor, float $dias, bool $confirmadaPorJefe = false): DetalleOt
+    private function finalizarTarea(DetalleOt $tarea, User $actor, float $dias): DetalleOt
     {
-        return DB::transaction(function () use ($tarea, $actor, $dias, $confirmadaPorJefe) {
+        return DB::transaction(function () use ($tarea, $actor, $dias) {
             $tarea->update([
                 'estado_tarea' => 'finalizada',
                 'fecha_fin' => now(),
                 'dias_trabajados' => $dias,
-                'finalizacion_solicitada_en' => null,
             ]);
-
-            if ($confirmadaPorJefe) {
-                $tarea->ordenTrabajo?->registrarEvento(
-                    'correccion',
-                    sprintf('El Jefe de Taller confirmó la finalización de la tarea «%s».', str($tarea->descripcion)->limit(40)),
-                    $actor,
-                );
-            }
 
             $this->estados->recalcular($tarea->ordenTrabajo->fresh(), $actor);
 
@@ -380,7 +343,7 @@ class OrdenTrabajoService
             $this->liberarInsumosPendientes($tarea, $actor);
             $this->liberarDependientes($tarea, $actor);
 
-            $tarea->update(['estado_tarea' => 'cancelada', 'finalizacion_solicitada_en' => null]);
+            $tarea->update(['estado_tarea' => 'cancelada']);
             $ot->registrarEvento('correccion', sprintf('Tarea «%s» cancelada. Motivo: %s', str($tarea->descripcion)->limit(40), $motivo), $actor);
             $this->estados->recalcular($ot->fresh(), $actor);
 

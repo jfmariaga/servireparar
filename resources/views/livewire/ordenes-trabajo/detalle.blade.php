@@ -83,7 +83,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->ot->load([
             'cliente', 'equipo', 'prioridad', 'estado', 'creadoPor',
             'tareas' => fn ($q) => $q->orderBy('orden')->orderBy('id'),
-            'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud', 'tareas.prerrequisitos', 'tareas.evidencias',
+            'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud', 'tareas.solicitudesInsumo', 'tareas.prerrequisitos', 'tareas.evidencias',
             'evidencias.subidaPor', 'checklist', 'eventos.usuario',
             'manoObraContratistas.contratista',
         ]);
@@ -116,7 +116,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     ->with('inventario:id,nombre')->latest('id')->get()
                 : collect(),
             'puedeGestionar' => $puedeGestionar = Gate::allows('update', $this->ot),
-            'puedeEjecutar' => Gate::allows('executeTareas', $this->ot),
+            'puedeEjecutar' => $puedeEjecutar = Gate::allows('executeTareas', $this->ot),
             'puedeAprobarSalida' => Gate::allows('approveEquipmentExit', $this->ot),
             'puedeSolicitarSalida' => Gate::allows('requestEquipmentExit', $this->ot),
             'puedeVerCosteo' => $puedeVerCosteo = Gate::allows('viewCosteo', $this->ot),
@@ -124,6 +124,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             // Vista reducida del técnico (Phase 13 / D19): solo sus tareas, sin
             // checklist, sin trazabilidad, sin enlaces a Bodega/herramientas.
             'vistaTecnico' => $tecnicoActual && ! $puedeGestionar && ! $puedeVerCosteo,
+            // El Almacenista entra en solo lectura (Phase 13): sin ninguna acción.
+            'soloLectura' => ! $puedeGestionar && ! $puedeEjecutar && ! $tecnicoActual && ! $puedeVerCosteo,
         ];
     }
 
@@ -155,7 +157,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     {
         Gate::authorize('executeTareas', $this->ot);
 
-        $tarea = $this->ot->tareas()->with('prerrequisitos')->find($tareaId);
+        $tarea = $this->ot->tareas()->with('prerrequisitos', 'solicitudesInsumo')->find($tareaId);
         $pendientes = $tarea?->prerrequisitosPendientes() ?? collect();
 
         if ($pendientes->isNotEmpty()) {
@@ -164,6 +166,12 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 str($tarea->descripcion)->limit(40),
                 $pendientes->map(fn ($t) => '«'.str($t->descripcion)->limit(30).'»')->implode(', '),
             ));
+
+            return;
+        }
+
+        if ($tarea?->insumosSinEntregar()) {
+            $this->notifyError('Bodega debe entregar los insumos de esta tarea antes de poder iniciarla.');
 
             return;
         }
@@ -201,7 +209,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         }
 
         try {
-            $tarea = $servicio->marcarTareaListaParaFinalizar($tarea, auth()->user());
+            $servicio->finalizarTareaOperario($tarea, auth()->user());
         } catch (ValidationException $e) {
             $this->notifyError($e->getMessage());
 
@@ -209,9 +217,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         }
 
         $this->ot->refresh();
-        $this->notifySuccess($tarea->finalizacionPendiente()
-            ? 'Tarea marcada lista para finalizar. Falta la confirmación del Jefe (insumos sin entregar).'
-            : 'Tarea finalizada.');
+        $this->notifySuccess('Tarea finalizada.');
     }
 
     /** Sube una imagen de evidencia asociada a una tarea (obligatoria para finalizarla). */
@@ -241,26 +247,9 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->notifySuccess('Evidencia de la tarea cargada.');
     }
 
-    public function confirmarFinalizacionJefe(int $tareaId, OrdenTrabajoService $servicio): void
-    {
-        Gate::authorize('update', $this->ot);
-        $tarea = $this->ot->tareas()->findOrFail($tareaId);
-
-        try {
-            $servicio->confirmarFinalizacionTarea($tarea, auth()->user());
-        } catch (ValidationException $e) {
-            $this->notifyError($e->getMessage());
-
-            return;
-        }
-
-        $this->ot->refresh();
-        $this->notifySuccess('Finalización de la tarea confirmada.');
-    }
-
     public function subirEvidencia(): void
     {
-        Gate::authorize('view', $this->ot);
+        Gate::authorize('update', $this->ot);
 
         if ($this->ot->estaBloqueada()) {
             $this->notifyError('La OT está bloqueada (salida aprobada o entregada): no admite más cambios.');
@@ -650,6 +639,10 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         <div class="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-sm rounded-lg px-4 py-2.5">{{ session('ok') }}</div>
     @endif
 
+    @if ($soloLectura)
+        <div class="bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 text-sm rounded-lg px-4 py-2.5">Vista de solo lectura.</div>
+    @endif
+
     @if ($ot->estaBloqueada() && $ot->estado?->slug !== 'entregada')
         <div class="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm rounded-lg px-4 py-2.5">
             OT congelada: la salida del equipo fue aprobada. No admite más cambios; solo queda confirmar la entrega al cliente.
@@ -828,6 +821,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                         @php
                             $prereqPend = $tarea->prerrequisitosPendientes();
                             $bloqueadaPrereq = $tarea->estado_tarea === 'pendiente' && $prereqPend->isNotEmpty();
+                            $bloqueadaInsumo = $tarea->bloqueadaPorInsumos();
                         @endphp
                         <div wire:key="tarea-{{ $tarea->id }}" class="border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col gap-2 text-sm {{ $editandoTareaId === $tarea->id ? 'ring-2 ring-brand-blue/40' : '' }}">
                             <div class="flex items-start justify-between gap-2">
@@ -853,8 +847,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                     {{ $tarea->prerrequisitos->map(fn ($p) => '«'.\Illuminate\Support\Str::limit($p->descripcion, 30).'»')->implode(', ') }}
                                 </p>
                             @endif
-                            @if ($tarea->finalizacionPendiente())
-                                <p class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">Lista para finalizar ({{ $nfmt($tarea->dias_trabajados) }} día(s)) — espera confirmación del Jefe.</p>
+                            @if ($bloqueadaInsumo)
+                                <p class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">No se puede iniciar: Bodega debe entregar los insumos de esta tarea.</p>
                             @endif
                             @foreach ($tarea->insumos as $linea)
                                 @php $sol = $linea->solicitud; @endphp
@@ -874,7 +868,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                             @endforeach
 
                             {{-- Evidencia de la tarea (imagen obligatoria para finalizar, Phase 13) --}}
-                            @php $puedeSubirEvidencia = $puedeEjecutar && $tarea->estado_tarea === 'en_curso' && ! $tarea->finalizacionPendiente(); @endphp
+                            @php $puedeSubirEvidencia = $puedeEjecutar && $tarea->estado_tarea === 'en_curso'; @endphp
                             @if ($tarea->evidencias->isNotEmpty() || $puedeSubirEvidencia)
                                 <div class="flex flex-col gap-1.5 pt-1">
                                     <span class="text-[11px] font-bold uppercase tracking-wide {{ $tarea->tieneEvidenciaImagen() || ! $puedeSubirEvidencia ? 'text-slate-400' : 'text-brand-red' }}">
@@ -917,11 +911,13 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 @if ($puedeEjecutar && $tarea->estado_tarea === 'pendiente')
                                     @if ($bloqueadaPrereq)
                                         <button type="button" disabled title="Finaliza primero: {{ $prereqPend->map(fn ($p) => $p->descripcion)->implode(', ') }}" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-slate-200 text-slate-400 dark:bg-slate-800 cursor-not-allowed">Iniciar</button>
+                                    @elseif ($bloqueadaInsumo)
+                                        <button type="button" disabled title="Bodega debe entregar los insumos de la tarea antes de iniciarla" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-slate-200 text-slate-400 dark:bg-slate-800 cursor-not-allowed">Iniciar</button>
                                     @else
                                         <button wire:click="iniciarTarea({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-blue text-white hover:bg-brand-blue-dark">Iniciar</button>
                                     @endif
                                 @endif
-                                @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso' && ! $tarea->finalizacionPendiente())
+                                @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso')
                                     @if (! $tarea->tieneEvidenciaImagen())
                                         <button type="button" disabled title="Sube una imagen de evidencia antes de finalizar" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-slate-200 text-slate-400 dark:bg-slate-800 cursor-not-allowed">Finalizar</button>
                                     @else
@@ -933,9 +929,6 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                                 }).then((ok) => ok && $wire.finalizarTarea({{ $tarea->id }}))"
                                                 class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Finalizar</button>
                                     @endif
-                                @endif
-                                @if ($puedeGestionar && $tarea->finalizacionPendiente())
-                                    <button wire:click="confirmarFinalizacionJefe({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar finalización</button>
                                 @endif
                                 @if ($puedeGestionar && $tarea->estado_tarea === 'pendiente')
                                     <button wire:click="editarTarea({{ $tarea->id }})" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Editar</button>

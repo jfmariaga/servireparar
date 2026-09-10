@@ -80,24 +80,6 @@ class FlujoEstadoTest extends TestCase
         $this->assertEquals(1, (float) $tarea->fresh()->dias_trabajados); // iniciada y finalizada el mismo día
     }
 
-    public function test_tras_marcar_lista_para_finalizar_no_reaparece_el_boton_finalizar(): void
-    {
-        $ot = $this->crearOt(tareas: 1);
-        $tarea = $ot->tareas()->first();
-        $tarea->update([
-            'estado_tarea' => 'en_curso',
-            'fecha_inicio' => now(),
-            'dias_trabajados' => 2,
-            'finalizacion_solicitada_en' => now(), // lista para finalizar, espera al Jefe
-        ]);
-        $this->adjuntarEvidenciaTarea($tarea->fresh());
-
-        Volt::actingAs($this->jefeDeTaller())
-            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
-            ->assertSee('espera confirmación del Jefe')
-            ->assertDontSee('Sí, finalizar'); // el diálogo del botón "Finalizar" ya no se ofrece
-    }
-
     public function test_no_se_finaliza_una_tarea_sin_imagen_de_evidencia(): void
     {
         $ot = $this->crearOt(tareas: 1);
@@ -105,7 +87,7 @@ class FlujoEstadoTest extends TestCase
         $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
 
         try {
-            app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller());
+            app(OrdenTrabajoService::class)->finalizarTareaOperario($tarea->fresh(), $this->jefeDeTaller());
             $this->fail('Debía exigir la imagen de evidencia.');
         } catch (ValidationException $e) {
             $this->assertStringContainsString('evidencia', $e->getMessage());
@@ -113,7 +95,7 @@ class FlujoEstadoTest extends TestCase
         $this->assertSame('en_curso', $tarea->fresh()->estado_tarea);
 
         $this->adjuntarEvidenciaTarea($tarea->fresh());
-        app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller());
+        app(OrdenTrabajoService::class)->finalizarTareaOperario($tarea->fresh(), $this->jefeDeTaller());
         $this->assertSame('finalizada', $tarea->fresh()->estado_tarea);
     }
 
@@ -124,7 +106,7 @@ class FlujoEstadoTest extends TestCase
         $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()->subDays(3)]);
         $this->adjuntarEvidenciaTarea($tarea->fresh());
 
-        app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller());
+        app(OrdenTrabajoService::class)->finalizarTareaOperario($tarea->fresh(), $this->jefeDeTaller());
 
         // Inicio hace 3 días, contando el día de inicio → 4 días trabajados.
         $this->assertEquals(4, (float) $tarea->fresh()->dias_trabajados);

@@ -31,7 +31,6 @@ class DetalleOt extends Model
         'estado_tarea',
         'fecha_inicio',
         'fecha_fin',
-        'finalizacion_solicitada_en',
         'dias_trabajados',
     ];
 
@@ -42,7 +41,6 @@ class DetalleOt extends Model
             'dias_cumplimiento' => 'decimal:2',
             'fecha_inicio' => 'datetime',
             'fecha_fin' => 'datetime',
-            'finalizacion_solicitada_en' => 'datetime',
         ];
     }
 
@@ -81,12 +79,6 @@ class DetalleOt extends Model
         $limite = $this->fechaLimitePlazo();
 
         return $limite !== null && $limite->isPast();
-    }
-
-    /** El técnico marcó la tarea lista para finalizar y espera la confirmación del Jefe (D3). */
-    public function finalizacionPendiente(): bool
-    {
-        return $this->finalizacion_solicitada_en !== null && $this->estado_tarea !== 'finalizada';
     }
 
     public function ordenTrabajo(): BelongsTo
@@ -176,17 +168,31 @@ class DetalleOt extends Model
     }
 
     /**
-     * ¿Quedan líneas de insumo sin resolver por Bodega? Cuenta como sin resolver
-     * todo lo que NO esté `entregada` ni `cancelada` (es decir `pendiente` o
-     * `rechazada`). H4/D3: si es así, la finalización de la tarea la confirma el
-     * Jefe de Taller, no el técnico solo.
+     * ¿Quedan insumos de la tarea sin entregar por Bodega? Cuenta como sin
+     * entregar todo lo que NO esté `entregada` ni `cancelada` (es decir
+     * `pendiente` o `rechazada`). Phase 13 / D21: una tarea así NO se puede
+     * iniciar; Bodega debe entregar (o el Jefe quitar/cancelar la línea) primero.
      */
-    public function insumosPendientesDeEntrega(): bool
+    public function insumosSinEntregar(): bool
     {
         $this->loadMissing('solicitudesInsumo');
 
         return $this->solicitudesInsumo
             ->whereNotIn('estado', ['entregada', 'cancelada'])
             ->isNotEmpty();
+    }
+
+    /** ¿La tarea está retenida por insumos que Bodega aún no entrega? (bloquea iniciar) */
+    public function bloqueadaPorInsumos(): bool
+    {
+        return $this->estado_tarea === 'pendiente' && $this->insumosSinEntregar();
+    }
+
+    /** ¿Se puede iniciar la tarea? Sin prerrequisitos pendientes y con los insumos entregados. */
+    public function puedeIniciarse(): bool
+    {
+        return $this->estado_tarea === 'pendiente'
+            && $this->prerrequisitosPendientes()->isEmpty()
+            && ! $this->insumosSinEntregar();
     }
 }
