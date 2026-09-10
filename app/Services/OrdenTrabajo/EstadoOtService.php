@@ -49,11 +49,7 @@ class EstadoOtService
     {
         $ot->loadMissing('tareas', 'checklist');
 
-        $activas = $ot->tareas->where('estado_tarea', '!=', 'cancelada');
-
-        return $activas->isNotEmpty()
-            && $activas->every(fn ($t) => $t->estado_tarea === 'finalizada')
-            && $ot->checklistCompleto();
+        return $ot->tareasActivasFinalizadas() && $ot->checklistCompleto();
     }
 
     /** El Jefe de Taller marca la OT como planificada/lista para ejecutar. */

@@ -50,6 +50,36 @@ documentos operativos reales provistos por el cliente.
   valor día del **sueldo vigente a la fecha de referencia de la OT** (su fecha de cierre, o hoy si sigue
   abierta) — una OT cerrada no se recostea si luego cambia el sueldo del técnico (ver spec 004, FR-011).
 
+### Session 2026-09-10 (ajustes de negocio del flujo — Phase 12)
+
+Detalle de implementación en `docs/PLAN-ENDURECIMIENTO-OT-PHASE-12.md` (decisiones D9–D16).
+
+- Q: ¿Cuándo se puede responder el checklist de cierre? → A: **Solo cuando todas las tareas activas de
+  la OT están finalizadas.** Antes se muestra en solo lectura; nunca se responde parcialmente durante la
+  ejecución (refuerza FR-007).
+- Q: ¿Hay dependencias entre tareas de una misma OT? → A: **Sí.** Una tarea puede depender de una o
+  varias tareas de la misma OT y no puede **iniciarse** hasta que todos sus prerrequisitos estén
+  finalizados. Se define al crear, agregar o editar tareas (orden por arrastrar y soltar + marca de
+  prerrequisito). No se admiten ciclos. Cancelar una tarea libera a sus dependientes de ese vínculo.
+- Q: El paso previo a ejecución se llamaba "Planificar" (En revisión → Pendiente). → A: El estado
+  inicial se llama ahora **"Planificación"** y la acción del Jefe de Taller es **"Liberar OT"**. La OT
+  admite cargar/corregir todo mientras está en Planificación; al **liberar** deja de ser el flujo normal
+  de carga (pero **"Corregir OT"** sigue disponible, FR-009 intacto). Sin cambios en el estado
+  `pendiente` ni en los badges del menú.
+- Q: ¿Cuándo se avisa a técnicos y a Bodega? → A: **Al liberar la OT**, no al crearla. Al liberar se
+  notifica a cada técnico con tarea en la OT y —solo si hay solicitudes de insumo pendientes— al
+  Almacén. Las solicitudes de insumo se crean al guardar la tarea (para reservar stock) pero no
+  notifican hasta la liberación.
+- Q: ¿A quién entrega Bodega el insumo de una tarea? → A: **Al técnico encargado de esa tarea**
+  (`DETALLE_OT.tecnico_id`). El destinatario no lo puede cambiar el Almacenista; queda registrado en la
+  solicitud y en el movimiento de salida.
+- Q: ¿Cómo se gestionan las herramientas? → A: **Fuera del ciclo de la OT.** El **técnico** solicita las
+  herramientas que necesita (la tarea/OT es solo contexto); el vínculo es con el técnico, para saber
+  quién no ha devuelto. El préstamo **no bloquea** finalizar, entregar ni cancelar la OT. El
+  **Almacenista** entrega/rechaza y registra la devolución al recibir la herramienta físicamente. El
+  Jefe de Taller **no interviene** en herramientas. Reemplaza la "asignación de herramientas desde la
+  OT" descrita en el ER original y en FR-003.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Crear una Orden de Trabajo estructurada (Priority: P1)
@@ -211,8 +241,10 @@ que el sistema calcula correctamente costo total y utilidad neta (valor cliente 
   (taller/domicilio), descripción, prioridad y tiempo estimado.
 - **FR-002**: El sistema DEBE exigir al menos una tarea con un técnico responsable asignado como condición
   para crear la OT.
-- **FR-003**: El sistema DEBE permitir asociar insumos (herramientas/consumibles) a cada tarea, generando
-  automáticamente una solicitud hacia el módulo de Inventario.
+- **FR-003**: El sistema DEBE permitir asociar insumos **consumibles** a cada tarea, generando
+  automáticamente una solicitud hacia el módulo de Inventario. Las **herramientas** NO se asocian a la
+  tarea: las solicita el técnico por separado (ver FR-021). La solicitud de insumo se surte **al técnico
+  encargado de la tarea**; el Almacenista no puede cambiar ese destinatario (Session 2026-09-10).
 - **FR-004**: El sistema DEBE transicionar automáticamente el estado de la OT (`ESTADOS_OT`: en revisión,
   pendiente, en curso, finalizada, entregada) en función del avance agregado de sus tareas, sin permitir
   edición manual directa del campo estado salvo corrección administrativa auditada.
@@ -221,7 +253,9 @@ que el sistema calcula correctamente costo total y utilidad neta (valor cliente 
 - **FR-006**: El sistema DEBE permitir cargar evidencias (imágenes/documentos) asociadas a una OT en
   cualquier etapa del proceso.
 - **FR-007**: El sistema DEBE exigir la validación de un checklist de cierre (`CHECKLIST_OT`) antes de
-  permitir marcar una OT como Finalizada.
+  permitir marcar una OT como Finalizada. El checklist se muestra desde el inicio pero **solo se puede
+  responder cuando todas las tareas activas de la OT están finalizadas** (Session 2026-09-10); antes de
+  eso permanece en solo lectura.
 - **FR-008**: El sistema DEBE implementar el flujo de entrega: solicitud de salida del equipo → aprobación
   administrativa → confirmación de entrega, transicionando la OT a "Entregada" solo tras confirmación.
 - **FR-009**: El sistema DEBE permitir al Administrador y al Jefe de Taller corregir una OT en curso
@@ -250,6 +284,24 @@ que el sistema calcula correctamente costo total y utilidad neta (valor cliente 
 - **FR-017**: El sistema DEBE registrar el estado de ingreso del equipo (marca, modelo, serie, estado) y el
   registro fotográfico de entrada al recibir el equipo, y el registro fotográfico de salida al confirmar la
   entrega — consistente con el proceso real de recepción/cierre documentado por el cliente.
+- **FR-018**: El sistema DEBE permitir definir, entre las tareas de una misma OT, que una tarea es
+  prerrequisito de otra (una tarea puede tener uno o varios prerrequisitos). El sistema DEBE impedir
+  **iniciar** una tarea mientras alguno de sus prerrequisitos no esté finalizado, DEBE rechazar
+  configuraciones con dependencias circulares, y al cancelar una tarea DEBE liberar a sus dependientes
+  de ese prerrequisito.
+- **FR-019**: El sistema DEBE mostrar la trazabilidad de la OT (`OT_EVENTOS`) en orden cronológico
+  ascendente (el evento de creación primero).
+- **FR-020**: El estado inicial de la OT se denomina "Planificación". El sistema DEBE ofrecer al Jefe de
+  Taller la acción **"Liberar OT"** que la pasa a "Pendiente". Al liberar, el sistema DEBE notificar a
+  cada técnico con tarea en la OT y, **solo si existen solicitudes de insumo pendientes**, al
+  Almacenista. Antes de liberar no se envía ninguna de esas notificaciones. Liberar la OT NO impide
+  corregirla después (FR-009).
+- **FR-021**: La entrega de herramientas de inventario a los técnicos se gestiona como un **préstamo
+  solicitado por el técnico**, independiente del ciclo de vida de la OT: el técnico solicita, el
+  Almacenista entrega o rechaza, y el Almacenista registra la devolución (con estado: disponible,
+  dañada, en mantenimiento) al recibir la herramienta. Un préstamo sin devolver NO bloquea finalizar,
+  entregar ni cancelar ninguna OT; el sistema DEBE poder listar qué técnico tiene qué herramienta sin
+  devolver.
 
 ### Key Entities
 

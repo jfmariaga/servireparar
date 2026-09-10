@@ -342,3 +342,72 @@ confirmación del Jefe (antes solo lo hacía un insumo `pendiente`). Suite: 198 
 Despliegue: basta `php artisan migrate --force` (migraciones de datos idempotentes crean el estado
 `cancelada` y el permiso `attend-ot-insumo` + limpian el caché de permisos). Ver
 `docs/DESPLIEGUE-PHASE-11.md`. Falta `git push origin main`.
+
+---
+
+## Phase 12: Ajustes de negocio del flujo (2026-09-10)
+
+Seis ajustes pedidos por el cliente tras revisar Phase 11. Trazabilidad completa, decisiones (D9–D16),
+hallazgos (H24–H29) y protocolo de pruebas (bloques L–P) en
+[`docs/PLAN-ENDURECIMIENTO-OT-PHASE-12.md`](../../docs/PLAN-ENDURECIMIENTO-OT-PHASE-12.md).
+
+Decisiones del cliente: D9 checklist solo se habilita cuando todas las tareas están finalizadas ·
+D10 prerrequisitos entre tareas (una o varias; se define al crear/agregar/editar; drag & drop; cancelar
+libera dependientes) · D11 bitácora en orden cronológico ascendente · D12 "Planificar OT" → "Liberar OT"
+(estado inicial se llama "Planificación"; `pendiente` sin cambios; no se congela; badge del menú intacto) ·
+D13 las notificaciones a técnicos/Bodega se disparan al **liberar**, no al crear (Bodega solo si hay
+insumos `pendiente`) · D14 el insumo se entrega al encargado de la tarea, destinatario no editable ·
+D15 las herramientas salen del ciclo de la OT: préstamo que pide el técnico, no bloquea la OT, la
+devolución la registra el almacenista, el Jefe no interviene · D16 se reutiliza `ot_herramientas`
+reconvertida a `PrestamoHerramienta`.
+
+### Fase 12.1 — Trazabilidad y checklist (H24, H26) — ✅ 2026-09-10
+- [x] T099 `OrdenTrabajo::eventos()` → `oldest('created_at')->oldest('id')` (creación primero, FR-019); la vista de Trazabilidad ya no necesita cambios
+- [x] T100 `detalle.blade.php`: los botones SÍ/NO del checklist solo aparecen si `OrdenTrabajo::tareasActivasFinalizadas()`; antes se ve en solo lectura + aviso "se habilita cuando todas las tareas estén finalizadas". Agregar/quitar ítems sigue disponible para el Jefe
+- [x] T101 Guarda de servidor en `responderChecklist` (componente `detalle`): `notifyError` y corte si `! $this->ot->tareasActivasFinalizadas()`. Nuevo helper `OrdenTrabajo::tareasActivasFinalizadas()` reutilizado por `EstadoOtService::puedeFinalizar()`
+- [x] T102 [P] `TrazabilidadChecklistPhase12Test`: bitácora ascendente; checklist no responde antes de finalizar tareas; sí después; tareas canceladas no bloquean. Suite: 202 tests
+
+### Fase 12.2 — Prerrequisitos entre tareas (D10 · H25)
+- [ ] T103 Migración: `detalle_ot.orden` (int) + pivote `detalle_ot_prerrequisitos` (`detalle_ot_id`, `prerrequisito_id`, unique, FK cascade)
+- [ ] T104 `DetalleOt::prerrequisitos()`/`dependientes()` (belongsToMany self); helper `prerrequisitosPendientes()`
+- [ ] T105 Validación en `crear`/`agregarTarea`/`actualizarTarea`: misma OT, no auto-dependencia, sin ciclos (DFS)
+- [ ] T106 Guarda en `iniciarTarea()`: `ValidationException` si algún prerrequisito no está `finalizada` (canceladas no cuentan)
+- [ ] T107 `cancelarTarea()`/`quitarTarea()`: desvincular como prerrequisito de las dependientes; evento `correccion` por cada una
+- [ ] T108 UI `crear`/`detalle`: lista ordenable (drag & drop, persiste `orden`) + checkbox "depende de la anterior" + selector múltiple; badge "Bloqueada"
+- [ ] T109 Botón "Iniciar" deshabilitado (con tooltip) para tareas bloqueadas por prerrequisitos
+- [ ] T110 [P] Tests: no inicia con prerrequisito pendiente; sí al finalizarlo; ciclo rechazado; cancelar libera dependiente; multi-prerrequisito
+
+### Fase 12.3 — "Liberar OT" y notificaciones diferidas (D12, D13 · H27)
+- [ ] T111 `EstadoOtService::planificar()` → `liberar()` (evento "OT liberada"); alias `@deprecated` temporal
+- [ ] T112 Renombrar el `nombre` del estado `en_revision` a "Planificación" (seeder + migración de datos); slug intacto
+- [ ] T113 `detalle.blade.php`: botón "Planificar OT" → "Liberar OT" (`liberar`); no tocar `estaBloqueada()` ("Corregir OT" sigue visible)
+- [ ] T114 Quitar de la creación las notificaciones a técnicos y Almacén (`crear`, `NotificarEventosOt`, `OtCreada`)
+- [ ] T115 En `liberar()`: `OtLiberadaNotification` → técnicos de la OT; `SolicitudInsumoPendienteNotification` → Almacén solo si hay líneas `pendiente`
+- [ ] T116 `SolicitudInsumoService::sincronizarDesdeTarea()`: crea/reserva sin notificar a Bodega; notifica solo si se agrega insumo tras liberar
+- [ ] T117 [P] Tests: crear no notifica; liberar notifica técnicos; liberar con insumos notifica Bodega, sin insumos no; insumo nuevo tras liberar notifica
+
+### Fase 12.4 — Insumo al encargado de la tarea (D14 · H28)
+- [ ] T118 Migración: `solicitudes_insumo_ot.entregado_a_tecnico_id` (nullable FK `tecnicos`) + backfill desde la tarea
+- [ ] T119 `SolicitudInsumoService`: fijar destinatario = `detalle_ot.tecnico_id`; recalcular si la tarea cambia de técnico mientras la solicitud siga `pendiente`
+- [ ] T120 `AtencionInsumoOtService::entregar()`: registrar el técnico destinatario en el movimiento; sin override
+- [ ] T121 `inventario/solicitudes-ot.blade.php`: columna "Entregar a" (solo lectura)
+- [ ] T122 [P] Tests: la solicitud lleva el técnico de su tarea; cambia al reasignar antes de entregar; no cambia tras `entregada`; Bodega no lo altera
+
+### Fase 12.5 — Herramientas: préstamo por técnico (D15, D16 · H29)
+- [ ] T123 Migración: reconvertir `ot_herramientas` (`tecnico_id` NOT NULL, `estado`, `solicitada_en`, `entregada_por`, `recibida_por`, `motivo_rechazo`, `detalle_ot_id` nullable, `ot_id` nullable) + `movimientos_inventario.origen` += `'prestamo'` + migración de datos
+- [ ] T124 Modelo `PrestamoHerramienta` (tabla reutilizada); scopes `pendientesDe(Tecnico)`, `sinDevolver()`, `enColaDeBodega()`
+- [ ] T125 `OtHerramientaService` → `PrestamoHerramientaService`: `solicitar()` / `entregar()` / `rechazar()` / `registrarDevolucion()` (movimientos `origen='prestamo'`)
+- [ ] T126 Quitar del detalle de la OT la sección "Herramientas asignadas" y sus métodos/props
+- [ ] T127 Quitar las guardas de herramienta de `SalidaEquipoService` (solicitar/confirmar) y de `OrdenTrabajoService::cancelarOt`
+- [ ] T128 Vista del Técnico: "Solicitar herramienta" + lista "Mis herramientas en préstamo"
+- [ ] T129 Vista de Bodega: cola de préstamos (`solicitada` → Entregar/Rechazar; `entregada` → Registrar devolución); permiso `attend-ot-insumo` o `attend-prestamo`
+- [ ] T130 Panel "Herramientas por técnico" (Bodega/Jefe/Admin, solo lectura)
+- [ ] T131 `CosteoOtService`: verificar que no quede referencia a `ot->herramientas`
+- [ ] T132 Notificaciones: `PrestamoSolicitado` → Almacén; `PrestamoEntregado`/`PrestamoRechazado` → técnico solicitante
+- [ ] T133 `nav-items.blade.php`: badge "Préstamos por atender (N)" (Almacenista); no tocar los badges existentes
+- [ ] T134 [P] Tests: técnico solicita; almacenista entrega (`en_uso`, movimiento `prestamo`); rechazo con motivo; devolución la registra el almacenista; la OT cierra con préstamos pendientes; el Jefe no ve acciones de herramienta
+
+### Fase 12.6 — Regresión y cierre
+- [ ] T135 `php artisan test` completo en verde; actualizar contador en README
+- [ ] T136 `docs/BITACORA-2026-09-10.md` + marcar T099–T137 en este archivo
+- [ ] T137 Protocolo de pruebas de aceptación de Phase 12 (bloques L–P) ejecutado con los roles

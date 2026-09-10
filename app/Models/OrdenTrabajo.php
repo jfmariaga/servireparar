@@ -107,9 +107,10 @@ class OrdenTrabajo extends Model
         return $this->hasMany(ChecklistOt::class, 'ot_id');
     }
 
+    /** Trazabilidad de la OT en orden cronológico ascendente: la creación primero (spec 002, FR-019). */
     public function eventos(): HasMany
     {
-        return $this->hasMany(OtEvento::class, 'ot_id')->latest('created_at')->latest('id');
+        return $this->hasMany(OtEvento::class, 'ot_id')->oldest('created_at')->oldest('id');
     }
 
     public function solicitudesInsumo(): HasMany
@@ -128,6 +129,18 @@ class OrdenTrabajo extends Model
         $rel = $this->relationLoaded('herramientas') ? $this->herramientas : $this->herramientas();
 
         return $rel->whereNull('devuelta_en')->count() > 0;
+    }
+
+    /**
+     * ¿Todas las tareas activas (no canceladas) de la OT están finalizadas? (spec 002, FR-007 / D9).
+     * Es la condición que habilita responder el checklist de cierre.
+     */
+    public function tareasActivasFinalizadas(): bool
+    {
+        $tareas = $this->relationLoaded('tareas') ? $this->tareas : $this->tareas()->get();
+        $activas = $tareas->where('estado_tarea', '!=', 'cancelada');
+
+        return $activas->isNotEmpty() && $activas->every(fn (DetalleOt $t) => $t->estado_tarea === 'finalizada');
     }
 
     /** El checklist está resuelto cuando existe al menos un ítem y ninguno queda con `cumple` null. */

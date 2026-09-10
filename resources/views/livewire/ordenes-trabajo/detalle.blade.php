@@ -250,6 +250,13 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public function responderChecklist(int $itemId, bool $cumple, EstadoOtService $estados): void
     {
         Gate::authorize('update', $this->ot);
+
+        if (! $this->ot->tareasActivasFinalizadas()) {
+            $this->notifyError('El checklist de cierre se habilita cuando todas las tareas de la OT están finalizadas.');
+
+            return;
+        }
+
         ChecklistOt::where('ot_id', $this->ot->id)->where('id', $itemId)->update(['cumple' => $cumple]);
         $estados->recalcular($this->ot->fresh(), auth()->user());
         $this->ot->refresh();
@@ -791,8 +798,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3">
                 @php
                     $chkSinResponder = $ot->checklist->whereNull('cumple')->count();
-                    $tareasActivasListas = $ot->tareas->where('estado_tarea', '!=', 'cancelada')->isNotEmpty()
-                        && $ot->tareas->where('estado_tarea', '!=', 'cancelada')->every(fn ($t) => $t->estado_tarea === 'finalizada');
+                    $tareasActivasListas = $ot->tareasActivasFinalizadas();
                 @endphp
                 <div class="flex items-center justify-between">
                     <h2 class="font-bold text-sm">Checklist de cierre</h2>
@@ -802,6 +808,11 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                         <span class="text-xs text-amber-600 dark:text-amber-400">Pendiente para poder finalizar</span>
                     @endif
                 </div>
+                @if ($puedeGestionar && ! $tareasActivasListas)
+                    <p class="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-lg px-3 py-2">
+                        El checklist se habilita para responder cuando todas las tareas de la OT estén finalizadas.
+                    </p>
+                @endif
                 @if (! $puedeFinalizar && $tareasActivasListas && $chkSinResponder > 0)
                     <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
                         Todas las tareas están listas. Faltan {{ $chkSinResponder }} respuesta(s) del checklist para finalizar la OT.
@@ -819,12 +830,14 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 {{ $item->item }}
                             </span>
                             <div class="flex items-center gap-2 shrink-0">
-                                @if ($puedeGestionar)
+                                @if ($puedeGestionar && $tareasActivasListas)
                                     <button wire:click="responderChecklist({{ $item->id }}, true)" class="text-[11px] font-bold px-2.5 py-1 rounded-md {{ $item->cumple === true ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800' }}">SÍ</button>
                                     <button wire:click="responderChecklist({{ $item->id }}, false)" class="text-[11px] font-bold px-2.5 py-1 rounded-md {{ $item->cumple === false ? 'bg-brand-red text-white' : 'bg-slate-100 dark:bg-slate-800' }}">NO</button>
-                                    <button wire:click="eliminarItemChecklist({{ $item->id }})" class="text-[11px] text-slate-400 hover:text-brand-red">✕</button>
                                 @else
                                     <span class="text-xs font-semibold">{{ $item->cumple === null ? 'Pendiente' : ($item->cumple ? 'Sí' : 'No') }}</span>
+                                @endif
+                                @if ($puedeGestionar)
+                                    <button wire:click="eliminarItemChecklist({{ $item->id }})" class="text-[11px] text-slate-400 hover:text-brand-red">✕</button>
                                 @endif
                             </div>
                         </div>
