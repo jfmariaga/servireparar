@@ -58,15 +58,39 @@ class OrdenTrabajoService
                 'creado_por' => $actor->id,
             ]);
 
+            $porUid = [];
+            $orden = 1;
             foreach ($tareas as $tarea) {
                 $detalle = $ot->tareas()->create([
                     'descripcion' => $tarea['descripcion'],
+                    'orden' => $orden++,
                     'tecnico_id' => $tarea['tecnico_id'],
                     'estado_tarea' => 'pendiente',
                 ]);
 
+                if (filled($tarea['uid'] ?? null)) {
+                    $porUid[(string) $tarea['uid']] = $detalle;
+                }
+
                 $this->insumos->aplicarLineasInsumo($detalle, $this->lineasInsumo($tarea), $actor);
             }
+
+            // Prerrequisitos entre tareas del mismo lote (referidos por su `uid`, D10).
+            foreach ($tareas as $tarea) {
+                if (! filled($tarea['uid'] ?? null) || ($tarea['prerrequisitos'] ?? []) === []) {
+                    continue;
+                }
+
+                $detalle = $porUid[(string) $tarea['uid']];
+                $ids = collect($tarea['prerrequisitos'])
+                    ->map(fn ($uid) => $porUid[(string) $uid]?->id ?? null)
+                    ->filter(fn ($id) => $id !== null && $id !== $detalle->id)
+                    ->unique()->values()->all();
+
+                $detalle->prerrequisitos()->sync($ids);
+            }
+
+            $this->asegurarSinCiclos($ot->fresh());
 
             foreach ((array) config('ot.checklist_por_defecto', []) as $item) {
                 $ot->checklist()->create(['item' => $item]);
@@ -128,11 +152,13 @@ class OrdenTrabajoService
         return DB::transaction(function () use ($ot, $actor, $tarea) {
             $detalle = $ot->tareas()->create([
                 'descripcion' => $tarea['descripcion'],
+                'orden' => (int) $ot->tareas()->max('orden') + 1,
                 'tecnico_id' => $tarea['tecnico_id'],
                 'estado_tarea' => 'pendiente',
             ]);
 
             $this->insumos->aplicarLineasInsumo($detalle, $this->lineasInsumo($tarea), $actor);
+            $this->sincronizarPrerrequisitos($detalle, $tarea['prerrequisitos'] ?? null);
             $ot->registrarEvento('correccion', "Tarea agregada: «{$detalle->descripcion}».", $actor);
             $this->estados->recalcular($ot->fresh(), $actor);
 
@@ -160,6 +186,11 @@ class OrdenTrabajoService
             ]);
 
             $this->insumos->aplicarLineasInsumo($tarea, $this->lineasInsumo($datos), $actor);
+
+            if (array_key_exists('prerrequisitos', $datos)) {
+                $this->sincronizarPrerrequisitos($tarea, $datos['prerrequisitos']);
+            }
+
             $tarea = $tarea->fresh(['tecnico.usuario']);
 
             $tecDespues = $tarea->tecnico?->usuario?->name ?? 'técnico #'.$tarea->tecnico_id;
@@ -199,6 +230,8 @@ class OrdenTrabajoService
 
         DB::transaction(function () use ($ot, $tarea, $actor) {
             $desc = $tarea->descripcion;
+            $this->liberarDependientes($tarea, $actor);
+            $tarea->prerrequisitos()->detach();
             $tarea->delete();
             $ot->registrarEvento('correccion', "Tarea eliminada: «{$desc}».", $actor);
             $this->estados->recalcular($ot->fresh(), $actor);
@@ -292,6 +325,7 @@ class OrdenTrabajoService
 
         return DB::transaction(function () use ($ot, $tarea, $actor, $motivo) {
             $this->liberarInsumosPendientes($tarea, $actor);
+            $this->liberarDependientes($tarea, $actor);
 
             $tarea->update(['estado_tarea' => 'cancelada', 'finalizacion_solicitada_en' => null]);
             $ot->registrarEvento('correccion', sprintf('Tarea «%s» cancelada. Motivo: %s', str($tarea->descripcion)->limit(40), $motivo), $actor);
@@ -337,6 +371,103 @@ class OrdenTrabajoService
                 sprintf('Solicitud de %s uds. de %s liberada al cancelar la tarea «%s».',
                     rtrim(rtrim(number_format((float) $solicitud->cantidad, 2), '0'), '.'),
                     $solicitud->inventario?->nombre ?? 'ítem',
+                    str((string) $tarea->descripcion)->limit(40),
+                ),
+                $actor,
+            );
+        }
+    }
+
+    /**
+     * Deja los prerrequisitos de la tarea igual a `$ids` (ids de otras tareas de
+     * la MISMA OT). Rechaza auto-dependencias, ids ajenos a la OT y ciclos (D10).
+     *
+     * @param  array<int, int|string>|null  $ids  null = no tocar
+     */
+    private function sincronizarPrerrequisitos(DetalleOt $tarea, ?array $ids): void
+    {
+        if ($ids === null) {
+            return;
+        }
+
+        $tarea->loadMissing('ordenTrabajo');
+        $ot = $tarea->ordenTrabajo;
+
+        $idsOt = $ot->tareas()->pluck('id')->all();
+
+        $limpios = collect($ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0 && $id !== $tarea->id)
+            ->unique()
+            ->values();
+
+        $ajenos = $limpios->reject(fn ($id) => in_array($id, $idsOt, true));
+        if ($ajenos->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'prerrequisitos' => 'Una tarea solo puede depender de otras tareas de la misma OT.',
+            ]);
+        }
+
+        $tarea->prerrequisitos()->sync($limpios->all());
+
+        $this->asegurarSinCiclos($ot->fresh());
+    }
+
+    /**
+     * DFS de detección de ciclos sobre el grafo de prerrequisitos de la OT
+     * (arista tarea → prerrequisito). Si hay un ciclo, revierte con error (D10).
+     */
+    private function asegurarSinCiclos(OrdenTrabajo $ot): void
+    {
+        $aristas = DB::table('detalle_ot_prerrequisitos')
+            ->join('detalle_ot', 'detalle_ot.id', '=', 'detalle_ot_prerrequisitos.detalle_ot_id')
+            ->where('detalle_ot.ot_id', $ot->id)
+            ->get(['detalle_ot_prerrequisitos.detalle_ot_id', 'detalle_ot_prerrequisitos.prerrequisito_id']);
+
+        $ady = [];
+        foreach ($aristas as $a) {
+            $ady[$a->detalle_ot_id][] = $a->prerrequisito_id;
+        }
+
+        $color = []; // 1 = en pila, 2 = terminado
+        $tieneCiclo = function (int $nodo) use (&$tieneCiclo, &$ady, &$color): bool {
+            $color[$nodo] = 1;
+            foreach ($ady[$nodo] ?? [] as $siguiente) {
+                if (($color[$siguiente] ?? 0) === 1) {
+                    return true;
+                }
+                if (($color[$siguiente] ?? 0) === 0 && $tieneCiclo($siguiente)) {
+                    return true;
+                }
+            }
+            $color[$nodo] = 2;
+
+            return false;
+        };
+
+        foreach (array_keys($ady) as $nodo) {
+            if (($color[$nodo] ?? 0) === 0 && $tieneCiclo($nodo)) {
+                throw ValidationException::withMessages([
+                    'prerrequisitos' => 'Los prerrequisitos forman una dependencia circular entre tareas.',
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Al cancelar o eliminar una tarea, sus dependientes dejan de requerirla
+     * (conservan los demás prerrequisitos) y queda traza por cada una (D10).
+     */
+    private function liberarDependientes(DetalleOt $tarea, User $actor): void
+    {
+        $tarea->loadMissing('dependientes', 'ordenTrabajo');
+
+        foreach ($tarea->dependientes as $dependiente) {
+            $dependiente->prerrequisitos()->detach($tarea->id);
+            $tarea->ordenTrabajo?->registrarEvento(
+                'correccion',
+                sprintf('La tarea «%s» ya no depende de «%s» (prerrequisito retirado).',
+                    str((string) $dependiente->descripcion)->limit(40),
                     str((string) $tarea->descripcion)->limit(40),
                 ),
                 $actor,

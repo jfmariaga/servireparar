@@ -92,6 +92,12 @@ class OrdenTrabajo extends Model
         return $this->hasMany(DetalleOt::class, 'ot_id');
     }
 
+    /** Tareas en el orden definido por el Jefe de Taller (Phase 12 / D10). */
+    public function tareasOrdenadas(): HasMany
+    {
+        return $this->tareas()->orderBy('orden')->orderBy('id');
+    }
+
     public function manoObraContratistas(): HasMany
     {
         return $this->hasMany(OtManoObraContratista::class, 'ot_id');

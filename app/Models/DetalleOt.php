@@ -5,7 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 /**
  * Tarea de una OT (spec 002, `DETALLE_OT`). El costo de mano de obra propia
@@ -23,6 +25,7 @@ class DetalleOt extends Model
     protected $fillable = [
         'ot_id',
         'descripcion',
+        'orden',
         'tecnico_id',
         'estado_tarea',
         'fecha_inicio',
@@ -55,6 +58,49 @@ class DetalleOt extends Model
     public function tecnico(): BelongsTo
     {
         return $this->belongsTo(Tecnico::class);
+    }
+
+    /**
+     * Tareas de la misma OT que deben finalizarse antes de iniciar esta (Phase 12 / D10).
+     *
+     * @return BelongsToMany<DetalleOt, $this>
+     */
+    public function prerrequisitos(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            DetalleOt::class,
+            'detalle_ot_prerrequisitos',
+            'detalle_ot_id',
+            'prerrequisito_id',
+        )->withTimestamps();
+    }
+
+    /**
+     * Tareas de la misma OT que dependen de esta (esta es prerrequisito suyo).
+     *
+     * @return BelongsToMany<DetalleOt, $this>
+     */
+    public function dependientes(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            DetalleOt::class,
+            'detalle_ot_prerrequisitos',
+            'prerrequisito_id',
+            'detalle_ot_id',
+        )->withTimestamps();
+    }
+
+    /**
+     * Prerrequisitos que aún retienen el inicio de esta tarea: los que no están
+     * `finalizada` ni `cancelada` (una tarea cancelada deja de contar, D10).
+     *
+     * @return Collection<int, DetalleOt>
+     */
+    public function prerrequisitosPendientes(): Collection
+    {
+        $previas = $this->relationLoaded('prerrequisitos') ? $this->prerrequisitos : $this->prerrequisitos()->get();
+
+        return $previas->reject(fn (DetalleOt $t) => in_array($t->estado_tarea, ['finalizada', 'cancelada'], true))->values();
     }
 
     /** Líneas de insumo de la tarea (Phase 11 / D6). */

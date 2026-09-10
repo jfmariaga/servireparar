@@ -84,15 +84,23 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'descripcion' => '',
             'tecnico_id' => null,
             'insumos' => [],
+            'prerrequisitos' => [],
         ];
     }
 
     public function quitarTarea(int $i): void
     {
+        $uid = $this->tareas[$i]['uid'] ?? null;
         unset($this->tareas[$i]);
         $this->tareas = array_values($this->tareas);
         if ($this->tareas === []) {
             $this->agregarTarea();
+        }
+        // Limpia referencias colgantes al uid eliminado.
+        if ($uid !== null) {
+            foreach ($this->tareas as &$t) {
+                $t['prerrequisitos'] = array_values(array_filter($t['prerrequisitos'] ?? [], fn ($u) => $u !== $uid));
+            }
         }
     }
 
@@ -129,6 +137,8 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'tareas.*.insumos' => 'array',
             'tareas.*.insumos.*.inventario_id' => 'required|exists:inventario,id',
             'tareas.*.insumos.*.cantidad' => 'required|numeric|min:0.01',
+            'tareas.*.prerrequisitos' => 'array',
+            'tareas.*.prerrequisitos.*' => 'string',
         ], [], [
             'clienteId' => 'cliente',
             'prioridadId' => 'prioridad',
@@ -345,6 +355,21 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                                 <p class="text-[11px] text-slate-400">Sin insumos. La tarea no generará solicitudes a Bodega.</p>
                             @endforelse
                         </div>
+
+                        @if ($i > 0)
+                            <div class="flex flex-col gap-1.5 rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/50 dark:bg-slate-900/30 p-3">
+                                <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Depende de (finalizar antes)</span>
+                                <div class="flex flex-wrap gap-3">
+                                    @foreach ($tareas as $j => $previa)
+                                        @continue($j >= $i)
+                                        <label wire:key="{{ ($tarea['uid'] ?? $i).'-dep-'.$j }}" class="inline-flex items-center gap-1.5 text-xs">
+                                            <input type="checkbox" value="{{ $previa['uid'] }}" wire:model="tareas.{{ $i }}.prerrequisitos" class="rounded border-slate-300 dark:border-slate-600 text-brand-blue focus:ring-brand-blue/30">
+                                            <span>Tarea {{ $j + 1 }}{{ $previa['descripcion'] ? ' — '.\Illuminate\Support\Str::limit($previa['descripcion'], 30) : '' }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>

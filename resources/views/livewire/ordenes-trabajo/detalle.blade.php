@@ -60,7 +60,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     // Alta / edición de tareas en una OT existente (US4 / FR-009)
     public bool $agregandoTarea = false;
     /** @var array<string, mixed> */
-    public array $tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumos' => []];
+    public array $tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumos' => [], 'prerrequisitos' => []];
     public ?int $editandoTareaId = null;
 
     public function mount(OrdenTrabajo $ordenTrabajo): void
@@ -82,7 +82,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     {
         $this->ot->load([
             'cliente', 'equipo', 'prioridad', 'estado', 'creadoPor',
-            'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud',
+            'tareas' => fn ($q) => $q->orderBy('orden')->orderBy('id'),
+            'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud', 'tareas.prerrequisitos',
             'evidencias.subidaPor', 'checklist', 'eventos.usuario',
             'manoObraContratistas.contratista', 'herramientas.inventario',
         ]);
@@ -134,6 +135,19 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public function iniciarTarea(int $tareaId, EstadoOtService $estados): void
     {
         Gate::authorize('executeTareas', $this->ot);
+
+        $tarea = $this->ot->tareas()->with('prerrequisitos')->find($tareaId);
+        $pendientes = $tarea?->prerrequisitosPendientes() ?? collect();
+
+        if ($pendientes->isNotEmpty()) {
+            $this->notifyError(sprintf(
+                'La tarea «%s» requiere finalizar antes: %s.',
+                str($tarea->descripcion)->limit(40),
+                $pendientes->map(fn ($t) => '«'.str($t->descripcion)->limit(30).'»')->implode(', '),
+            ));
+
+            return;
+        }
 
         $afectadas = DetalleOt::where('id', $tareaId)
             ->where('ot_id', $this->ot->id)
@@ -403,7 +417,32 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
     private function resetTareaForm(): void
     {
-        $this->tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumos' => []];
+        $this->tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'insumos' => [], 'prerrequisitos' => []];
+    }
+
+    /** Sube o baja una tarea en el orden de la lista (persiste `detalle_ot.orden`). */
+    public function moverTarea(int $tareaId, string $direccion): void
+    {
+        Gate::authorize('update', $this->ot);
+
+        $tareas = $this->ot->tareas()->orderBy('orden')->orderBy('id')->get();
+        $pos = $tareas->search(fn ($t) => $t->id === $tareaId);
+        $destino = $direccion === 'subir' ? $pos - 1 : $pos + 1;
+
+        if ($pos === false || $destino < 0 || $destino >= $tareas->count()) {
+            return;
+        }
+
+        $a = $tareas[$pos];
+        $b = $tareas[$destino];
+        [$ordenA, $ordenB] = [$a->orden, $b->orden];
+        // Si el orden viene sin poblar (todo 0), normaliza con la posición.
+        if ($ordenA === $ordenB) {
+            [$ordenA, $ordenB] = [$pos + 1, $destino + 1];
+        }
+        $a->update(['orden' => $ordenB]);
+        $b->update(['orden' => $ordenA]);
+        $this->ot->refresh();
     }
 
     public function agregarInsumoForm(): void
@@ -428,7 +467,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public function editarTarea(int $tareaId): void
     {
         Gate::authorize('update', $this->ot);
-        $tarea = $this->ot->tareas()->with('insumos')->findOrFail($tareaId);
+        $tarea = $this->ot->tareas()->with('insumos', 'prerrequisitos')->findOrFail($tareaId);
 
         if ($tarea->estado_tarea === 'finalizada') {
             $this->notifyError('Una tarea finalizada no se puede editar ni reasignar.');
@@ -445,6 +484,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 ->map(fn ($l) => ['inventario_id' => $l->inventario_id, 'cantidad' => (string) $l->cantidad])
                 ->values()
                 ->all(),
+            'prerrequisitos' => $tarea->prerrequisitos->pluck('id')->map(fn ($id) => (string) $id)->all(),
         ];
     }
 
@@ -465,12 +505,16 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             'tareaForm.insumos' => 'array',
             'tareaForm.insumos.*.inventario_id' => 'required|exists:inventario,id',
             'tareaForm.insumos.*.cantidad' => 'required|numeric|min:0.01',
+            'tareaForm.prerrequisitos' => 'array',
+            'tareaForm.prerrequisitos.*' => 'integer',
         ], [], [
             'tareaForm.descripcion' => 'descripción',
             'tareaForm.tecnico_id' => 'técnico',
             'tareaForm.insumos.*.inventario_id' => 'insumo',
             'tareaForm.insumos.*.cantidad' => 'cantidad de insumo',
         ])['tareaForm'];
+
+        $datos['prerrequisitos'] = array_map('intval', $datos['prerrequisitos'] ?? []);
 
         try {
             if ($this->editandoTareaId) {
@@ -704,6 +748,21 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                     <p class="text-[11px] text-slate-400">Sin insumos. La tarea no generará solicitudes a Bodega.</p>
                                 @endif
                             </div>
+                            @php $candidatasPrereq = $ot->tareas->where('id', '!=', $editandoTareaId)->where('estado_tarea', '!=', 'cancelada'); @endphp
+                            @if ($candidatasPrereq->isNotEmpty())
+                                <div class="sm:col-span-2 flex flex-col gap-1.5">
+                                    <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Depende de (finalizar antes)</span>
+                                    <div class="flex flex-wrap gap-3">
+                                        @foreach ($candidatasPrereq as $cand)
+                                            <label wire:key="prereq-opt-{{ $cand->id }}" class="inline-flex items-center gap-1.5 text-xs">
+                                                <input type="checkbox" value="{{ $cand->id }}" wire:model="tareaForm.prerrequisitos" class="rounded border-slate-300 dark:border-slate-600 text-brand-blue focus:ring-brand-blue/30">
+                                                <span>{{ str($cand->descripcion)->limit(40) }}</span>
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                    @error('prerrequisitos') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                                </div>
+                            @endif
                         </div>
                         <div class="flex gap-2">
                             <button wire:click="guardarTarea" class="inline-flex items-center h-9 px-4 rounded-lg bg-brand-blue hover:bg-brand-blue-dark text-white text-[12.5px] font-semibold">Guardar</button>
@@ -714,6 +773,10 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
                 <div class="grid gap-3 md:grid-cols-2">
                     @foreach ($ot->tareas as $tarea)
+                        @php
+                            $prereqPend = $tarea->prerrequisitosPendientes();
+                            $bloqueadaPrereq = $tarea->estado_tarea === 'pendiente' && $prereqPend->isNotEmpty();
+                        @endphp
                         <div wire:key="tarea-{{ $tarea->id }}" class="border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col gap-2 text-sm {{ $editandoTareaId === $tarea->id ? 'ring-2 ring-brand-blue/40' : '' }}">
                             <div class="flex items-start justify-between gap-2">
                                 <p class="font-medium leading-snug">{{ $tarea->descripcion }}</p>
@@ -726,6 +789,12 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 {{ $tarea->tecnico?->usuario?->name ?? 'Técnico #'.$tarea->tecnico_id }}
                                 @if ($tarea->estado_tarea === 'finalizada')<br>Días trabajados: {{ $nfmt($tarea->dias_trabajados) }}@endif
                             </p>
+                            @if ($tarea->prerrequisitos->isNotEmpty())
+                                <p class="text-[11px] {{ $bloqueadaPrereq ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-slate-400' }}">
+                                    @if ($bloqueadaPrereq)Bloqueada — requiere finalizar: @else Requiere: @endif
+                                    {{ $tarea->prerrequisitos->map(fn ($p) => '«'.\Illuminate\Support\Str::limit($p->descripcion, 30).'»')->implode(', ') }}
+                                </p>
+                            @endif
                             @if ($tarea->finalizacionPendiente())
                                 <p class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">Lista para finalizar ({{ $nfmt($tarea->dias_trabajados) }} día(s)) — espera confirmación del Jefe.</p>
                             @endif
@@ -746,8 +815,18 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 </p>
                             @endforeach
                             <div class="flex flex-wrap items-center gap-2 pt-1">
+                                @if ($puedeGestionar && $ot->estado?->slug !== 'entregada' && $ot->tareas->count() > 1)
+                                    <span class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                        <button wire:click="moverTarea({{ $tarea->id }}, 'subir')" @disabled($loop->first) class="px-2 py-1.5 text-[12px] text-slate-400 hover:text-brand-blue disabled:opacity-30" title="Subir">↑</button>
+                                        <button wire:click="moverTarea({{ $tarea->id }}, 'bajar')" @disabled($loop->last) class="px-2 py-1.5 text-[12px] text-slate-400 hover:text-brand-blue disabled:opacity-30 border-l border-slate-200 dark:border-slate-700" title="Bajar">↓</button>
+                                    </span>
+                                @endif
                                 @if ($puedeEjecutar && $tarea->estado_tarea === 'pendiente')
-                                    <button wire:click="iniciarTarea({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-blue text-white hover:bg-brand-blue-dark">Iniciar</button>
+                                    @if ($bloqueadaPrereq)
+                                        <button type="button" disabled title="Finaliza primero: {{ $prereqPend->map(fn ($p) => $p->descripcion)->implode(', ') }}" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-slate-200 text-slate-400 dark:bg-slate-800 cursor-not-allowed">Iniciar</button>
+                                    @else
+                                        <button wire:click="iniciarTarea({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-brand-blue text-white hover:bg-brand-blue-dark">Iniciar</button>
+                                    @endif
                                 @endif
                                 @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso')
                                     @if ($finalizandoTareaId === $tarea->id)

@@ -367,15 +367,15 @@ reconvertida a `PrestamoHerramienta`.
 - [x] T101 Guarda de servidor en `responderChecklist` (componente `detalle`): `notifyError` y corte si `! $this->ot->tareasActivasFinalizadas()`. Nuevo helper `OrdenTrabajo::tareasActivasFinalizadas()` reutilizado por `EstadoOtService::puedeFinalizar()`
 - [x] T102 [P] `TrazabilidadChecklistPhase12Test`: bitácora ascendente; checklist no responde antes de finalizar tareas; sí después; tareas canceladas no bloquean. Suite: 202 tests
 
-### Fase 12.2 — Prerrequisitos entre tareas (D10 · H25)
-- [ ] T103 Migración: `detalle_ot.orden` (int) + pivote `detalle_ot_prerrequisitos` (`detalle_ot_id`, `prerrequisito_id`, unique, FK cascade)
-- [ ] T104 `DetalleOt::prerrequisitos()`/`dependientes()` (belongsToMany self); helper `prerrequisitosPendientes()`
-- [ ] T105 Validación en `crear`/`agregarTarea`/`actualizarTarea`: misma OT, no auto-dependencia, sin ciclos (DFS)
-- [ ] T106 Guarda en `iniciarTarea()`: `ValidationException` si algún prerrequisito no está `finalizada` (canceladas no cuentan)
-- [ ] T107 `cancelarTarea()`/`quitarTarea()`: desvincular como prerrequisito de las dependientes; evento `correccion` por cada una
-- [ ] T108 UI `crear`/`detalle`: lista ordenable (drag & drop, persiste `orden`) + checkbox "depende de la anterior" + selector múltiple; badge "Bloqueada"
-- [ ] T109 Botón "Iniciar" deshabilitado (con tooltip) para tareas bloqueadas por prerrequisitos
-- [ ] T110 [P] Tests: no inicia con prerrequisito pendiente; sí al finalizarlo; ciclo rechazado; cancelar libera dependiente; multi-prerrequisito
+### Fase 12.2 — Prerrequisitos entre tareas (D10 · H25) — ✅ 2026-09-10
+- [x] T103 Migración `add_prerrequisitos_to_detalle_ot`: `detalle_ot.orden` (poblada por orden de creación) + pivote `detalle_ot_prerrequisitos` (unique `(detalle_ot_id, prerrequisito_id)`, ambas FK cascade)
+- [x] T104 `DetalleOt::prerrequisitos()`/`dependientes()` (belongsToMany self, withTimestamps); `prerrequisitosPendientes()` (excluye finalizada/cancelada). `OrdenTrabajo::tareasOrdenadas()`
+- [x] T105 `OrdenTrabajoService`: `crear` acepta `prerrequisitos` por `uid` de tarea hermana; `agregarTarea`/`actualizarTarea` por id existente. `sincronizarPrerrequisitos()` (misma OT, no auto-dependencia) + `asegurarSinCiclos()` (DFS coloreado)
+- [x] T106 Guarda en `detalle`→`iniciarTarea()`: `notifyError` y corte si `prerrequisitosPendientes()` no está vacía
+- [x] T107 `cancelarTarea()`/`quitarTarea()`: `liberarDependientes()` desvincula la tarea como prerrequisito de sus dependientes + evento `correccion` por cada una
+- [x] T108 UI `crear`/`detalle`: casillas "Depende de (finalizar antes)" (crear: tareas previas por `uid`; detalle: otras tareas activas); reorden ↑/↓ que persiste `detalle_ot.orden` (`moverTarea`); "Requiere: …" por tarea + badge "Bloqueada"
+- [x] T109 Botón "Iniciar" deshabilitado con `title` cuando la tarea está bloqueada por prerrequisitos
+- [x] T110 [P] `PrerrequisitosTareaTest` (7): no inicia con prerrequisito pendiente; sí al finalizarlo; ciclo rechazado en creación y edición; multi-prerrequisito; cancelar libera dependiente; estado se sigue derivando. Suite: 209 tests
 
 ### Fase 12.3 — "Liberar OT" y notificaciones diferidas (D12, D13 · H27)
 - [ ] T111 `EstadoOtService::planificar()` → `liberar()` (evento "OT liberada"); alias `@deprecated` temporal

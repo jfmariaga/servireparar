@@ -13,7 +13,7 @@ prueba. Es la continuación de `docs/PLAN-ENDURECIMIENTO-OT-2026-09-08.md` (Phas
 | Fase | Estado |
 |------|--------|
 | 12.1 — Trazabilidad y checklist (T099–T102) | ✅ hecho (2026-09-10). `eventos()` en orden ascendente; checklist en solo lectura hasta que todas las tareas activas estén finalizadas (UI + guarda de servidor, helper `OrdenTrabajo::tareasActivasFinalizadas()`). 202 tests. |
-| 12.2 — Prerrequisitos entre tareas (T103–T110) | ⬜ pendiente |
+| 12.2 — Prerrequisitos entre tareas (T103–T110) | ✅ hecho (2026-09-10). Pivote `detalle_ot_prerrequisitos` + `detalle_ot.orden`; `prerrequisitosPendientes()`; validación sin ciclos (DFS) en `crear`/`agregarTarea`/`actualizarTarea`; guarda en `iniciarTarea`; cancelar/quitar libera dependientes; UI de dependencias + reorden ↑/↓. 209 tests. |
 | 12.3 — "Liberar OT" y notificaciones diferidas (T111–T117) | ⬜ pendiente |
 | 12.4 — Insumo al encargado de la tarea (T118–T122) | ⬜ pendiente |
 | 12.5 — Herramientas: préstamo por técnico (T123–T134) | ⬜ pendiente |
