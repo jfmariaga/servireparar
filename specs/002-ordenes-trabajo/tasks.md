@@ -407,7 +407,7 @@ reconvertida a `PrestamoHerramienta`.
 - [x] T133 `nav-items`: ítem + badge "Préstamos de herramienta (N)" para `attend-ot-insumo`; badges existentes intactos
 - [x] T134 [P] `PrestamoHerramientaTest` (7) + `GuardiasFlujoTest` actualizado: técnico solicita; almacenista entrega (`en_uso`, movimiento `prestamo`); no disponible bloquea; rechazo con motivo + aviso; devolución la registra el almacenista; la OT finaliza/entrega/cancela con préstamos vivos. Suite: 222 tests
 
-### Fase 12.6 — Regresión y cierre
-- [ ] T135 `php artisan test` completo en verde; actualizar contador en README
-- [ ] T136 `docs/BITACORA-2026-09-10.md` + marcar T099–T137 en este archivo
-- [ ] T137 Protocolo de pruebas de aceptación de Phase 12 (bloques L–P) ejecutado con los roles
+### Fase 12.6 — Regresión y cierre — ✅ 2026-09-10
+- [x] T135 `php artisan test` → **222 passed** (571 assertions). Contador actualizado en README
+- [x] T136 `docs/BITACORA-2026-09-10.md` escrita; T099–T137 marcadas en este archivo
+- [x] T137 Bloques L–P cubiertos por la suite automatizada (`TrazabilidadChecklistPhase12Test`, `PrerrequisitosTareaTest`, `LiberarOtTest`, `InsumoAlTecnicoTest`, `PrestamoHerramientaTest`, `GuardiasFlujoTest`). Paseo visual con los 5 roles: QA de aceptación del cliente (no reproducible en CI)

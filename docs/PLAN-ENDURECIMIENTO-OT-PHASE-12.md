@@ -17,7 +17,7 @@ prueba. Es la continuación de `docs/PLAN-ENDURECIMIENTO-OT-2026-09-08.md` (Phas
 | 12.3 — "Liberar OT" y notificaciones diferidas (T111–T117) | ✅ hecho (2026-09-10). `EstadoOtService::liberar()` (alias `planificar()`); estado `en_revision` se muestra "Planificación"; al crear no se avisa a técnicos/Bodega (solicitudes silenciosas, stock reservado); al liberar se avisa a técnicos y —si hay insumos pendientes— a Bodega. La OT no se congela. 216 tests. |
 | 12.4 — Insumo al encargado de la tarea (T118–T122) | ✅ hecho (2026-09-10). `solicitudes_insumo_ot.entregado_a_tecnico_id` = `detalle_ot.tecnico_id`, recalculado mientras la solicitud siga abierta; el movimiento de salida nombra al técnico; columna "Entregar a" en la cola de Bodega. 98 tests OT. |
 | 12.5 — Herramientas: préstamo por técnico (T123–T134) | ✅ hecho (2026-09-10). `ot_herramientas` reconvertida → `PrestamoHerramienta` (vínculo con el técnico; OT/tarea solo contexto). `PrestamoHerramientaService` solicitar/entregar/rechazar/registrarDevolucion; movimiento `origen='prestamo'`. Fuera las guardas de herramienta del ciclo de la OT y la sección del Jefe en el detalle. Pantalla de Bodega `prestamos-herramienta` + panel por técnico + badge en el menú. 222 tests. |
-| 12.6 — Regresión y cierre (T135–T137) | ⬜ pendiente |
+| 12.6 — Regresión y cierre (T135–T137) | ✅ hecho (2026-09-10). 222 tests en verde; README y `docs/BITACORA-2026-09-10.md` actualizados; bloques L–P cubiertos por la suite (paseo visual = QA del cliente). |
 
 ---
 
