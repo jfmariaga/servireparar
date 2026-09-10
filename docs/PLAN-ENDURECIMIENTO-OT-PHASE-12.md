@@ -15,7 +15,7 @@ prueba. Es la continuación de `docs/PLAN-ENDURECIMIENTO-OT-2026-09-08.md` (Phas
 | 12.1 — Trazabilidad y checklist (T099–T102) | ✅ hecho (2026-09-10). `eventos()` en orden ascendente; checklist en solo lectura hasta que todas las tareas activas estén finalizadas (UI + guarda de servidor, helper `OrdenTrabajo::tareasActivasFinalizadas()`). 202 tests. |
 | 12.2 — Prerrequisitos entre tareas (T103–T110) | ✅ hecho (2026-09-10). Pivote `detalle_ot_prerrequisitos` + `detalle_ot.orden`; `prerrequisitosPendientes()`; validación sin ciclos (DFS) en `crear`/`agregarTarea`/`actualizarTarea`; guarda en `iniciarTarea`; cancelar/quitar libera dependientes; UI de dependencias + reorden ↑/↓. 209 tests. |
 | 12.3 — "Liberar OT" y notificaciones diferidas (T111–T117) | ✅ hecho (2026-09-10). `EstadoOtService::liberar()` (alias `planificar()`); estado `en_revision` se muestra "Planificación"; al crear no se avisa a técnicos/Bodega (solicitudes silenciosas, stock reservado); al liberar se avisa a técnicos y —si hay insumos pendientes— a Bodega. La OT no se congela. 216 tests. |
-| 12.4 — Insumo al encargado de la tarea (T118–T122) | ⬜ pendiente |
+| 12.4 — Insumo al encargado de la tarea (T118–T122) | ✅ hecho (2026-09-10). `solicitudes_insumo_ot.entregado_a_tecnico_id` = `detalle_ot.tecnico_id`, recalculado mientras la solicitud siga abierta; el movimiento de salida nombra al técnico; columna "Entregar a" en la cola de Bodega. 98 tests OT. |
 | 12.5 — Herramientas: préstamo por técnico (T123–T134) | ⬜ pendiente |
 | 12.6 — Regresión y cierre (T135–T137) | ⬜ pendiente |
 

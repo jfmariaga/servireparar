@@ -199,6 +199,9 @@ class SolicitudInsumoService
 
             $solicitud->update([
                 'inventario_id' => $linea->inventario_id,
+                // D14: mientras la solicitud siga pendiente, el destinatario se
+                // recalcula al técnico encargado actual de la tarea.
+                'entregado_a_tecnico_id' => $tarea->tecnico_id,
                 'cantidad' => $linea->cantidad,
                 'estado' => 'pendiente',
                 'motivo_rechazo' => null,
@@ -225,6 +228,7 @@ class SolicitudInsumoService
             'detalle_ot_id' => $tarea->id,
             'detalle_ot_insumo_id' => $linea->id,
             'inventario_id' => $linea->inventario_id,
+            'entregado_a_tecnico_id' => $tarea->tecnico_id,
             'cantidad' => $linea->cantidad,
             'estado' => 'pendiente',
             'solicitada_por' => $actor?->id ?? auth()->id(),

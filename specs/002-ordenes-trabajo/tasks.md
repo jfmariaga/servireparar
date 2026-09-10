@@ -386,12 +386,12 @@ reconvertida a `PrestamoHerramienta`.
 - [x] T116 `SolicitudInsumoService::aplicarLineasInsumo()`: crea/reserva siempre; notifica a Bodega solo si la OT ya no está `en_revision` (insumo agregado tras liberar)
 - [x] T117 [P] `LiberarOtTest` (7) + `NotificacionesOtTest` actualizado: crear no notifica a técnico/Bodega pero reserva stock; liberar notifica técnicos; con insumos pendientes notifica Bodega, sin insumos no; alias `planificar`; la OT no se congela. Suite: 216 tests
 
-### Fase 12.4 — Insumo al encargado de la tarea (D14 · H28)
-- [ ] T118 Migración: `solicitudes_insumo_ot.entregado_a_tecnico_id` (nullable FK `tecnicos`) + backfill desde la tarea
-- [ ] T119 `SolicitudInsumoService`: fijar destinatario = `detalle_ot.tecnico_id`; recalcular si la tarea cambia de técnico mientras la solicitud siga `pendiente`
-- [ ] T120 `AtencionInsumoOtService::entregar()`: registrar el técnico destinatario en el movimiento; sin override
-- [ ] T121 `inventario/solicitudes-ot.blade.php`: columna "Entregar a" (solo lectura)
-- [ ] T122 [P] Tests: la solicitud lleva el técnico de su tarea; cambia al reasignar antes de entregar; no cambia tras `entregada`; Bodega no lo altera
+### Fase 12.4 — Insumo al encargado de la tarea (D14 · H28) — ✅ 2026-09-10
+- [x] T118 Migración `add_entregado_a_tecnico_to_solicitudes_insumo_ot`: `entregado_a_tecnico_id` (nullable FK `tecnicos`, `nullOnDelete`) + backfill `UPDATE … JOIN detalle_ot`
+- [x] T119 `SolicitudInsumoService::sincronizarSolicitud()`: al crear la línea fija `entregado_a_tecnico_id = tarea->tecnico_id`; al actualizar una solicitud aún abierta lo recalcula al técnico actual (una `entregada` no se toca). `SolicitudInsumoOt::entregadoATecnico()`
+- [x] T120 `AtencionInsumoOtService::entregar()`: el `motivo` del movimiento de salida incluye "— insumo para <técnico>". Sin override para Bodega
+- [x] T121 `inventario/solicitudes-ot.blade.php`: columna "Entregar a" (solo lectura, con fallback al técnico de la tarea)
+- [x] T122 [P] `InsumoAlTecnicoTest` (4): la solicitud lleva el técnico de su tarea; cambia al reasignar antes de entregar; no cambia tras `entregada`; el movimiento nombra al técnico. Suite: 98 tests OT
 
 ### Fase 12.5 — Herramientas: préstamo por técnico (D15, D16 · H29)
 - [ ] T123 Migración: reconvertir `ot_herramientas` (`tecnico_id` NOT NULL, `estado`, `solicitada_en`, `entregada_por`, `recibida_por`, `motivo_rechazo`, `detalle_ot_id` nullable, `ot_id` nullable) + `movimientos_inventario.origen` += `'prestamo'` + migración de datos

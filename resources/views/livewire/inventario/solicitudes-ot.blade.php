@@ -34,7 +34,7 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
     public function with(): array
     {
         $q = SolicitudInsumoOt::query()
-            ->with(['ordenTrabajo:id,numero_ot,cliente_id', 'ordenTrabajo.cliente:id,nombre', 'tarea:id,descripcion', 'inventario:id,nombre,codigo,tipo,stock_actual', 'movimiento:id'])
+            ->with(['ordenTrabajo:id,numero_ot,cliente_id', 'ordenTrabajo.cliente:id,nombre', 'tarea:id,descripcion,tecnico_id', 'tarea.tecnico.usuario:id,name', 'entregadoATecnico.usuario:id,name', 'inventario:id,nombre,codigo,tipo,stock_actual', 'movimiento:id'])
             ->when($this->estado !== 'todas', fn ($q) => $q->where('estado', $this->estado))
             ->latest('id');
 
@@ -105,6 +105,7 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
                 <tr>
                     <th class="px-4 py-3 font-semibold">OT</th>
                     <th class="px-4 py-3 font-semibold">Tarea</th>
+                    <th class="px-4 py-3 font-semibold">Entregar a</th>
                     <th class="px-4 py-3 font-semibold">Insumo</th>
                     <th class="px-4 py-3 font-semibold text-right">Solicitado</th>
                     <th class="px-4 py-3 font-semibold text-right">Stock</th>
@@ -126,6 +127,7 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
                             <div class="text-xs text-slate-400">{{ $s->ordenTrabajo?->cliente?->nombre }}</div>
                         </td>
                         <td class="px-4 py-3 max-w-[16rem] text-slate-500 dark:text-slate-400">{{ $s->tarea?->descripcion }}</td>
+                        <td class="px-4 py-3 whitespace-nowrap">{{ $s->entregadoATecnico?->usuario?->name ?? $s->tarea?->tecnico?->usuario?->name ?? '—' }}</td>
                         <td class="px-4 py-3">{{ $s->inventario?->nombre }} <span class="text-xs text-slate-400">({{ $s->inventario?->codigo }})</span></td>
                         <td class="px-4 py-3 text-right">{{ $nfmt($s->cantidad) }}</td>
                         <td class="px-4 py-3 text-right {{ $falta ? 'text-brand-red font-semibold' : '' }}">
@@ -174,7 +176,7 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="px-4 py-10 text-center text-slate-400">Sin solicitudes en este estado.</td></tr>
+                    <tr><td colspan="8" class="px-4 py-10 text-center text-slate-400">Sin solicitudes en este estado.</td></tr>
                 @endforelse
             </tbody>
         </table>

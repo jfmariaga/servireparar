@@ -23,6 +23,7 @@ class SolicitudInsumoOt extends Model
         'detalle_ot_id',
         'detalle_ot_insumo_id',
         'inventario_id',
+        'entregado_a_tecnico_id',
         'cantidad',
         'estado',
         'solicitada_por',
@@ -53,6 +54,12 @@ class SolicitudInsumoOt extends Model
     public function inventario(): BelongsTo
     {
         return $this->belongsTo(Inventario::class, 'inventario_id');
+    }
+
+    /** Técnico al que Bodega entrega el insumo = encargado de la tarea (Phase 12 / D14). */
+    public function entregadoATecnico(): BelongsTo
+    {
+        return $this->belongsTo(Tecnico::class, 'entregado_a_tecnico_id');
     }
 
     public function movimiento(): BelongsTo

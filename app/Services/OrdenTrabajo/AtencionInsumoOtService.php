@@ -30,16 +30,21 @@ class AtencionInsumoOtService
     public function entregar(SolicitudInsumoOt $solicitud, User $almacenista): SolicitudInsumoOt
     {
         $this->asegurarPendiente($solicitud);
-        $solicitud->loadMissing('inventario', 'ordenTrabajo', 'tarea');
+        $solicitud->loadMissing('inventario', 'ordenTrabajo', 'tarea', 'entregadoATecnico.usuario');
 
         return DB::transaction(function () use ($solicitud, $almacenista) {
+            // D14: el destinatario es el técnico encargado de la tarea; Bodega no lo cambia.
+            $tecnico = $solicitud->entregadoATecnico?->usuario?->name
+                ?? $solicitud->tarea?->tecnico?->usuario?->name;
+
             try {
                 $movimiento = $this->movimientos->salida(
                     $solicitud->inventario,
                     (float) $solicitud->cantidad,
                     $almacenista,
                     origen: 'ot',
-                    motivo: 'OT '.$solicitud->ordenTrabajo->numero_ot.' — '.str((string) $solicitud->tarea?->descripcion)->limit(60),
+                    motivo: 'OT '.$solicitud->ordenTrabajo->numero_ot.' — '.str((string) $solicitud->tarea?->descripcion)->limit(50)
+                        .($tecnico ? ' — insumo para '.$tecnico : ''),
                     referencia: $solicitud->ordenTrabajo->numero_ot,
                 );
             } catch (StockInsuficienteException $e) {
