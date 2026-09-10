@@ -49,7 +49,8 @@ class VistaTecnicoTest extends TestCase
             ->assertDontSee($tareas[1]->descripcion)
             ->assertDontSee('Checklist de cierre')
             ->assertDontSee('Trazabilidad')
-            ->assertDontSee('Ver en Bodega');
+            ->assertDontSee('Ver en Bodega')
+            ->assertDontSee('>Evidencias<'); // el bloque de evidencias a nivel OT no se muestra
     }
 
     public function test_el_jefe_ve_la_vista_completa(): void

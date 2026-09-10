@@ -1030,7 +1030,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             </div>
             @endunless
 
-            {{-- Evidencias --}}
+            {{-- Evidencias de la OT (oculto en la vista del técnico: cada tarea tiene la suya) --}}
+            @unless ($vistaTecnico)
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
                 <h2 class="font-bold text-sm">Evidencias</h2>
 
@@ -1084,6 +1085,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     </div>
                 </div>
             </div>
+            @endunless
         </div>
 
         {{-- ===================== Columna lateral ===================== --}}
