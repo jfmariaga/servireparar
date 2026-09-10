@@ -148,6 +148,20 @@ class DetalleOt extends Model
         return $this->hasMany(DetalleOtInsumo::class, 'detalle_ot_id');
     }
 
+    /** Evidencias (imágenes/documentos) subidas para esta tarea. */
+    public function evidencias(): HasMany
+    {
+        return $this->hasMany(EvidenciaOt::class, 'detalle_ot_id');
+    }
+
+    /** ¿La tarea tiene al menos una imagen de evidencia? (requisito para finalizar, Phase 13). */
+    public function tieneEvidenciaImagen(): bool
+    {
+        $evs = $this->relationLoaded('evidencias') ? $this->evidencias : $this->evidencias()->get();
+
+        return $evs->contains(fn (EvidenciaOt $e) => str_starts_with((string) $e->tipo_archivo, 'image/'));
+    }
+
     /** Solicitudes hacia Bodega generadas por las líneas de insumo de la tarea. */
     public function solicitudesInsumo(): HasMany
     {

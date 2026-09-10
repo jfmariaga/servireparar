@@ -55,6 +55,7 @@ class GuardiasFlujoTest extends TestCase
             'insumos' => [['inventario_id' => $item->id, 'cantidad' => 2]],
         ]);
         $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+        $this->adjuntarEvidenciaTarea($tarea);
 
         // Insumo aún pendiente en Bodega → no finaliza, queda a la espera.
         $tarea = app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller(), 2);
@@ -80,6 +81,7 @@ class GuardiasFlujoTest extends TestCase
         ]);
         SolicitudInsumoOt::where('detalle_ot_id', $tarea->id)->update(['estado' => 'rechazada', 'motivo_rechazo' => 'Se compra directo']);
         $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+        $this->adjuntarEvidenciaTarea($tarea);
 
         $tarea = app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller(), 1);
         $this->assertTrue($tarea->finalizacionPendiente(), 'Un insumo rechazado también retiene la finalización');
@@ -91,6 +93,7 @@ class GuardiasFlujoTest extends TestCase
         app(EstadoOtService::class)->planificar($ot, $this->jefeDeTaller());
         $tarea = $ot->tareas()->first();
         $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+        $this->adjuntarEvidenciaTarea($tarea);
 
         $tarea = app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller(), 1);
         $this->assertSame('finalizada', $tarea->estado_tarea);

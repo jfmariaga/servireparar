@@ -82,6 +82,21 @@ trait OtScenario
         $ot->checklist()->update(['cumple' => $cumple]);
     }
 
+    /** Adjunta una imagen de evidencia a una tarea (requisito para finalizarla, Phase 13). */
+    protected function adjuntarEvidenciaTarea(DetalleOt $tarea): void
+    {
+        $tarea->ordenTrabajo->evidencias()->create([
+            'detalle_ot_id' => $tarea->id,
+            'tipo_registro' => 'proceso',
+            'tipo_archivo' => 'image/jpeg',
+            'url_archivo' => 'evidencias-ot/demo.jpg',
+            'descripcion' => 'Evidencia de prueba',
+            'subida_por' => $tarea->ordenTrabajo->creado_por,
+            'fecha_subida' => now(),
+        ]);
+        $tarea->load('evidencias');
+    }
+
     protected function finalizarTodasLasTareas(OrdenTrabajo $ot, float $dias = 2): void
     {
         $ot->tareas()->each(function (DetalleOt $t) use ($dias) {

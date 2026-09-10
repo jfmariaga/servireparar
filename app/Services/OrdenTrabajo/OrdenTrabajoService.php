@@ -285,6 +285,10 @@ class OrdenTrabajoService
             throw ValidationException::withMessages(['tarea' => 'La tarea debe estar en curso para finalizarla.']);
         }
 
+        if (! $tarea->tieneEvidenciaImagen()) {
+            throw ValidationException::withMessages(['tarea' => 'Sube una imagen de evidencia de la tarea antes de finalizarla.']);
+        }
+
         $diasTrabajados ??= $this->diasTrabajadosAuto($tarea);
 
         return DB::transaction(function () use ($tarea, $actor, $diasTrabajados) {

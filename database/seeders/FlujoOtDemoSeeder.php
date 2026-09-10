@@ -147,6 +147,7 @@ class FlujoOtDemoSeeder extends Seeder
         // c1 lleva 4 días abierta con un plazo de 2 → aparece "atrasada".
         $tareaC1 = $c->tareas()->where('descripcion', 'like', 'Corte%')->first();
         $tareaC1->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()->subDays(4)]);
+        $this->evidenciaTarea($tareaC1->fresh()); // ya tiene evidencia → su botón "Finalizar" está habilitado en el demo
         $estados->recalcular($c->fresh(['estado', 'tareas', 'checklist']), $this->jefe);
 
         // ── OT D · Finalizada + salida SOLICITADA (espera al Administrador) ──
@@ -222,6 +223,7 @@ class FlujoOtDemoSeeder extends Seeder
     private function finalizarTodo(OrdenTrabajo $ot, EstadoOtService $estados, float $dias): void
     {
         foreach ($ot->tareas()->where('estado_tarea', '!=', 'cancelada')->get() as $t) {
+            $this->evidenciaTarea($t);
             $t->update([
                 'estado_tarea' => 'finalizada',
                 'fecha_inicio' => now()->subDays((int) ceil($dias)),
@@ -233,5 +235,20 @@ class FlujoOtDemoSeeder extends Seeder
 
         $ot->checklist()->update(['cumple' => true]);
         $estados->recalcular($ot->fresh(['estado', 'tareas', 'checklist']), $this->jefe);
+    }
+
+    /** Adjunta una imagen de evidencia a la tarea (requisito para finalizarla, Phase 13). */
+    private function evidenciaTarea(\App\Models\DetalleOt $tarea): void
+    {
+        $tarea->ordenTrabajo->evidencias()->firstOrCreate(
+            ['detalle_ot_id' => $tarea->id, 'tipo_registro' => 'proceso'],
+            [
+                'tipo_archivo' => 'image/jpeg',
+                'url_archivo' => 'evidencias-ot/demo.jpg',
+                'descripcion' => 'Evidencia de la tarea (demo)',
+                'subida_por' => $tarea->tecnico?->usuario_id ?? $this->jefe->id,
+                'fecha_subida' => now(),
+            ],
+        );
     }
 }

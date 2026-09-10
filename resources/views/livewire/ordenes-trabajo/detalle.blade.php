@@ -25,9 +25,13 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
     public OrdenTrabajo $ot;
 
-    // Evidencia de proceso
+    // Evidencia de proceso (nivel OT)
     public $evidencia = null;
     public string $evidenciaDescripcion = '';
+
+    // Evidencia por tarea (imagen obligatoria antes de finalizar, Phase 13)
+    public ?int $evidenciaTareaId = null;
+    public $evidenciaTareaFile = null;
 
     // Checklist
     public string $nuevoItem = '';
@@ -79,7 +83,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->ot->load([
             'cliente', 'equipo', 'prioridad', 'estado', 'creadoPor',
             'tareas' => fn ($q) => $q->orderBy('orden')->orderBy('id'),
-            'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud', 'tareas.prerrequisitos',
+            'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud', 'tareas.prerrequisitos', 'tareas.evidencias',
             'evidencias.subidaPor', 'checklist', 'eventos.usuario',
             'manoObraContratistas.contratista',
         ]);
@@ -208,6 +212,33 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->notifySuccess($tarea->finalizacionPendiente()
             ? 'Tarea marcada lista para finalizar. Falta la confirmación del Jefe (insumos sin entregar).'
             : 'Tarea finalizada.');
+    }
+
+    /** Sube una imagen de evidencia asociada a una tarea (obligatoria para finalizarla). */
+    public function subirEvidenciaTarea(int $tareaId): void
+    {
+        Gate::authorize('executeTareas', $this->ot);
+        $tarea = $this->ot->tareas()->findOrFail($tareaId);
+
+        $this->validate([
+            'evidenciaTareaFile' => 'required|image|max:10240',
+        ], [], ['evidenciaTareaFile' => 'imagen']);
+
+        $ruta = $this->evidenciaTareaFile->store('evidencias-ot', 'public');
+        $this->ot->evidencias()->create([
+            'detalle_ot_id' => $tarea->id,
+            'tipo_registro' => 'proceso',
+            'tipo_archivo' => $this->evidenciaTareaFile->getMimeType(),
+            'url_archivo' => $ruta,
+            'descripcion' => 'Evidencia de la tarea: '.str($tarea->descripcion)->limit(60),
+            'subida_por' => auth()->id(),
+            'fecha_subida' => now(),
+        ]);
+        $this->ot->registrarEvento('evidencia', sprintf('Evidencia de la tarea «%s» cargada.', str($tarea->descripcion)->limit(40)), auth()->user());
+
+        $this->reset('evidenciaTareaFile', 'evidenciaTareaId');
+        $this->ot->refresh();
+        $this->notifySuccess('Evidencia de la tarea cargada.');
     }
 
     public function confirmarFinalizacionJefe(int $tareaId, OrdenTrabajoService $servicio): void
@@ -841,6 +872,40 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                     @endif
                                 </p>
                             @endforeach
+
+                            {{-- Evidencia de la tarea (imagen obligatoria para finalizar, Phase 13) --}}
+                            @if ($tarea->evidencias->isNotEmpty() || ($puedeEjecutar && $tarea->estado_tarea === 'en_curso'))
+                                <div class="flex flex-col gap-1.5 pt-1">
+                                    <span class="text-[11px] font-bold uppercase tracking-wide {{ $tarea->tieneEvidenciaImagen() || $tarea->estado_tarea !== 'en_curso' ? 'text-slate-400' : 'text-brand-red' }}">
+                                        Evidencia {{ $tarea->tieneEvidenciaImagen() || $tarea->estado_tarea !== 'en_curso' ? '' : '(obligatoria para finalizar)' }}
+                                    </span>
+                                    @if ($tarea->evidencias->isNotEmpty())
+                                        <div class="flex flex-wrap gap-1.5">
+                                            @foreach ($tarea->evidencias as $ev)
+                                                @php $u = \Illuminate\Support\Facades\Storage::disk('public')->url($ev->url_archivo); @endphp
+                                                <a href="{{ $u }}" target="_blank" class="block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                                                    @if (str_starts_with((string) $ev->tipo_archivo, 'image/'))
+                                                        <img src="{{ $u }}" alt="" class="w-full h-full object-cover">
+                                                    @else
+                                                        <span class="flex items-center justify-center w-full h-full text-[10px] text-slate-400">arch.</span>
+                                                    @endif
+                                                </a>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                    @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso')
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <input type="file" accept="image/*" wire:model="evidenciaTareaFile" wire:key="evtf-{{ $tarea->id }}"
+                                                   class="text-[11px] text-slate-500 dark:text-slate-400 file:mr-2 file:rounded-md file:border-0 file:bg-brand-blue-tint file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-brand-blue dark:file:bg-brand-navy-active dark:file:text-white">
+                                            <button wire:click="subirEvidenciaTarea({{ $tarea->id }})" wire:loading.attr="disabled" wire:target="subirEvidenciaTarea,evidenciaTareaFile"
+                                                    class="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60">Subir imagen</button>
+                                        </div>
+                                        <div wire:loading wire:target="evidenciaTareaFile" class="text-[10px] text-slate-400">Cargando…</div>
+                                        @error('evidenciaTareaFile') <span class="text-brand-red text-[11px]">{{ $message }}</span> @enderror
+                                    @endif
+                                </div>
+                            @endif
+
                             <div class="flex flex-wrap items-center gap-2 pt-1">
                                 @if ($puedeGestionar && $ot->estado?->slug !== 'entregada' && $ot->tareas->count() > 1)
                                     <span class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -856,13 +921,17 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                     @endif
                                 @endif
                                 @if ($puedeEjecutar && $tarea->estado_tarea === 'en_curso')
-                                    <button type="button"
-                                            x-on:click="Notify.confirmDanger({
-                                                title: '¿Finalizar esta tarea?',
-                                                text: 'El sistema registrará automáticamente los días trabajados desde el inicio.',
-                                                confirmButtonText: 'Sí, finalizar',
-                                            }).then((ok) => ok && $wire.finalizarTarea({{ $tarea->id }}))"
-                                            class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Finalizar</button>
+                                    @if (! $tarea->tieneEvidenciaImagen())
+                                        <button type="button" disabled title="Sube una imagen de evidencia antes de finalizar" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-slate-200 text-slate-400 dark:bg-slate-800 cursor-not-allowed">Finalizar</button>
+                                    @else
+                                        <button type="button"
+                                                x-on:click="Notify.confirmDanger({
+                                                    title: '¿Finalizar esta tarea?',
+                                                    text: 'El sistema registrará automáticamente los días trabajados desde el inicio.',
+                                                    confirmButtonText: 'Sí, finalizar',
+                                                }).then((ok) => ok && $wire.finalizarTarea({{ $tarea->id }}))"
+                                                class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Finalizar</button>
+                                    @endif
                                 @endif
                                 @if ($puedeGestionar && $tarea->finalizacionPendiente())
                                     <button wire:click="confirmarFinalizacionJefe({{ $tarea->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar finalización</button>

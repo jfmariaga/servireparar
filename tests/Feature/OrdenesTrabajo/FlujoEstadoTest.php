@@ -5,6 +5,7 @@ namespace Tests\Feature\OrdenesTrabajo;
 use App\Services\OrdenTrabajo\EstadoOtService;
 use App\Services\OrdenTrabajo\OrdenTrabajoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -70,6 +71,7 @@ class FlujoEstadoTest extends TestCase
 
         $comp->call('planificar')->assertHasNoErrors();
         $comp->call('iniciarTarea', $tarea->id)->assertHasNoErrors();
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
         // Ya no se piden días al operario: los calcula el sistema desde el inicio.
         $comp->call('finalizarTarea', $tarea->id)->assertHasNoErrors();
 
@@ -78,11 +80,31 @@ class FlujoEstadoTest extends TestCase
         $this->assertEquals(1, (float) $tarea->fresh()->dias_trabajados); // iniciada y finalizada el mismo día
     }
 
+    public function test_no_se_finaliza_una_tarea_sin_imagen_de_evidencia(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $tarea = $ot->tareas()->first();
+        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+
+        try {
+            app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller());
+            $this->fail('Debía exigir la imagen de evidencia.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('evidencia', $e->getMessage());
+        }
+        $this->assertSame('en_curso', $tarea->fresh()->estado_tarea);
+
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
+        app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller());
+        $this->assertSame('finalizada', $tarea->fresh()->estado_tarea);
+    }
+
     public function test_los_dias_trabajados_los_calcula_el_sistema_al_finalizar(): void
     {
         $ot = $this->crearOt(tareas: 1);
         $tarea = $ot->tareas()->first();
         $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()->subDays(3)]);
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
 
         app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller());
 
