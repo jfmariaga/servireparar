@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\RolPrioridad;
 use App\Models\Cliente;
 use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
@@ -52,6 +53,9 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
                 ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id]),
             'insumos' => $this->insumosDisponibles(),
+            // El valor del proyecto lo define el Administrador (ability manageCosteo, normalmente
+            // desde la pantalla de Costeo); el Jefe de Taller no lo ve al crear la OT.
+            'puedeDefinirValor' => auth()->user()->hasRole(RolPrioridad::Administrador->value),
         ];
     }
 
@@ -164,7 +168,11 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                 'direccion_servicio' => $datos['tipoServicio'] === 'domicilio' ? ($datos['direccionServicio'] ?: null) : null,
                 'descripcion' => $datos['descripcion'],
                 'tiempo_estimado_dias' => $datos['tiempoEstimadoDias'] !== '' ? (float) $datos['tiempoEstimadoDias'] : null,
-                'valor_proyecto' => $datos['valorProyecto'] !== '' ? (float) $datos['valorProyecto'] : null,
+                // Defensa en profundidad: aunque el campo esté oculto para el Jefe de Taller,
+                // el valor del proyecto solo lo puede fijar el Administrador (ver manageCosteo).
+                'valor_proyecto' => auth()->user()->hasRole(RolPrioridad::Administrador->value) && $datos['valorProyecto'] !== ''
+                    ? (float) $datos['valorProyecto']
+                    : null,
                 'equipo_descripcion' => $this->equipoDescripcion ?: null,
                 'equipo_marca' => $this->equipoMarca ?: null,
                 'equipo_modelo' => $this->equipoModelo ?: null,
@@ -244,15 +252,17 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                     @error('direccionServicio') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                 </x-field>
 
-                <x-field label="Descripción del servicio" required class="sm:col-span-2 xl:col-span-3">
+                <x-field label="Descripción del servicio" required class="sm:col-span-2 {{ $puedeDefinirValor ? 'xl:col-span-3' : 'xl:col-span-4' }}">
                     <x-textarea wire:model="descripcion" rows="3" placeholder="Detalle del trabajo solicitado por el cliente" />
                     @error('descripcion') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                 </x-field>
 
-                <x-field label="Valor del proyecto" hint="Puede definirse o corregirse después.">
-                    <x-input type="number" step="1" min="0" wire:model="valorProyecto" placeholder="$ 0" />
-                    @error('valorProyecto') <x-slot:error>{{ $message }}</x-slot:error> @enderror
-                </x-field>
+                @if ($puedeDefinirValor)
+                    <x-field label="Valor del proyecto" hint="Puede definirse o corregirse después desde el costeo.">
+                        <x-input type="number" step="1" min="0" wire:model="valorProyecto" placeholder="$ 0" />
+                        @error('valorProyecto') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                    </x-field>
+                @endif
             </div>
         </section>
 
@@ -338,25 +348,27 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                             @endif
                         </div>
 
-                        <div class="grid gap-4 sm:grid-cols-12">
-                            <x-field label="Descripción" required class="sm:col-span-6">
+                        <div class="flex flex-col gap-4">
+                            <x-field label="Descripción" required>
                                 <x-input wire:model="tareas.{{ $i }}.descripcion" placeholder="Qué se va a hacer" />
                                 @error('tareas.'.$i.'.descripcion') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                             </x-field>
 
-                            <x-field label="Técnico" required class="sm:col-span-4">
-                                <x-select wire:model="tareas.{{ $i }}.tecnico_id" :reset-key="'tec-'.($tarea['uid'] ?? $i)">
-                                    @foreach ($tecnicos as $t)
-                                        <option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>
-                                    @endforeach
-                                </x-select>
-                                @error('tareas.'.$i.'.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror
-                            </x-field>
+                            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                <x-field label="Técnico" required class="lg:col-span-2">
+                                    <x-select wire:model="tareas.{{ $i }}.tecnico_id" :reset-key="'tec-'.($tarea['uid'] ?? $i)">
+                                        @foreach ($tecnicos as $t)
+                                            <option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>
+                                        @endforeach
+                                    </x-select>
+                                    @error('tareas.'.$i.'.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                                </x-field>
 
-                            <x-field label="Plazo (días)" class="sm:col-span-2" hint="Debe caber en el tiempo estimado.">
-                                <x-input type="number" step="0.5" min="0.5" wire:model.live="tareas.{{ $i }}.dias_cumplimiento" placeholder="Ej. 2" />
-                                @error('tareas.'.$i.'.dias_cumplimiento') <x-slot:error>{{ $message }}</x-slot:error> @enderror
-                            </x-field>
+                                <x-field label="Plazo (días)" hint="Debe caber en el tiempo estimado.">
+                                    <x-input type="number" step="0.5" min="0.5" wire:model.live="tareas.{{ $i }}.dias_cumplimiento" placeholder="Ej. 2" />
+                                    @error('tareas.'.$i.'.dias_cumplimiento') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                                </x-field>
+                            </div>
                         </div>
 
                         <div class="flex flex-col gap-2 rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/50 dark:bg-slate-900/30 p-3">
