@@ -973,6 +973,47 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 </div>
             </div>
 
+            {{-- Herramientas en préstamo del técnico, en la columna principal para
+                 aprovechar el espacio libre que deja la vista reducida (Phase 12 / D15). --}}
+            @if ($tecnicoActual && $vistaTecnico)
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-4 text-sm">
+                    <h2 class="font-bold text-sm">Mis herramientas en préstamo</h2>
+
+                    @if ($misPrestamos->isNotEmpty())
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            @foreach ($misPrestamos as $p)
+                                <div wire:key="prh-{{ $p->id }}" class="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-slate-800 px-4 py-3">
+                                    <span class="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center {{ $p->estado === 'entregada' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-800' }}">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+                                        </svg>
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="font-semibold truncate">{{ $p->inventario?->nombre }}</p>
+                                        <p class="text-[11px] {{ $p->estado === 'entregada' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400' }}">
+                                            {{ $p->estado === 'entregada' ? 'En tu poder' : 'Solicitada' }} · {{ $p->solicitada_en?->format('d/m/Y') }}
+                                        </p>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-xs text-slate-400">No tienes herramientas en préstamo.</p>
+                    @endif
+
+                    <div class="flex flex-col gap-1.5 border-t border-slate-100 dark:border-slate-800 pt-4">
+                        <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Solicitar una herramienta</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <x-select wire:model="herramientaPrestamoId" :reset-key="'prh-'.$misPrestamos->count()" class="w-full sm:w-72">
+                                @foreach ($herramientasParaPrestamo as $hd)<option value="{{ $hd->id }}">{{ $hd->nombre }} ({{ $hd->codigo }})</option>@endforeach
+                            </x-select>
+                            <button wire:click="solicitarPrestamo" class="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Solicitar</button>
+                        </div>
+                        @error('herramientaPrestamoId') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+            @endif
+
             {{-- Checklist (oculto en la vista del técnico) --}}
             @unless ($vistaTecnico)
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3">
@@ -1160,14 +1201,14 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 </div>
             </div>
 
-            {{-- Herramientas en préstamo del técnico (Phase 12 / D15) --}}
-            @if ($tecnicoActual)
+            {{-- Herramientas en préstamo del técnico (Phase 12 / D15). En la vista
+                 reducida del técnico este panel vive en la columna principal (más
+                 espacio); aquí solo se muestra a quien gestiona y también es técnico. --}}
+            @if ($tecnicoActual && ! $vistaTecnico)
                 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3 text-sm">
                     <div class="flex items-center justify-between">
                         <h2 class="font-bold text-sm">Mis herramientas en préstamo</h2>
-                        @unless ($vistaTecnico)
-                            <a href="{{ route('prestamos-herramienta') }}" wire:navigate class="text-[11px] font-semibold text-brand-blue hover:underline">Ver todo →</a>
-                        @endunless
+                        <a href="{{ route('prestamos-herramienta') }}" wire:navigate class="text-[11px] font-semibold text-brand-blue hover:underline">Ver todo →</a>
                     </div>
                     @forelse ($misPrestamos as $p)
                         <div wire:key="prh-{{ $p->id }}" class="flex items-center justify-between gap-2 border-b border-slate-50 dark:border-slate-800/60 pb-2 last:border-0">
