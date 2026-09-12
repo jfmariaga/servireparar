@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\RolPrioridad;
+use App\Models\EstadoOt;
 use App\Models\OrdenTrabajo;
 use App\Models\User;
 
@@ -43,6 +44,27 @@ class OrdenTrabajoPolicy
     public function update(User $user, OrdenTrabajo $ot): bool
     {
         return $user->can('manage-ot') && ! $ot->estaBloqueada();
+    }
+
+    /**
+     * Cancelar la OT: Administrador siempre puede (si no está bloqueada); el
+     * Jefe de Taller ya no puede una vez la OT se liberó y alguna tarea tiene
+     * trabajo realizado (en curso o finalizada) — evita perder avance ya hecho.
+     */
+    public function cancel(User $user, OrdenTrabajo $ot): bool
+    {
+        if (! $user->can('manage-ot') || $ot->estaBloqueada()) {
+            return false;
+        }
+
+        if ($user->hasRole(RolPrioridad::Administrador->value)) {
+            return true;
+        }
+
+        $yaLiberada = ! $ot->estaEnEstado(EstadoOt::EN_REVISION);
+        $tieneTrabajoRealizado = $ot->tareas()->whereIn('estado_tarea', [EstadoOt::EN_CURSO, EstadoOt::FINALIZADA])->exists();
+
+        return ! ($yaLiberada && $tieneTrabajoRealizado);
     }
 
     public function executeTareas(User $user, OrdenTrabajo $ot): bool

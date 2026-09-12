@@ -161,6 +161,32 @@ class GuardiasFlujoTest extends TestCase
         $this->assertSame(0, SolicitudInsumoOt::where('ot_id', $ot->id)->where('estado', 'pendiente')->count());
     }
 
+    public function test_el_jefe_ya_no_puede_cancelar_una_ot_liberada_con_trabajo_realizado(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $jefe = $this->jefeDeTaller();
+        $admin = $this->administrador();
+
+        // Antes de liberar, el Jefe todavía puede cancelar.
+        $this->assertTrue($jefe->can('cancel', $ot));
+
+        app(EstadoOtService::class)->liberar($ot->fresh(['estado']), $jefe);
+        $ot->tareas()->first()->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+
+        $this->assertFalse($jefe->can('cancel', $ot->fresh(['estado'])), 'El Jefe ya no debería poder cancelar con trabajo realizado.');
+        $this->assertTrue($admin->can('cancel', $ot->fresh(['estado'])), 'El Administrador siempre puede cancelar.');
+    }
+
+    public function test_el_jefe_puede_cancelar_una_ot_liberada_sin_trabajo_realizado(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $jefe = $this->jefeDeTaller();
+
+        app(EstadoOtService::class)->liberar($ot->fresh(['estado']), $jefe);
+
+        $this->assertTrue($jefe->can('cancel', $ot->fresh(['estado'])), 'Liberada pero sin tareas en curso o finalizadas, el Jefe sí puede cancelar.');
+    }
+
     public function test_un_prestamo_de_herramienta_sin_devolver_no_bloquea_cancelar_la_ot(): void
     {
         // Phase 12 / D15: las herramientas están fuera del ciclo de la OT.

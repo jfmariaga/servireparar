@@ -110,6 +110,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     ->with('inventario:id,nombre')->latest('id')->get()
                 : collect(),
             'puedeGestionar' => $puedeGestionar = Gate::allows('update', $this->ot),
+            'puedeCancelarOt' => Gate::allows('cancel', $this->ot),
             'puedeEjecutar' => $puedeEjecutar = Gate::allows('executeTareas', $this->ot),
             'puedeAprobarSalida' => Gate::allows('approveEquipmentExit', $this->ot),
             'puedeSolicitarSalida' => Gate::allows('requestEquipmentExit', $this->ot),
@@ -577,7 +578,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
     public function cancelarOtConfirmar(OrdenTrabajoService $servicio): void
     {
-        Gate::authorize('update', $this->ot);
+        Gate::authorize('cancel', $this->ot);
         $this->validate(['motivoCancelacionOt' => 'required|string|max:500'], [], ['motivoCancelacionOt' => 'motivo']);
 
         try {
@@ -634,7 +635,9 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             @endif
             @if ($puedeGestionar && ! $editandoCabecera)
                 <button wire:click="editarCabecera" class="inline-flex items-center h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Corregir OT</button>
-                <button wire:click="$set('cancelandoOt', true)" class="inline-flex items-center h-9 px-3.5 rounded-lg border border-brand-red/40 text-brand-red text-[12.5px] font-semibold hover:bg-red-50 dark:hover:bg-red-900/20">Cancelar OT</button>
+                @if ($puedeCancelarOt)
+                    <button wire:click="$set('cancelandoOt', true)" class="inline-flex items-center h-9 px-3.5 rounded-lg border border-brand-red/40 text-brand-red text-[12.5px] font-semibold hover:bg-red-50 dark:hover:bg-red-900/20">Cancelar OT</button>
+                @endif
             @endif
         </div>
     </div>
