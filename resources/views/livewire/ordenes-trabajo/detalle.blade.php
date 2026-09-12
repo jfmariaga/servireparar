@@ -61,6 +61,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     /** @var array<string, mixed> */
     public array $tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'dias_cumplimiento' => '', 'insumos' => [], 'prerrequisitos' => []];
     public ?int $editandoTareaId = null;
+    /** Motivo de rechazo por inventario_id, para avisar en el formulario de edición. @var array<int, string> */
+    public array $tareaFormRechazos = [];
 
     public function mount(OrdenTrabajo $ordenTrabajo): void
     {
@@ -444,6 +446,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     private function resetTareaForm(): void
     {
         $this->tareaForm = ['descripcion' => '', 'tecnico_id' => null, 'dias_cumplimiento' => '', 'insumos' => [], 'prerrequisitos' => []];
+        $this->tareaFormRechazos = [];
     }
 
     /** Sube o baja una tarea en el orden de la lista (persiste `detalle_ot.orden`). */
@@ -493,7 +496,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public function editarTarea(int $tareaId): void
     {
         Gate::authorize('update', $this->ot);
-        $tarea = $this->ot->tareas()->with('insumos', 'prerrequisitos')->findOrFail($tareaId);
+        $tarea = $this->ot->tareas()->with('insumos', 'prerrequisitos', 'solicitudesInsumo')->findOrFail($tareaId);
 
         if ($tarea->estado_tarea !== 'pendiente') {
             $this->notifyError('Solo se puede editar una tarea que aún no se ha iniciado.');
@@ -513,6 +516,11 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 ->all(),
             'prerrequisitos' => $tarea->prerrequisitos->pluck('id')->map(fn ($id) => (string) $id)->all(),
         ];
+        // Avisa en el formulario si alguna línea fue rechazada por Bodega, con su motivo.
+        $this->tareaFormRechazos = $tarea->solicitudesInsumo
+            ->where('estado', 'rechazada')
+            ->pluck('motivo_rechazo', 'inventario_id')
+            ->all();
     }
 
     public function cancelarTarea(): void
@@ -787,6 +795,9 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                         <button type="button" wire:click="quitarInsumoForm({{ $li }})" class="h-10 px-2 text-slate-400 hover:text-brand-red text-sm">✕</button>
                                         @error('tareaForm.insumos.'.$li.'.inventario_id') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
                                         @error('tareaForm.insumos.'.$li.'.cantidad') <p class="col-span-3 text-xs text-brand-red">{{ $message }}</p> @enderror
+                                        @if ($motivo = $tareaFormRechazos[$linea['inventario_id']] ?? null)
+                                            <p class="col-span-3 text-[11px] text-brand-red">Rechazado por Bodega: {{ $motivo }}. Si guardas esta línea tal cual, se vuelve a enviar a Bodega.</p>
+                                        @endif
                                     </div>
                                 @endforeach
                                 @if (empty($tareaForm['insumos'] ?? []))

@@ -70,6 +70,31 @@ class NotificacionesOtTest extends TestCase
         $this->assertGreaterThanOrEqual(1, $this->noLeidas($almacen->fresh()));
     }
 
+    public function test_reactivar_un_insumo_rechazado_avisa_a_bodega(): void
+    {
+        $almacen = $this->conRol(RolPrioridad::Almacenista);
+        $ot = $this->crearOt(tareas: 1);
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+        $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 50]);
+
+        $tarea = app(OrdenTrabajoService::class)->agregarTarea($ot, $this->jefeDeTaller(), [
+            'descripcion' => 'X', 'tecnico_id' => $tecnico->id,
+            'insumos' => [['inventario_id' => $item->id, 'cantidad' => 2]],
+        ]);
+        app(EstadoOtService::class)->liberar($ot->fresh(), $this->jefeDeTaller());
+        $solicitud = SolicitudInsumoOt::where('detalle_ot_id', $tarea->id)->firstOrFail();
+        app(AtencionInsumoOtService::class)->rechazar($solicitud, $almacen, 'No hay');
+        $almacen->fresh()->unreadNotifications()->update(['read_at' => now()]);
+
+        // Se reenvía tal cual (misma cantidad e ítem): antes no avisaba a Bodega.
+        app(OrdenTrabajoService::class)->actualizarTarea($tarea->fresh(), $this->jefeDeTaller(), [
+            'insumos' => [['inventario_id' => $item->id, 'cantidad' => 2]],
+        ]);
+
+        $this->assertSame(1, $this->noLeidas($almacen->fresh()));
+        $this->assertSame('Solicitud de insumo reactivada', $almacen->fresh()->notifications()->first()->data['titulo']);
+    }
+
     public function test_entregar_insumo_avisa_al_tecnico_de_la_tarea(): void
     {
         $ot = $this->crearOt(tareas: 1);
