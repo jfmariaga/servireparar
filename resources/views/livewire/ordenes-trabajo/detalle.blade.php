@@ -1084,8 +1084,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @if ($ot->fecha_entrega)
                         <dt class="text-slate-400 col-span-1">Entregada</dt><dd class="col-span-2">{{ $ot->fecha_entrega->format('d/m/Y') }}</dd>
                     @endif
-                    {{-- El Técnico y el Almacenista no ven valores monetarios de la OT. --}}
-                    @if ($ot->valor_proyecto !== null && ! $vistaTecnico && ! $soloLectura)
+                    {{-- Los valores monetarios de la OT solo los ve quien puede ver el costeo (Administrador). --}}
+                    @if ($ot->valor_proyecto !== null && $puedeVerCosteo)
                         <dt class="text-slate-400 col-span-1">Valor</dt><dd class="col-span-2 font-semibold">{{ \App\Support\Moneda::cop($ot->valor_proyecto) }}</dd>
                     @endif
                 </dl>
