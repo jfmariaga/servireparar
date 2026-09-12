@@ -12,7 +12,7 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
         $tecnico = auth()->user()->tecnico;
 
         if (! $tecnico) {
-            return ['tecnico' => null, 'asignadas' => collect(), 'enCurso' => collect(), 'atrasadas' => collect(), 'prestamos' => collect()];
+            return ['tecnico' => null, 'asignadas' => collect(), 'enCurso' => collect(), 'atrasadas' => collect(), 'finalizadas' => 0, 'prestamos' => collect()];
         }
 
         $tareas = DetalleOt::query()
@@ -24,6 +24,11 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
             // Solo tareas de OT ya liberadas o en ejecución (no en "Planificación").
             ->filter(fn (DetalleOt $t) => ! $t->ordenTrabajo?->estaEnEstado(\App\Models\EstadoOt::EN_REVISION)
                 && ! optional($t->ordenTrabajo?->estado)->es_terminal);
+
+        $finalizadas = DetalleOt::query()
+            ->where('tecnico_id', $tecnico->id)
+            ->where('estado_tarea', 'finalizada')
+            ->count();
 
         // Préstamos de herramienta abiertos (solicitada o entregada) del técnico — D15/D16.
         $prestamos = PrestamoHerramienta::where('tecnico_id', $tecnico->id)
@@ -37,6 +42,7 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
             'asignadas' => $tareas->where('estado_tarea', 'pendiente')->values(),
             'enCurso' => $tareas->where('estado_tarea', 'en_curso')->values(),
             'atrasadas' => $tareas->filter(fn (DetalleOt $t) => $t->estaAtrasada())->values(),
+            'finalizadas' => $finalizadas,
             'prestamos' => $prestamos,
         ];
     }
@@ -63,8 +69,8 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
         </div>
 
         {{-- Resumen --}}
-        <div class="grid grid-cols-3 gap-4">
-            @foreach ([['Asignadas', $asignadas->count(), 'text-slate-600 dark:text-slate-300'], ['En curso', $enCurso->count(), 'text-amber-600 dark:text-amber-400'], ['Atrasadas', $atrasadas->count(), 'text-brand-red']] as [$label, $n, $tono])
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            @foreach ([['Asignadas', $asignadas->count(), 'text-slate-600 dark:text-slate-300'], ['En curso', $enCurso->count(), 'text-amber-600 dark:text-amber-400'], ['Atrasadas', $atrasadas->count(), 'text-brand-red'], ['Finalizadas', $finalizadas, 'text-emerald-600 dark:text-emerald-400']] as [$label, $n, $tono])
                 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
                     <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">{{ $label }}</p>
                     <p class="text-2xl font-bold mt-1 {{ $tono }}">{{ $n }}</p>
