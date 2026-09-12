@@ -1088,7 +1088,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 </dl>
             </div>
 
-            {{-- Salida de equipo --}}
+            {{-- Salida de equipo (no le concierne al técnico: no gestiona ni aprueba la salida) --}}
+            @unless ($vistaTecnico)
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3 text-sm">
                 <h2 class="font-bold text-sm">Salida de equipo y entrega</h2>
                 <p class="text-xs">Estado: <span class="font-semibold capitalize">{{ str($ot->salida_estado)->replace('_', ' ') }}</span></p>
@@ -1123,6 +1124,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @endif
                 </div>
             </div>
+            @endunless
 
             {{-- Herramientas en préstamo del técnico (Phase 12 / D15). Solo lectura:
                  quien las presta y las recibe de vuelta es Bodega, desde
