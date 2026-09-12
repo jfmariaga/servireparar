@@ -1056,6 +1056,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @endforelse
                 </div>
 
+                @unless ($soloLectura)
                 <div class="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-col sm:flex-row sm:items-start gap-3" @if ($ot->estaBloqueada()) hidden @endif>
                     @if ($evidencia)
                         <div class="shrink-0">
@@ -1078,6 +1079,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                         @error('evidencia') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                     </div>
                 </div>
+                @endunless
             </div>
             @endunless
         </div>
