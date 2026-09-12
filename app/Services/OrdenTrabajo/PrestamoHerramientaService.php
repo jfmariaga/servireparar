@@ -4,6 +4,7 @@ namespace App\Services\OrdenTrabajo;
 
 use App\Models\DetalleOt;
 use App\Models\Inventario;
+use App\Models\OrdenTrabajo;
 use App\Models\PrestamoHerramienta;
 use App\Models\Tecnico;
 use App\Models\User;
@@ -47,6 +48,53 @@ class PrestamoHerramientaService
         $this->notificador->prestamoSolicitado($prestamo);
 
         return $prestamo;
+    }
+
+    /**
+     * El Almacenista presta directamente una herramienta a un técnico (sin que
+     * el técnico la pida primero): queda `entregada` de una vez, con la misma
+     * trazabilidad de quién la entrega (`entregada_por`) y, al devolverse, de
+     * quién la recibe (`recibida_por`, en registrarDevolucion()).
+     */
+    public function prestar(Tecnico $tecnico, Inventario $herramienta, User $almacenista, ?OrdenTrabajo $ot = null): PrestamoHerramienta
+    {
+        if ($herramienta->tipo !== 'herramienta') {
+            throw ValidationException::withMessages(['herramienta' => 'Solo se pueden prestar ítems de tipo herramienta.']);
+        }
+
+        if ($herramienta->estado_herramienta !== 'disponible') {
+            throw ValidationException::withMessages([
+                'herramienta' => sprintf('«%s» no está disponible (estado: %s).',
+                    $herramienta->nombre,
+                    str((string) $herramienta->estado_herramienta)->replace('_', ' '),
+                ),
+            ]);
+        }
+
+        return DB::transaction(function () use ($tecnico, $herramienta, $almacenista, $ot) {
+            $movimiento = $this->movimientos->salida(
+                $herramienta,
+                1,
+                $almacenista,
+                origen: 'prestamo',
+                motivo: 'Préstamo de herramienta a '.($tecnico->usuario?->name ?? 'técnico #'.$tecnico->id),
+                referencia: $ot?->numero_ot,
+            );
+
+            $prestamo = PrestamoHerramienta::create([
+                'ot_id' => $ot?->id,
+                'tecnico_id' => $tecnico->id,
+                'inventario_id' => $herramienta->id,
+                'estado' => 'entregada',
+                'solicitada_en' => now(),
+                'entregada_por' => $almacenista->id,
+                'movimiento_salida_id' => $movimiento->id,
+            ]);
+
+            $this->notificador->prestamoResuelto($prestamo->fresh(['inventario', 'tecnico.usuario']), true);
+
+            return $prestamo->fresh();
+        });
     }
 
     /** El Almacenista entrega la herramienta: sale del almacén como `en_uso`. */

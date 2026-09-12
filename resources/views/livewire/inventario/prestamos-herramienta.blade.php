@@ -1,7 +1,9 @@
 <?php
 
 use App\Livewire\Concerns\Notifies;
+use App\Models\Inventario;
 use App\Models\PrestamoHerramienta;
+use App\Models\Tecnico;
 use App\Services\OrdenTrabajo\PrestamoHerramientaService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -20,6 +22,10 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
     public string $motivoRechazo = '';
     public ?int $devolviendoId = null;
     public string $estadoDevolucion = 'disponible';
+
+    // Prestar directamente (el Almacenista elige técnico + herramienta, sin que el técnico la pida antes)
+    public ?int $prestarTecnicoId = null;
+    public ?int $prestarHerramientaId = null;
 
     public function mount(): void
     {
@@ -59,6 +65,14 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
         return [
             'puedeAtender' => $this->puedeAtender(),
             'soloMis' => $soloMis,
+            'tecnicosActivos' => $this->puedeAtender()
+                ? Tecnico::disponibles()->with('usuario:id,name')->get()
+                    ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id])
+                : collect(),
+            'herramientasDisponibles' => $this->puedeAtender()
+                ? Inventario::activos()->where('tipo', 'herramienta')->where('estado_herramienta', 'disponible')
+                    ->orderBy('nombre')->get(['id', 'nombre', 'codigo'])
+                : collect(),
             'prestamos' => $base()
                 ->when($soloMis, fn ($q) => $q->where('tecnico_id', $miTecnicoId))
                 ->when($this->estado !== 'todos', fn ($q) => $q->where('estado', $this->estado))
@@ -70,6 +84,30 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
                 ->get()
                 ->groupBy(fn ($p) => $p->tecnico?->usuario?->name ?? 'Técnico #'.$p->tecnico_id),
         ];
+    }
+
+    public function prestar(PrestamoHerramientaService $svc): void
+    {
+        Gate::authorize('attend-ot-insumo');
+        $datos = $this->validate([
+            'prestarTecnicoId' => 'required|exists:tecnicos,id',
+            'prestarHerramientaId' => 'required|exists:inventario,id',
+        ], [], ['prestarTecnicoId' => 'técnico', 'prestarHerramientaId' => 'herramienta']);
+
+        try {
+            $svc->prestar(
+                Tecnico::findOrFail($datos['prestarTecnicoId']),
+                Inventario::findOrFail($datos['prestarHerramientaId']),
+                auth()->user(),
+            );
+        } catch (ValidationException $e) {
+            $this->notifyError($e->getMessage());
+
+            return;
+        }
+
+        $this->reset('prestarTecnicoId', 'prestarHerramientaId');
+        $this->notifySuccess('Herramienta prestada.');
     }
 
     public function entregar(int $id, PrestamoHerramientaService $svc): void
@@ -120,8 +158,29 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
 <div class="w-full flex flex-col gap-5">
     <div class="flex flex-wrap items-center gap-3">
         <h1 class="text-lg font-bold font-display">Préstamos de herramienta</h1>
-        <p class="text-sm text-slate-400">Los técnicos piden herramientas; Bodega las entrega y registra la devolución.</p>
+        <p class="text-sm text-slate-400">Bodega presta la herramienta directamente al técnico y registra la devolución al recibirla.</p>
     </div>
+
+    @if ($puedeAtender)
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col gap-3">
+            <h2 class="font-bold text-sm">Prestar herramienta</h2>
+            <div class="flex flex-col sm:flex-row sm:items-start gap-3">
+                <x-field label="Técnico" class="flex-1">
+                    <x-select wire:model="prestarTecnicoId" :reset-key="'prestar-tec'">
+                        @foreach ($tecnicosActivos as $t)<option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>@endforeach
+                    </x-select>
+                    @error('prestarTecnicoId') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                </x-field>
+                <x-field label="Herramienta" class="flex-1">
+                    <x-select wire:model="prestarHerramientaId" :reset-key="'prestar-herr'">
+                        @foreach ($herramientasDisponibles as $h)<option value="{{ $h->id }}">{{ $h->nombre }} ({{ $h->codigo }})</option>@endforeach
+                    </x-select>
+                    @error('prestarHerramientaId') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                </x-field>
+                <button wire:click="prestar" class="h-11 mt-auto px-5 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white text-[12.5px] font-semibold shrink-0">Prestar</button>
+            </div>
+        </div>
+    @endif
 
     <div class="flex flex-wrap gap-2">
         @foreach (['solicitada' => 'Solicitadas', 'entregada' => 'En préstamo', 'devuelta' => 'Devueltas', 'rechazada' => 'Rechazadas', 'todos' => 'Todos'] as $k => $label)

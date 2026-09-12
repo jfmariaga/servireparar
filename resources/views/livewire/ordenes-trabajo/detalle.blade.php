@@ -10,7 +10,6 @@ use App\Livewire\Concerns\Notifies;
 use App\Models\PrestamoHerramienta;
 use App\Services\OrdenTrabajo\EstadoOtService;
 use App\Services\OrdenTrabajo\OrdenTrabajoService;
-use App\Services\OrdenTrabajo\PrestamoHerramientaService;
 use App\Services\OrdenTrabajo\SalidaEquipoService;
 use App\Services\OrdenTrabajo\SolicitudInsumoService;
 use Illuminate\Support\Facades\Gate;
@@ -39,9 +38,6 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     // Salida de equipo
     public string $motivoRechazoSalida = '';
     public string $firmaCliente = '';
-
-    // Préstamo de herramienta que pide el técnico (Phase 12 / D15)
-    public ?int $herramientaPrestamoId = null;
 
     // Cancelación de OT / tarea (Phase 11 / D8)
     public bool $cancelandoOt = false;
@@ -108,10 +104,6 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
                 ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id]),
             'tecnicoActual' => $tecnicoActual,
-            'herramientasParaPrestamo' => $tecnicoActual
-                ? Inventario::activos()->where('tipo', 'herramienta')->where('estado_herramienta', 'disponible')
-                    ->orderBy('nombre')->get(['id', 'nombre', 'codigo'])
-                : collect(),
             'misPrestamos' => $tecnicoActual
                 ? PrestamoHerramienta::where('tecnico_id', $tecnicoActual->id)
                     ->whereIn('estado', ['solicitada', 'entregada'])
@@ -369,35 +361,6 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->firmaCliente = '';
         $this->ot->refresh();
         $this->notifySuccess('Entrega confirmada. OT '.$this->ot->numero_ot.' entregada.');
-    }
-
-    // --- Préstamo de herramienta que pide el técnico (Phase 12 / D15) ---
-
-    public function solicitarPrestamo(PrestamoHerramientaService $svc): void
-    {
-        Gate::authorize('view', $this->ot);
-        $tecnico = auth()->user()->tecnico;
-
-        if (! $tecnico) {
-            $this->notifyError('Solo un técnico puede pedir herramientas en préstamo.');
-
-            return;
-        }
-
-        $this->validate(['herramientaPrestamoId' => 'required|exists:inventario,id'], [], ['herramientaPrestamoId' => 'herramienta']);
-
-        $tareaPropia = $this->ot->tareas()->where('tecnico_id', $tecnico->id)->first();
-
-        try {
-            $svc->solicitar($tecnico, Inventario::findOrFail($this->herramientaPrestamoId), $tareaPropia);
-        } catch (ValidationException $e) {
-            $this->notifyError($e->getMessage());
-
-            return;
-        }
-
-        $this->herramientaPrestamoId = null;
-        $this->notifySuccess('Préstamo solicitado. Bodega debe entregarte la herramienta.');
     }
 
     // --- US4: correcciones ---
@@ -973,47 +936,6 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 </div>
             </div>
 
-            {{-- Herramientas en préstamo del técnico, en la columna principal para
-                 aprovechar el espacio libre que deja la vista reducida (Phase 12 / D15). --}}
-            @if ($tecnicoActual && $vistaTecnico)
-                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-4 text-sm">
-                    <h2 class="font-bold text-sm">Mis herramientas en préstamo</h2>
-
-                    @if ($misPrestamos->isNotEmpty())
-                        <div class="grid gap-3 sm:grid-cols-2">
-                            @foreach ($misPrestamos as $p)
-                                <div wire:key="prh-{{ $p->id }}" class="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-slate-800 px-4 py-3">
-                                    <span class="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center {{ $p->estado === 'entregada' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-slate-100 text-slate-400 dark:bg-slate-800' }}">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
-                                        </svg>
-                                    </span>
-                                    <div class="min-w-0 flex-1">
-                                        <p class="font-semibold truncate">{{ $p->inventario?->nombre }}</p>
-                                        <p class="text-[11px] {{ $p->estado === 'entregada' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400' }}">
-                                            {{ $p->estado === 'entregada' ? 'En tu poder' : 'Solicitada' }} · {{ $p->solicitada_en?->format('d/m/Y') }}
-                                        </p>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-xs text-slate-400">No tienes herramientas en préstamo.</p>
-                    @endif
-
-                    <div class="flex flex-col gap-1.5 border-t border-slate-100 dark:border-slate-800 pt-4">
-                        <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Solicitar una herramienta</span>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <x-select wire:model="herramientaPrestamoId" :reset-key="'prh-'.$misPrestamos->count()" class="w-full sm:w-72">
-                                @foreach ($herramientasParaPrestamo as $hd)<option value="{{ $hd->id }}">{{ $hd->nombre }} ({{ $hd->codigo }})</option>@endforeach
-                            </x-select>
-                            <button wire:click="solicitarPrestamo" class="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Solicitar</button>
-                        </div>
-                        @error('herramientaPrestamoId') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
-                    </div>
-                </div>
-            @endif
-
             {{-- Checklist (oculto en la vista del técnico) --}}
             @unless ($vistaTecnico)
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3">
@@ -1159,7 +1081,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @if ($ot->fecha_entrega)
                         <dt class="text-slate-400 col-span-1">Entregada</dt><dd class="col-span-2">{{ $ot->fecha_entrega->format('d/m/Y') }}</dd>
                     @endif
-                    @if ($ot->valor_proyecto !== null)
+                    {{-- El Técnico y el Almacenista no ven valores monetarios de la OT. --}}
+                    @if ($ot->valor_proyecto !== null && ! $vistaTecnico && ! $soloLectura)
                         <dt class="text-slate-400 col-span-1">Valor</dt><dd class="col-span-2 font-semibold">{{ \App\Support\Moneda::cop($ot->valor_proyecto) }}</dd>
                     @endif
                 </dl>
@@ -1201,14 +1124,16 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                 </div>
             </div>
 
-            {{-- Herramientas en préstamo del técnico (Phase 12 / D15). En la vista
-                 reducida del técnico este panel vive en la columna principal (más
-                 espacio); aquí solo se muestra a quien gestiona y también es técnico. --}}
-            @if ($tecnicoActual && ! $vistaTecnico)
+            {{-- Herramientas en préstamo del técnico (Phase 12 / D15). Solo lectura:
+                 quien las presta y las recibe de vuelta es Bodega, desde
+                 /inventario/prestamos-herramienta — el técnico ya no las solicita aquí. --}}
+            @if ($tecnicoActual)
                 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-3 text-sm">
                     <div class="flex items-center justify-between">
                         <h2 class="font-bold text-sm">Mis herramientas en préstamo</h2>
-                        <a href="{{ route('prestamos-herramienta') }}" wire:navigate class="text-[11px] font-semibold text-brand-blue hover:underline">Ver todo →</a>
+                        @unless ($vistaTecnico)
+                            <a href="{{ route('prestamos-herramienta') }}" wire:navigate class="text-[11px] font-semibold text-brand-blue hover:underline">Ver todo →</a>
+                        @endunless
                     </div>
                     @forelse ($misPrestamos as $p)
                         <div wire:key="prh-{{ $p->id }}" class="flex items-center justify-between gap-2 border-b border-slate-50 dark:border-slate-800/60 pb-2 last:border-0">
@@ -1220,14 +1145,6 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @empty
                         <p class="text-xs text-slate-400">No tienes herramientas en préstamo.</p>
                     @endforelse
-
-                    <div class="flex flex-wrap items-center gap-2 pt-1">
-                        <x-select wire:model="herramientaPrestamoId" :reset-key="'prh-'.$misPrestamos->count()" class="flex-1 min-w-[10rem]">
-                            @foreach ($herramientasParaPrestamo as $hd)<option value="{{ $hd->id }}">{{ $hd->nombre }} ({{ $hd->codigo }})</option>@endforeach
-                        </x-select>
-                        <button wire:click="solicitarPrestamo" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">Solicitar</button>
-                    </div>
-                    @error('herramientaPrestamoId') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                 </div>
             @endif
 

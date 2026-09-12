@@ -55,6 +55,36 @@ class PrestamoHerramientaTest extends TestCase
         $this->assertDatabaseHas('movimientos_inventario', ['inventario_id' => $tool->id, 'tipo_mov' => 'salida', 'origen' => 'prestamo']);
     }
 
+    public function test_el_almacenista_presta_directamente_sin_solicitud_previa(): void
+    {
+        $tecUser = User::factory()->create();
+        $tec = Tecnico::factory()->conSueldo()->create(['usuario_id' => $tecUser->id]);
+        $tool = $this->herramienta();
+        $almacenista = $this->almacenista();
+
+        $prestamo = app(PrestamoHerramientaService::class)->prestar($tec, $tool, $almacenista);
+
+        $this->assertSame('entregada', $prestamo->estado);
+        $this->assertSame($almacenista->id, $prestamo->entregada_por);
+        $this->assertSame('en_uso', $tool->fresh()->estado_herramienta);
+        $this->assertDatabaseHas('movimientos_inventario', ['inventario_id' => $tool->id, 'tipo_mov' => 'salida', 'origen' => 'prestamo']);
+        $this->assertTrue($tecUser->fresh()->notifications()->where('data->titulo', 'Herramienta entregada')->exists());
+
+        // Trazabilidad completa: quien entrega (al prestar) y quien recibe (al devolver) quedan registrados.
+        app(PrestamoHerramientaService::class)->registrarDevolucion($prestamo->fresh(), $almacenista, 'disponible');
+        $prestamo->refresh();
+        $this->assertSame('devuelta', $prestamo->estado);
+        $this->assertSame($almacenista->id, $prestamo->recibida_por);
+    }
+
+    public function test_no_se_presta_una_herramienta_no_disponible(): void
+    {
+        $tec = Tecnico::factory()->conSueldo()->create();
+
+        $this->expectException(ValidationException::class);
+        app(PrestamoHerramientaService::class)->prestar($tec, $this->herramienta('en_mantenimiento'), $this->almacenista());
+    }
+
     public function test_no_se_entrega_una_herramienta_no_disponible(): void
     {
         $tec = Tecnico::factory()->conSueldo()->create();
