@@ -95,11 +95,13 @@ class FlujoOtDemoSeeder extends Seeder
             'equipo_estado_ingreso' => 'Baranda con fisura, rodamientos con juego axial.',
         ], [
             ['uid' => 't1', 'descripcion' => 'Desmontaje y limpieza de conjunto rodante', 'tecnico_id' => $this->carlos->id,
-                'insumos' => [['inventario_id' => $disco->id, 'cantidad' => 4]]],
+                'dias_cumplimiento' => 2, 'insumos' => [['inventario_id' => $disco->id, 'cantidad' => 4]]],
             ['uid' => 't2', 'descripcion' => 'Cambio de rodamientos', 'tecnico_id' => $this->diana->id,
+                'dias_cumplimiento' => 2,
                 'insumos' => [['inventario_id' => $rodamiento->id, 'cantidad' => 2], ['inventario_id' => $grasa->id, 'cantidad' => 1]],
                 'prerrequisitos' => ['t1']],
             ['uid' => 't3', 'descripcion' => 'Refuerzo y soldadura de baranda', 'tecnico_id' => $this->carlos->id,
+                'dias_cumplimiento' => 2,
                 'insumos' => [['inventario_id' => $electrodo->id, 'cantidad' => 3]],
                 'prerrequisitos' => ['t2']],
         ]);
@@ -109,6 +111,7 @@ class FlujoOtDemoSeeder extends Seeder
             'cliente_id' => $avianca->id,
             'prioridad_id' => $this->prioridadMedia,
             'tipo_servicio' => 'domicilio',
+            'direccion_servicio' => 'Aeropuerto El Dorado, Bogotá — Bodega de carga',
             'descripcion' => 'Mantenimiento correctivo de compresor: fuga de aceite y ruido en acople.',
             'tiempo_estimado_dias' => 3,
             'valor_proyecto' => 2_600_000,
@@ -117,8 +120,8 @@ class FlujoOtDemoSeeder extends Seeder
             'equipo_serie' => 'CMP-AV-221',
         ], [
             ['descripcion' => 'Sellado de fuga y cambio de empaques', 'tecnico_id' => $this->diana->id,
-                'insumos' => [['inventario_id' => $grasa->id, 'cantidad' => 2]]],
-            ['descripcion' => 'Alineación y ajuste de acople', 'tecnico_id' => $this->andres->id],
+                'dias_cumplimiento' => 2, 'insumos' => [['inventario_id' => $grasa->id, 'cantidad' => 2]]],
+            ['descripcion' => 'Alineación y ajuste de acople', 'tecnico_id' => $this->andres->id, 'dias_cumplimiento' => 1],
         ]);
         $estados->liberar($b->fresh(['estado']), $this->jefe);
 
@@ -132,15 +135,19 @@ class FlujoOtDemoSeeder extends Seeder
             'valor_proyecto' => 3_100_000,
         ], [
             ['uid' => 'c1', 'descripcion' => 'Corte y armado de estructura', 'tecnico_id' => $this->carlos->id,
+                'dias_cumplimiento' => 2,
                 'insumos' => [['inventario_id' => $disco->id, 'cantidad' => 3], ['inventario_id' => $electrodo->id, 'cantidad' => 2]]],
-            ['uid' => 'c2', 'descripcion' => 'Pintura y acabado', 'tecnico_id' => $this->andres->id, 'prerrequisitos' => ['c1']],
+            ['uid' => 'c2', 'descripcion' => 'Pintura y acabado', 'tecnico_id' => $this->andres->id,
+                'dias_cumplimiento' => 2, 'prerrequisitos' => ['c1']],
         ]);
         $estados->liberar($c->fresh(['estado']), $this->jefe);
         foreach (SolicitudInsumoOt::where('ot_id', $c->id)->where('estado', 'pendiente')->get() as $sol) {
             $insumos->entregar($sol, $this->almacen);
         }
+        // c1 lleva 4 días abierta con un plazo de 2 → aparece "atrasada".
         $tareaC1 = $c->tareas()->where('descripcion', 'like', 'Corte%')->first();
-        $tareaC1->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()->subDay()]);
+        $tareaC1->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()->subDays(4)]);
+        $this->evidenciaTarea($tareaC1->fresh()); // ya tiene evidencia → su botón "Finalizar" está habilitado en el demo
         $estados->recalcular($c->fresh(['estado', 'tareas', 'checklist']), $this->jefe);
 
         // ── OT D · Finalizada + salida SOLICITADA (espera al Administrador) ──
@@ -196,6 +203,7 @@ class FlujoOtDemoSeeder extends Seeder
             'cliente_id' => $avianca->id,
             'prioridad_id' => $this->prioridadMedia,
             'tipo_servicio' => 'domicilio',
+            'direccion_servicio' => 'Zona Franca, Bogotá — Planta 2',
             'descripcion' => 'Diagnóstico de tablero eléctrico — el cliente canceló el servicio.',
             'tiempo_estimado_dias' => 1,
         ], [
@@ -215,6 +223,7 @@ class FlujoOtDemoSeeder extends Seeder
     private function finalizarTodo(OrdenTrabajo $ot, EstadoOtService $estados, float $dias): void
     {
         foreach ($ot->tareas()->where('estado_tarea', '!=', 'cancelada')->get() as $t) {
+            $this->evidenciaTarea($t);
             $t->update([
                 'estado_tarea' => 'finalizada',
                 'fecha_inicio' => now()->subDays((int) ceil($dias)),
@@ -226,5 +235,20 @@ class FlujoOtDemoSeeder extends Seeder
 
         $ot->checklist()->update(['cumple' => true]);
         $estados->recalcular($ot->fresh(['estado', 'tareas', 'checklist']), $this->jefe);
+    }
+
+    /** Adjunta una imagen de evidencia a la tarea (requisito para finalizarla, Phase 13). */
+    private function evidenciaTarea(\App\Models\DetalleOt $tarea): void
+    {
+        $tarea->ordenTrabajo->evidencias()->firstOrCreate(
+            ['detalle_ot_id' => $tarea->id, 'tipo_registro' => 'proceso'],
+            [
+                'tipo_archivo' => 'image/jpeg',
+                'url_archivo' => 'evidencias-ot/demo.jpg',
+                'descripcion' => 'Evidencia de la tarea (demo)',
+                'subida_por' => $tarea->tecnico?->usuario_id ?? $this->jefe->id,
+                'fecha_subida' => now(),
+            ],
+        );
     }
 }

@@ -15,8 +15,8 @@ use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 /**
- * Phase 11 / Fase 5 — guardias de la máquina de estados: planificación obligatoria
- * (H6), confirmación del Jefe para finalizar tareas con insumos sin entregar (D3),
+ * Guardias de la máquina de estados: planificación/liberación obligatoria (H6),
+ * una tarea con insumos sin entregar NO se puede iniciar (Phase 13 / D21),
  * reapertura invalida la salida aprobada (H7), cancelación de OT / tarea (D8).
  */
 class GuardiasFlujoTest extends TestCase
@@ -42,57 +42,69 @@ class GuardiasFlujoTest extends TestCase
         $this->assertTrue($tecnico->can('executeTareas', $ot->fresh(['estado'])));
     }
 
-    public function test_finalizar_tarea_con_insumo_sin_entregar_espera_al_jefe(): void
+    public function test_el_jefe_de_taller_no_puede_ejecutar_tareas(): void
     {
         $ot = $this->crearOt(tareas: 1);
         app(EstadoOtService::class)->planificar($ot, $this->jefeDeTaller());
-        $tecnico = Tecnico::factory()->conSueldo()->create();
-        $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 50]);
 
-        $tarea = app(OrdenTrabajoService::class)->agregarTarea($ot->fresh(['estado']), $this->jefeDeTaller(), [
-            'descripcion' => 'Con insumo',
-            'tecnico_id' => $tecnico->id,
-            'insumos' => [['inventario_id' => $item->id, 'cantidad' => 2]],
-        ]);
-        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
-
-        // Insumo aún pendiente en Bodega → no finaliza, queda a la espera.
-        $tarea = app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller(), 2);
-        $this->assertSame('en_curso', $tarea->estado_tarea);
-        $this->assertTrue($tarea->finalizacionPendiente());
-
-        // El Jefe confirma.
-        app(OrdenTrabajoService::class)->confirmarFinalizacionTarea($tarea->fresh(), $this->jefeDeTaller());
-        $this->assertSame('finalizada', $tarea->fresh()->estado_tarea);
-        $this->assertNull($tarea->fresh()->finalizacion_solicitada_en);
+        $this->assertTrue($this->jefeDeTaller()->cannot('executeTareas', $ot->fresh(['estado'])));
     }
 
-    public function test_finalizar_tarea_con_insumo_rechazado_tambien_espera_al_jefe(): void
+    public function test_no_se_inicia_una_tarea_con_insumo_sin_entregar(): void
     {
         $ot = $this->crearOt(tareas: 1);
-        app(EstadoOtService::class)->planificar($ot, $this->jefeDeTaller());
+        app(EstadoOtService::class)->liberar($ot, $this->jefeDeTaller());
+        $tecnicoUser = $this->tecnicoUser();
+        $tecnico = Tecnico::factory()->conSueldo()->create(['usuario_id' => $tecnicoUser->id]);
+        $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 50, 'costo_unitario' => 100]);
+        $item->movimientos()->create(['tipo_mov' => 'entrada', 'cantidad' => 50, 'cantidad_disponible' => 50, 'costo_unitario' => 100, 'fecha' => now(), 'usuario_id' => $tecnicoUser->id, 'origen' => 'entrada_proveedor']);
+
+        $tarea = app(OrdenTrabajoService::class)->agregarTarea($ot->fresh(['estado']), $this->jefeDeTaller(), [
+            'descripcion' => 'Con insumo', 'tecnico_id' => $tecnico->id,
+            'insumos' => [['inventario_id' => $item->id, 'cantidad' => 2]],
+        ]);
+
+        // Insumo pendiente en Bodega → el técnico no puede iniciar.
+        Volt::actingAs($tecnicoUser)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()])
+            ->call('iniciarTarea', $tarea->id, app(EstadoOtService::class));
+        $this->assertSame('pendiente', $tarea->fresh()->estado_tarea);
+        $this->assertTrue($tarea->fresh()->bloqueadaPorInsumos());
+
+        // Bodega entrega → ya se puede iniciar.
+        app(\App\Services\OrdenTrabajo\AtencionInsumoOtService::class)
+            ->entregar(SolicitudInsumoOt::where('detalle_ot_id', $tarea->id)->firstOrFail(), $this->usuarioConRol('Almacenista'));
+
+        Volt::actingAs($tecnicoUser)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()])
+            ->call('iniciarTarea', $tarea->id, app(EstadoOtService::class));
+        $this->assertSame('en_curso', $tarea->fresh()->estado_tarea);
+    }
+
+    public function test_un_insumo_rechazado_tambien_bloquea_el_inicio(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        app(EstadoOtService::class)->liberar($ot, $this->jefeDeTaller());
         $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 50]);
 
         $tarea = app(OrdenTrabajoService::class)->agregarTarea($ot->fresh(['estado']), $this->jefeDeTaller(), [
-            'descripcion' => 'Con insumo rechazado',
-            'tecnico_id' => Tecnico::factory()->conSueldo()->create()->id,
+            'descripcion' => 'Con insumo rechazado', 'tecnico_id' => Tecnico::factory()->conSueldo()->create()->id,
             'insumos' => [['inventario_id' => $item->id, 'cantidad' => 2]],
         ]);
         SolicitudInsumoOt::where('detalle_ot_id', $tarea->id)->update(['estado' => 'rechazada', 'motivo_rechazo' => 'Se compra directo']);
-        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
 
-        $tarea = app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller(), 1);
-        $this->assertTrue($tarea->finalizacionPendiente(), 'Un insumo rechazado también retiene la finalización');
+        $this->assertTrue($tarea->fresh()->bloqueadaPorInsumos(), 'Un insumo rechazado deja la tarea sin poder iniciarse.');
     }
 
     public function test_finalizar_tarea_sin_insumos_es_directo(): void
     {
         $ot = $this->crearOt(tareas: 1);
-        app(EstadoOtService::class)->planificar($ot, $this->jefeDeTaller());
+        app(EstadoOtService::class)->liberar($ot, $this->jefeDeTaller());
         $tarea = $ot->tareas()->first();
         $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+        $this->adjuntarEvidenciaTarea($tarea);
 
-        $tarea = app(OrdenTrabajoService::class)->marcarTareaListaParaFinalizar($tarea->fresh(), $this->jefeDeTaller(), 1);
+        $tarea = app(OrdenTrabajoService::class)->finalizarTareaOperario($tarea->fresh(), $this->jefeDeTaller(), 1);
         $this->assertSame('finalizada', $tarea->estado_tarea);
     }
 
@@ -155,6 +167,32 @@ class GuardiasFlujoTest extends TestCase
         $this->assertTrue($ot->estado->es_terminal);
         $this->assertEquals(20, $item->fresh()->disponible());
         $this->assertSame(0, SolicitudInsumoOt::where('ot_id', $ot->id)->where('estado', 'pendiente')->count());
+    }
+
+    public function test_el_jefe_ya_no_puede_cancelar_una_ot_liberada_con_trabajo_realizado(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $jefe = $this->jefeDeTaller();
+        $admin = $this->administrador();
+
+        // Antes de liberar, el Jefe todavía puede cancelar.
+        $this->assertTrue($jefe->can('cancel', $ot));
+
+        app(EstadoOtService::class)->liberar($ot->fresh(['estado']), $jefe);
+        $ot->tareas()->first()->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+
+        $this->assertFalse($jefe->can('cancel', $ot->fresh(['estado'])), 'El Jefe ya no debería poder cancelar con trabajo realizado.');
+        $this->assertTrue($admin->can('cancel', $ot->fresh(['estado'])), 'El Administrador siempre puede cancelar.');
+    }
+
+    public function test_el_jefe_puede_cancelar_una_ot_liberada_sin_trabajo_realizado(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $jefe = $this->jefeDeTaller();
+
+        app(EstadoOtService::class)->liberar($ot->fresh(['estado']), $jefe);
+
+        $this->assertTrue($jefe->can('cancel', $ot->fresh(['estado'])), 'Liberada pero sin tareas en curso o finalizadas, el Jefe sí puede cancelar.');
     }
 
     public function test_un_prestamo_de_herramienta_sin_devolver_no_bloquea_cancelar_la_ot(): void

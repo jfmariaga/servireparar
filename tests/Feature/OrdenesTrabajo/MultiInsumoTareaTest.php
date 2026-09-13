@@ -94,6 +94,34 @@ class MultiInsumoTareaTest extends TestCase
         $this->assertSame(1, $tarea->fresh()->insumos()->count());
     }
 
+    public function test_reactivar_una_linea_rechazada_deja_traza_aunque_no_cambie(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+        $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 100]);
+
+        $tarea = app(OrdenTrabajoService::class)->agregarTarea($ot, $this->jefeDeTaller(), [
+            'descripcion' => 'Tarea',
+            'tecnico_id' => $tecnico->id,
+            'insumos' => [['inventario_id' => $item->id, 'cantidad' => 3]],
+        ]);
+
+        SolicitudInsumoOt::where('detalle_ot_id', $tarea->id)->update(['estado' => 'rechazada', 'motivo_rechazo' => 'No hay']);
+
+        // Se reenvía la MISMA cantidad/ítem — antes esto reactivaba en silencio.
+        app(OrdenTrabajoService::class)->actualizarTarea($tarea->fresh(), $this->jefeDeTaller(), [
+            'insumos' => [['inventario_id' => $item->id, 'cantidad' => 3]],
+        ]);
+
+        $this->assertDatabaseHas('solicitudes_insumo_ot', [
+            'detalle_ot_id' => $tarea->id,
+            'inventario_id' => $item->id,
+            'estado' => 'pendiente',
+            'motivo_rechazo' => null,
+        ]);
+        $this->assertDatabaseHas('ot_eventos', ['ot_id' => $ot->id, 'tipo' => 'insumo_reactivado']);
+    }
+
     public function test_no_se_puede_quitar_una_linea_de_insumo_ya_entregada(): void
     {
         $ot = $this->crearOt(tareas: 1);

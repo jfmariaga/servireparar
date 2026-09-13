@@ -15,12 +15,24 @@ window.ServiopsSelect = {
             return;
         }
 
-        new TomSelect(select, {
+        const ts = new TomSelect(select, {
             create: false,
             allowEmptyOption: true,
             maxOptions: null,
             plugins: select.multiple ? ['remove_button'] : [],
         });
+
+        // Cuando este <select> aparece con un valor ya asignado (p. ej. al
+        // editar una tarea existente), Livewire a veces termina de fijar el
+        // valor real del <select> oculto justo después de que Alpine monta
+        // Tom Select, y este se queda mostrando "Seleccionar..." aunque el
+        // valor ya esté correcto por debajo. Resincroniza una vez más tras
+        // el ciclo actual para no perder ese valor inicial.
+        setTimeout(() => {
+            if (select.value && ts.getValue() !== select.value) {
+                ts.setValue(select.value, true);
+            }
+        }, 0);
     },
 };
 

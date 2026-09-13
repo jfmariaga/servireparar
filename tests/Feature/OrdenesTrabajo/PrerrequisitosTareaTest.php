@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\OrdenesTrabajo;
 
+use App\Enums\RolPrioridad;
 use App\Models\Cliente;
 use App\Models\Prioridad;
 use App\Models\Tecnico;
@@ -61,9 +62,15 @@ class PrerrequisitosTareaTest extends TestCase
             'b' => ['descripcion' => 'B', 'prerrequisitos' => ['a']],
         ]);
 
+        $tecnicoUserB = $t['B']->tecnico->usuario;
+        $tecnicoUserB->assignRole(RolPrioridad::Tecnico->value);
+
         Volt::actingAs($this->jefeDeTaller())
             ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
-            ->call('planificar', app(EstadoOtService::class))
+            ->call('planificar', app(EstadoOtService::class));
+
+        Volt::actingAs($tecnicoUserB)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()])
             ->call('iniciarTarea', $t['B']->id, app(EstadoOtService::class));
 
         $this->assertSame('pendiente', $t['B']->fresh()->estado_tarea, 'B no debe iniciarse mientras A no esté finalizada.');
@@ -77,10 +84,15 @@ class PrerrequisitosTareaTest extends TestCase
         ]);
 
         $t['A']->update(['estado_tarea' => 'finalizada', 'fecha_fin' => now(), 'dias_trabajados' => 1]);
+        $tecnicoUserB = $t['B']->tecnico->usuario;
+        $tecnicoUserB->assignRole(RolPrioridad::Tecnico->value);
 
         Volt::actingAs($this->jefeDeTaller())
             ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
-            ->call('planificar', app(EstadoOtService::class))
+            ->call('planificar', app(EstadoOtService::class));
+
+        Volt::actingAs($tecnicoUserB)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()])
             ->call('iniciarTarea', $t['B']->id, app(EstadoOtService::class));
 
         $this->assertSame('en_curso', $t['B']->fresh()->estado_tarea);

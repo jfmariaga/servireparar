@@ -2,8 +2,11 @@
 
 namespace Tests\Feature\OrdenesTrabajo;
 
+use App\Enums\RolPrioridad;
 use App\Services\OrdenTrabajo\EstadoOtService;
+use App\Services\OrdenTrabajo\OrdenTrabajoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -22,10 +25,16 @@ class FlujoEstadoTest extends TestCase
         $ot = $this->crearOt();
         $this->assertSame('en_revision', $ot->estado->slug);
         $tarea = $ot->tareas()->first();
+        $tecnicoUser = $tarea->tecnico->usuario;
+        $tecnicoUser->assignRole(RolPrioridad::Tecnico->value);
 
         Volt::actingAs($this->jefeDeTaller())
             ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
             ->call('planificar')
+            ->assertHasNoErrors();
+
+        Volt::actingAs($tecnicoUser)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()])
             ->call('iniciarTarea', $tarea->id)
             ->assertHasNoErrors();
 
@@ -63,20 +72,55 @@ class FlujoEstadoTest extends TestCase
         $ot = $this->crearOt(tareas: 1);
         $this->completarChecklist($ot);
         $tarea = $ot->tareas()->first();
+        $tecnicoUser = $tarea->tecnico->usuario;
+        $tecnicoUser->assignRole(RolPrioridad::Tecnico->value);
 
-        $comp = Volt::actingAs($this->jefeDeTaller())
-            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot]);
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->call('planificar')->assertHasNoErrors();
 
-        $comp->call('planificar')->assertHasNoErrors();
+        $comp = Volt::actingAs($tecnicoUser)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()]);
         $comp->call('iniciarTarea', $tarea->id)->assertHasNoErrors();
-        $comp->call('confirmarFinalizarTarea', $tarea->id)
-            ->set('diasTrabajados', '3')
-            ->call('finalizarTarea')
-            ->assertHasNoErrors();
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
+        // Ya no se piden días al operario: los calcula el sistema desde el inicio.
+        $comp->call('finalizarTarea', $tarea->id)->assertHasNoErrors();
 
         $ot->refresh();
         $this->assertSame('finalizada', $ot->estado->slug);
-        $this->assertEquals(3, (float) $tarea->fresh()->dias_trabajados);
+        $this->assertEquals(1, (float) $tarea->fresh()->dias_trabajados); // iniciada y finalizada el mismo día
+    }
+
+    public function test_no_se_finaliza_una_tarea_sin_imagen_de_evidencia(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $tarea = $ot->tareas()->first();
+        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()]);
+
+        try {
+            app(OrdenTrabajoService::class)->finalizarTareaOperario($tarea->fresh(), $this->jefeDeTaller());
+            $this->fail('Debía exigir la imagen de evidencia.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('evidencia', $e->getMessage());
+        }
+        $this->assertSame('en_curso', $tarea->fresh()->estado_tarea);
+
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
+        app(OrdenTrabajoService::class)->finalizarTareaOperario($tarea->fresh(), $this->jefeDeTaller());
+        $this->assertSame('finalizada', $tarea->fresh()->estado_tarea);
+    }
+
+    public function test_los_dias_trabajados_los_calcula_el_sistema_al_finalizar(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $tarea = $ot->tareas()->first();
+        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()->subDays(3)]);
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
+
+        app(OrdenTrabajoService::class)->finalizarTareaOperario($tarea->fresh(), $this->jefeDeTaller());
+
+        // Inicio hace 3 días, contando el día de inicio → 4 días trabajados.
+        $this->assertEquals(4, (float) $tarea->fresh()->dias_trabajados);
     }
 
     public function test_comparativo_tiempo_estimado_vs_real(): void

@@ -36,8 +36,9 @@ class SolicitudInsumoService
      */
     public function aplicarLineasInsumo(DetalleOt $tarea, array $lineasDeseadas, ?User $actor = null): DetalleOt
     {
-        $tarea = DB::transaction(function () use ($tarea, $lineasDeseadas, $actor, &$creadas) {
+        $tarea = DB::transaction(function () use ($tarea, $lineasDeseadas, $actor, &$creadas, &$reactivadas) {
             $creadas = 0;
+            $reactivadas = [];
             $tarea->loadMissing('insumos', 'solicitudesInsumo', 'ordenTrabajo');
 
             $deseadas = collect($lineasDeseadas)
@@ -78,8 +79,11 @@ class SolicitudInsumoService
                 $linea->inventario_id = $invId;
                 $linea->save();
 
-                if ($this->sincronizarSolicitud($tarea, $linea, $solicitud, $actor)) {
+                $resultado = $this->sincronizarSolicitud($tarea, $linea, $solicitud, $actor);
+                if ($resultado === 'nueva') {
                     $creadas++;
+                } elseif ($resultado === 'reactivada') {
+                    $reactivadas[] = $linea->id;
                 }
             }
 
@@ -90,8 +94,20 @@ class SolicitudInsumoService
         // Bodega solo se entera cuando la OT ya fue liberada (estado != en_revision).
         // Al liberar, EstadoOtService avisa de las que quedaran pendientes.
         $ot = $tarea->ordenTrabajo;
-        if (($creadas ?? 0) > 0 && $ot && ! $ot->estaEnEstado(EstadoOt::EN_REVISION)) {
+        $otLiberada = $ot && ! $ot->estaEnEstado(EstadoOt::EN_REVISION);
+
+        if (($creadas ?? 0) > 0 && $otLiberada) {
             $this->notificador->solicitudInsumoCreada($ot, $creadas);
+        }
+
+        // Una solicitud rechazada que vuelve a pedirse siempre avisa a Bodega,
+        // haya cambiado o no la cantidad/ítem — antes quedaba en "pendiente" en
+        // silencio, sin notificación ni rastro si se reenviaba igual.
+        if ($otLiberada && ! empty($reactivadas)) {
+            $tarea->loadMissing('solicitudesInsumo.inventario', 'solicitudesInsumo.tarea');
+            foreach ($tarea->solicitudesInsumo->whereIn('detalle_ot_insumo_id', $reactivadas) as $solicitudReactivada) {
+                $this->notificador->solicitudInsumoReactivada($solicitudReactivada);
+            }
         }
 
         return $tarea;
@@ -185,17 +201,22 @@ class SolicitudInsumoService
         );
     }
 
-    /** Devuelve true si creó una solicitud nueva (para avisar a Bodega). */
-    private function sincronizarSolicitud(DetalleOt $tarea, DetalleOtInsumo $linea, ?SolicitudInsumoOt $solicitud, ?User $actor): bool
+    /**
+     * Sincroniza la solicitud de esta línea y devuelve 'nueva' si creó una
+     * solicitud, 'reactivada' si una que estaba rechazada vuelve a quedar
+     * pendiente, o null si no hubo nada que avisar a Bodega.
+     */
+    private function sincronizarSolicitud(DetalleOt $tarea, DetalleOtInsumo $linea, ?SolicitudInsumoOt $solicitud, ?User $actor): ?string
     {
         // Bodega ya la entregó: no se toca.
         if ($solicitud && $solicitud->estado === 'entregada') {
-            return false;
+            return null;
         }
 
         if ($solicitud) {
             $cambioCantidad = round((float) $solicitud->cantidad, 2) !== round((float) $linea->cantidad, 2);
             $cambioItem = (int) $solicitud->inventario_id !== (int) $linea->inventario_id;
+            $eraRechazada = $solicitud->estado === 'rechazada';
 
             $solicitud->update([
                 'inventario_id' => $linea->inventario_id,
@@ -206,6 +227,23 @@ class SolicitudInsumoService
                 'estado' => 'pendiente',
                 'motivo_rechazo' => null,
             ]);
+
+            if ($eraRechazada) {
+                // Siempre deja rastro y avisa a Bodega al reactivar, aunque se
+                // reenvíe con la misma cantidad/ítem que tenía al rechazarse.
+                $tarea->ordenTrabajo?->registrarEvento(
+                    'insumo_reactivado',
+                    sprintf(
+                        'Se volvió a solicitar el insumo «%s» (%s uds.) para la tarea «%s»; Bodega lo había rechazado.',
+                        $linea->inventario?->nombre ?? 'ítem #'.$linea->inventario_id,
+                        $this->nfmt($linea->cantidad),
+                        str($tarea->descripcion)->limit(40),
+                    ),
+                    $actor,
+                );
+
+                return 'reactivada';
+            }
 
             if ($cambioCantidad || $cambioItem) {
                 $tarea->ordenTrabajo?->registrarEvento(
@@ -220,7 +258,7 @@ class SolicitudInsumoService
                 );
             }
 
-            return false;
+            return null;
         }
 
         $nueva = SolicitudInsumoOt::create([
@@ -246,7 +284,7 @@ class SolicitudInsumoService
             $actor,
         );
 
-        return true;
+        return 'nueva';
     }
 
     private function nfmt(float|string|null $v): string

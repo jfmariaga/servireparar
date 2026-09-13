@@ -54,6 +54,31 @@ class RolesVisibilidadTest extends TestCase
         Volt::actingAs($almacen)->test('inventario.solicitudes-ot')->assertOk();
     }
 
+    public function test_el_almacenista_abre_el_detalle_de_la_ot_en_solo_lectura(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $almacen = $this->usuarioConRol(RolPrioridad::Almacenista->value);
+
+        Volt::actingAs($almacen)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->assertOk()
+            ->assertViewHas('soloLectura', true)
+            ->assertViewHas('puedeGestionar', false)
+            ->assertViewHas('puedeEjecutar', false)
+            ->assertSee('Vista de solo lectura')
+            ->assertDontSee('Liberar OT')
+            ->assertDontSee('Corregir OT');
+    }
+
+    public function test_el_vendedor_no_abre_el_detalle_de_la_ot(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+
+        Volt::actingAs($this->usuarioConRol(RolPrioridad::Vendedor->value))
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->assertForbidden();
+    }
+
     public function test_la_ot_nace_con_el_checklist_de_cierre_por_defecto(): void
     {
         config(['ot.checklist_por_defecto' => ['Ítem A', 'Ítem B']]);

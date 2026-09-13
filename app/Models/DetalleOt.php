@@ -26,11 +26,11 @@ class DetalleOt extends Model
         'ot_id',
         'descripcion',
         'orden',
+        'dias_cumplimiento',
         'tecnico_id',
         'estado_tarea',
         'fecha_inicio',
         'fecha_fin',
-        'finalizacion_solicitada_en',
         'dias_trabajados',
     ];
 
@@ -38,16 +38,47 @@ class DetalleOt extends Model
     {
         return [
             'dias_trabajados' => 'decimal:2',
+            'dias_cumplimiento' => 'decimal:2',
             'fecha_inicio' => 'datetime',
             'fecha_fin' => 'datetime',
-            'finalizacion_solicitada_en' => 'datetime',
         ];
     }
 
-    /** El técnico marcó la tarea lista para finalizar y espera la confirmación del Jefe (D3). */
-    public function finalizacionPendiente(): bool
+    /**
+     * Fecha desde la que corre el plazo de la tarea (Phase 13 / D17): su
+     * `fecha_inicio` si ya se inició; si no, la fecha en que se liberó la OT.
+     */
+    public function fechaReferenciaPlazo(): ?\Illuminate\Support\Carbon
     {
-        return $this->finalizacion_solicitada_en !== null && $this->estado_tarea !== 'finalizada';
+        if ($this->fecha_inicio) {
+            return $this->fecha_inicio;
+        }
+
+        return $this->relationLoaded('ordenTrabajo')
+            ? $this->ordenTrabajo?->fechaLiberacion()
+            : $this->ordenTrabajo()->first()?->fechaLiberacion();
+    }
+
+    /** Fecha límite de la tarea según su plazo de cumplimiento, o null si no aplica. */
+    public function fechaLimitePlazo(): ?\Illuminate\Support\Carbon
+    {
+        $ref = $this->fechaReferenciaPlazo();
+
+        return ($ref && $this->dias_cumplimiento !== null)
+            ? $ref->copy()->addDays((float) $this->dias_cumplimiento)
+            : null;
+    }
+
+    /** ¿La tarea está atrasada? No finalizada/cancelada y con el plazo vencido (D17). */
+    public function estaAtrasada(): bool
+    {
+        if (in_array($this->estado_tarea, ['finalizada', 'cancelada'], true)) {
+            return false;
+        }
+
+        $limite = $this->fechaLimitePlazo();
+
+        return $limite !== null && $limite->isPast();
     }
 
     public function ordenTrabajo(): BelongsTo
@@ -109,6 +140,20 @@ class DetalleOt extends Model
         return $this->hasMany(DetalleOtInsumo::class, 'detalle_ot_id');
     }
 
+    /** Evidencias (imágenes/documentos) subidas para esta tarea. */
+    public function evidencias(): HasMany
+    {
+        return $this->hasMany(EvidenciaOt::class, 'detalle_ot_id');
+    }
+
+    /** ¿La tarea tiene al menos una imagen de evidencia? (requisito para finalizar, Phase 13). */
+    public function tieneEvidenciaImagen(): bool
+    {
+        $evs = $this->relationLoaded('evidencias') ? $this->evidencias : $this->evidencias()->get();
+
+        return $evs->contains(fn (EvidenciaOt $e) => str_starts_with((string) $e->tipo_archivo, 'image/'));
+    }
+
     /** Solicitudes hacia Bodega generadas por las líneas de insumo de la tarea. */
     public function solicitudesInsumo(): HasMany
     {
@@ -123,17 +168,31 @@ class DetalleOt extends Model
     }
 
     /**
-     * ¿Quedan líneas de insumo sin resolver por Bodega? Cuenta como sin resolver
-     * todo lo que NO esté `entregada` ni `cancelada` (es decir `pendiente` o
-     * `rechazada`). H4/D3: si es así, la finalización de la tarea la confirma el
-     * Jefe de Taller, no el técnico solo.
+     * ¿Quedan insumos de la tarea sin entregar por Bodega? Cuenta como sin
+     * entregar todo lo que NO esté `entregada` ni `cancelada` (es decir
+     * `pendiente` o `rechazada`). Phase 13 / D21: una tarea así NO se puede
+     * iniciar; Bodega debe entregar (o el Jefe quitar/cancelar la línea) primero.
      */
-    public function insumosPendientesDeEntrega(): bool
+    public function insumosSinEntregar(): bool
     {
         $this->loadMissing('solicitudesInsumo');
 
         return $this->solicitudesInsumo
             ->whereNotIn('estado', ['entregada', 'cancelada'])
             ->isNotEmpty();
+    }
+
+    /** ¿La tarea está retenida por insumos que Bodega aún no entrega? (bloquea iniciar) */
+    public function bloqueadaPorInsumos(): bool
+    {
+        return $this->estado_tarea === 'pendiente' && $this->insumosSinEntregar();
+    }
+
+    /** ¿Se puede iniciar la tarea? Sin prerrequisitos pendientes y con los insumos entregados. */
+    public function puedeIniciarse(): bool
+    {
+        return $this->estado_tarea === 'pendiente'
+            && $this->prerrequisitosPendientes()->isEmpty()
+            && ! $this->insumosSinEntregar();
     }
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\RolPrioridad;
 use App\Models\Cliente;
 use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
@@ -21,6 +22,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
     public ?int $clienteId = null;
     public ?int $prioridadId = null;
     public string $tipoServicio = 'taller';
+    public string $direccionServicio = '';
     public string $descripcion = '';
     public string $tiempoEstimadoDias = '';
     public string $valorProyecto = '';
@@ -51,6 +53,9 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
                 ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id]),
             'insumos' => $this->insumosDisponibles(),
+            // El valor del proyecto lo define el Administrador (ability manageCosteo, normalmente
+            // desde la pantalla de Costeo); el Jefe de Taller no lo ve al crear la OT.
+            'puedeDefinirValor' => auth()->user()->hasRole(RolPrioridad::Administrador->value),
         ];
     }
 
@@ -83,6 +88,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'uid' => (string) Str::uuid(),
             'descripcion' => '',
             'tecnico_id' => null,
+            'dias_cumplimiento' => '',
             'insumos' => [],
             'prerrequisitos' => [],
         ];
@@ -123,6 +129,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'clienteId' => 'required|exists:clientes,id',
             'prioridadId' => 'required|exists:prioridades,id',
             'tipoServicio' => 'required|in:taller,domicilio',
+            'direccionServicio' => 'nullable|string|max:255|required_if:tipoServicio,domicilio',
             'descripcion' => 'required|string|max:2000',
             'tiempoEstimadoDias' => 'nullable|numeric|min:0',
             'valorProyecto' => 'nullable|numeric|min:0',
@@ -134,16 +141,21 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'tareas' => 'required|array|min:1',
             'tareas.*.descripcion' => 'required|string|max:1000',
             'tareas.*.tecnico_id' => 'required|exists:tecnicos,id',
+            'tareas.*.dias_cumplimiento' => 'nullable|numeric|min:0.5',
             'tareas.*.insumos' => 'array',
             'tareas.*.insumos.*.inventario_id' => 'required|exists:inventario,id',
             'tareas.*.insumos.*.cantidad' => 'required|numeric|min:0.01',
             'tareas.*.prerrequisitos' => 'array',
             'tareas.*.prerrequisitos.*' => 'string',
-        ], [], [
+        ], [
+            'direccionServicio.required_if' => 'La dirección del servicio es obligatoria para OT a domicilio.',
+        ], [
             'clienteId' => 'cliente',
             'prioridadId' => 'prioridad',
+            'direccionServicio' => 'dirección del servicio',
             'tareas.*.descripcion' => 'descripción de la tarea',
             'tareas.*.tecnico_id' => 'técnico',
+            'tareas.*.dias_cumplimiento' => 'plazo de la tarea',
             'tareas.*.insumos.*.inventario_id' => 'insumo',
             'tareas.*.insumos.*.cantidad' => 'cantidad de insumo',
         ]);
@@ -153,9 +165,14 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                 'cliente_id' => (int) $datos['clienteId'],
                 'prioridad_id' => (int) $datos['prioridadId'],
                 'tipo_servicio' => $datos['tipoServicio'],
+                'direccion_servicio' => $datos['tipoServicio'] === 'domicilio' ? ($datos['direccionServicio'] ?: null) : null,
                 'descripcion' => $datos['descripcion'],
                 'tiempo_estimado_dias' => $datos['tiempoEstimadoDias'] !== '' ? (float) $datos['tiempoEstimadoDias'] : null,
-                'valor_proyecto' => $datos['valorProyecto'] !== '' ? (float) $datos['valorProyecto'] : null,
+                // Defensa en profundidad: aunque el campo esté oculto para el Jefe de Taller,
+                // el valor del proyecto solo lo puede fijar el Administrador (ver manageCosteo).
+                'valor_proyecto' => auth()->user()->hasRole(RolPrioridad::Administrador->value) && $datos['valorProyecto'] !== ''
+                    ? (float) $datos['valorProyecto']
+                    : null,
                 'equipo_descripcion' => $this->equipoDescripcion ?: null,
                 'equipo_marca' => $this->equipoMarca ?: null,
                 'equipo_modelo' => $this->equipoModelo ?: null,
@@ -225,19 +242,27 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                 </x-field>
 
                 <x-field label="Tiempo estimado (días)">
-                    <x-input type="number" step="0.5" min="0" wire:model="tiempoEstimadoDias" placeholder="Ej. 6" />
+                    <x-input type="number" step="0.5" min="0" wire:model.live="tiempoEstimadoDias" placeholder="Ej. 6" />
                     @error('tiempoEstimadoDias') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                 </x-field>
 
-                <x-field label="Descripción del servicio" required class="sm:col-span-2 xl:col-span-3">
+                <x-field label="Dirección del servicio" class="sm:col-span-2 xl:col-span-4" x-show="$wire.tipoServicio === 'domicilio'" x-cloak
+                         hint="Obligatoria para servicios a domicilio.">
+                    <x-input wire:model="direccionServicio" placeholder="Dónde se presta el servicio" />
+                    @error('direccionServicio') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                </x-field>
+
+                <x-field label="Descripción del servicio" required class="sm:col-span-2 {{ $puedeDefinirValor ? 'xl:col-span-3' : 'xl:col-span-4' }}">
                     <x-textarea wire:model="descripcion" rows="3" placeholder="Detalle del trabajo solicitado por el cliente" />
                     @error('descripcion') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                 </x-field>
 
-                <x-field label="Valor del proyecto" hint="Puede definirse o corregirse después.">
-                    <x-input type="number" step="1" min="0" wire:model="valorProyecto" placeholder="$ 0" />
-                    @error('valorProyecto') <x-slot:error>{{ $message }}</x-slot:error> @enderror
-                </x-field>
+                @if ($puedeDefinirValor)
+                    <x-field label="Valor del proyecto" hint="Puede definirse o corregirse después desde el costeo.">
+                        <x-input type="number" step="1" min="0" wire:model="valorProyecto" placeholder="$ 0" />
+                        @error('valorProyecto') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                    </x-field>
+                @endif
             </div>
         </section>
 
@@ -290,6 +315,12 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                 <div>
                     <h2 class="text-[15px] font-bold font-display">Tareas <span class="text-brand-red">*</span></h2>
                     <p class="text-xs text-slate-400 mt-0.5">Cada tarea necesita un técnico responsable. Al elegir un insumo se genera una solicitud a Bodega.</p>
+                    @php $sumaPlazos = collect($tareas)->sum(fn ($t) => (float) ($t['dias_cumplimiento'] ?? 0)); $estim = (float) ($tiempoEstimadoDias ?: 0); @endphp
+                    @if ($sumaPlazos > 0 || $estim > 0)
+                        <p class="text-xs mt-1 {{ $estim > 0 && $sumaPlazos > $estim ? 'text-brand-red font-semibold' : 'text-slate-400' }}">
+                            Plazos asignados: {{ rtrim(rtrim(number_format($sumaPlazos, 2), '0'), '.') }} / {{ $estim > 0 ? rtrim(rtrim(number_format($estim, 2), '0'), '.').' día(s) estimados' : 'sin estimado' }}
+                        </p>
+                    @endif
                 </div>
                 <button wire:click="agregarTarea" type="button"
                         class="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-brand-blue/30 bg-brand-blue-tint dark:bg-brand-navy-active px-3 py-2 text-[12.5px] font-semibold text-brand-blue dark:text-white hover:bg-brand-blue/15 transition">
@@ -299,6 +330,8 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             </header>
             @error('tareas') <p class="text-xs font-medium text-brand-red">{{ $message }}</p> @enderror
             @error('tarea') <p class="text-xs font-medium text-brand-red">{{ $message }}</p> @enderror
+            @error('dias_cumplimiento') <p class="text-xs font-medium text-brand-red">{{ $message }}</p> @enderror
+            @error('prerrequisitos') <p class="text-xs font-medium text-brand-red">{{ $message }}</p> @enderror
 
             <div class="flex flex-col gap-4">
                 @foreach ($tareas as $i => $tarea)
@@ -315,20 +348,27 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                             @endif
                         </div>
 
-                        <div class="grid gap-4 sm:grid-cols-12">
-                            <x-field label="Descripción" required class="sm:col-span-7">
+                        <div class="flex flex-col gap-4">
+                            <x-field label="Descripción" required>
                                 <x-input wire:model="tareas.{{ $i }}.descripcion" placeholder="Qué se va a hacer" />
                                 @error('tareas.'.$i.'.descripcion') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                             </x-field>
 
-                            <x-field label="Técnico" required class="sm:col-span-5">
-                                <x-select wire:model="tareas.{{ $i }}.tecnico_id" :reset-key="'tec-'.($tarea['uid'] ?? $i)">
-                                    @foreach ($tecnicos as $t)
-                                        <option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>
-                                    @endforeach
-                                </x-select>
-                                @error('tareas.'.$i.'.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror
-                            </x-field>
+                            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                <x-field label="Técnico" required class="lg:col-span-2">
+                                    <x-select wire:model="tareas.{{ $i }}.tecnico_id" :reset-key="'tec-'.($tarea['uid'] ?? $i)">
+                                        @foreach ($tecnicos as $t)
+                                            <option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>
+                                        @endforeach
+                                    </x-select>
+                                    @error('tareas.'.$i.'.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                                </x-field>
+
+                                <x-field label="Plazo (días)" hint="Debe caber en el tiempo estimado.">
+                                    <x-input type="number" step="0.5" min="0.5" wire:model.live="tareas.{{ $i }}.dias_cumplimiento" placeholder="Ej. 2" />
+                                    @error('tareas.'.$i.'.dias_cumplimiento') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                                </x-field>
+                            </div>
                         </div>
 
                         <div class="flex flex-col gap-2 rounded-lg border border-slate-200/70 dark:border-slate-700/60 bg-white/50 dark:bg-slate-900/30 p-3">

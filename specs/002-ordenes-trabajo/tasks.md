@@ -411,3 +411,49 @@ reconvertida a `PrestamoHerramienta`.
 - [x] T135 `php artisan test` → **222 passed** (571 assertions). Contador actualizado en README
 - [x] T136 `docs/BITACORA-2026-09-10.md` escrita; T099–T137 marcadas en este archivo
 - [x] T137 Bloques L–P cubiertos por la suite automatizada (`TrazabilidadChecklistPhase12Test`, `PrerrequisitosTareaTest`, `LiberarOtTest`, `InsumoAlTecnicoTest`, `PrestamoHerramientaTest`, `GuardiasFlujoTest`). Paseo visual con los 5 roles: QA de aceptación del cliente (no reproducible en CI)
+
+---
+
+## Phase 13 — Plazos por tarea, servicio a domicilio y vista del técnico (2026-09-10)
+
+Cambios de negocio pedidos por el cliente tras Phase 12. Decisiones D17–D20.
+Rama `feature/ot-phase-13`. **234 tests en verde**.
+
+- **D17 · Plazo de cumplimiento por tarea** — nueva `detalle_ot.dias_cumplimiento`.
+  La **suma de los plazos de las tareas activas ≤ `ordenes_trabajo.tiempo_estimado_dias`**
+  (bloqueo duro al crear/agregar/editar tarea y al bajar el estimado en "Corregir OT").
+  Una tarea sin finalizar cuyo plazo venció (desde su `fecha_inicio`, o desde que se
+  liberó la OT) queda **"Atrasada"** (`DetalleOt::estaAtrasada()`).
+- **D18 · Edición de tareas** — `OrdenTrabajoService::actualizarTarea()` y el botón
+  "Editar" del detalle solo operan si la tarea está `pendiente` (antes: mientras no
+  estuviera `finalizada`). Agregar tareas: sin cambios (OT no terminal).
+- **D19 · Vista del técnico** — `dashboard` muestra al técnico sus tareas en
+  **Asignadas / En curso / Atrasadas** (tabla + tarjetas, solo OT ya liberadas).
+  En el detalle de una OT suya (`vistaTecnico`): solo sus tareas, sin checklist, sin
+  panel "Insumos de la OT" / enlace a Bodega, sin "Ver todo" de herramientas, sin
+  Trazabilidad.
+- **D20 · Servicio a domicilio** — nueva `ordenes_trabajo.direccion_servicio`,
+  obligatoria en el formulario (crear y "Corregir OT") cuando `tipo_servicio = domicilio`.
+  Los campos de recepción en taller siguen opcionales.
+
+Migraciones: `add_dias_cumplimiento_to_detalle_ot`, `add_direccion_servicio_to_ordenes_trabajo`.
+Tests nuevos: `PlazoTareaTest` (9), `VistaTecnicoTest` (4). `FlujoOtDemoSeeder` actualizado
+con plazos y direcciones de domicilio.
+
+### Phase 13 (cont.) — Revisión del flujo por perfiles (2026-09-10)
+
+- **D21 · Insumo pendiente bloquea *iniciar*, no *finalizar*.** Sustituye a D3 (Phase 11).
+  Una tarea con alguna `solicitud_insumo_ot` que NO esté `entregada` (es decir `pendiente`
+  o `rechazada`) **no se puede iniciar**. Bodega entrega (o el Jefe quita/cancela la línea)
+  y entonces el técnico inicia y finaliza normal. **Se elimina** el paso "lista para
+  finalizar / el Jefe confirma", el estado intermedio, `DetalleOt::finalizacionPendiente()`,
+  `OrdenTrabajoService::confirmarFinalizacionTarea()` y el componente `confirmarFinalizacionJefe`.
+  `marcarTareaListaParaFinalizar()` → `finalizarTareaOperario()`. Nuevos helpers
+  `DetalleOt::insumosSinEntregar()` / `bloqueadaPorInsumos()` / `puedeIniciarse()`.
+  Guarda en `detalle→iniciarTarea()`; botón "Iniciar" deshabilitado con motivo; el dashboard
+  del técnico marca esas tareas "Esperando insumos". La columna `detalle_ot.finalizacion_solicitada_en`
+  queda sin uso (no se dropea).
+- **Almacenista: detalle de OT en solo lectura.** `OrdenTrabajoPolicy::viewAny`/`view` aceptan
+  `attend-ot-insumo`; el detalle muestra "Vista de solo lectura" y ninguna acción (todas las
+  gates ya devolvían false). Arregla el enlace roto desde `/inventario/insumos-ot`.
+- `subirEvidencia()` (evidencia a nivel OT) pasa a exigir `update` (Jefe/Admin), no `view`.

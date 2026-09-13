@@ -27,6 +27,7 @@ class OrdenTrabajo extends Model
         'prioridad_id',
         'estado_id',
         'tipo_servicio',
+        'direccion_servicio',
         'descripcion',
         'tiempo_estimado_dias',
         'valor_proyecto',
@@ -140,6 +141,46 @@ class OrdenTrabajo extends Model
         $activas = $tareas->where('estado_tarea', '!=', 'cancelada');
 
         return $activas->isNotEmpty() && $activas->every(fn (DetalleOt $t) => $t->estado_tarea === 'finalizada');
+    }
+
+    /**
+     * Fecha en que la OT se liberó para ejecución (Phase 12 / D12): primer evento
+     * de cambio de estado hacia `pendiente`. Si aún no se liberó, null.
+     */
+    public function fechaLiberacion(): ?\Illuminate\Support\Carbon
+    {
+        $eventos = $this->relationLoaded('eventos') ? $this->eventos : $this->eventos()->get();
+
+        $liberacion = $eventos
+            ->where('tipo', 'cambio_estado')
+            ->first(fn (OtEvento $e) => str_contains((string) $e->descripcion, '→ pendiente'));
+
+        if ($liberacion) {
+            return $liberacion->created_at;
+        }
+
+        // Fallback: si la OT ya salió de "Planificación" pero no hay evento (datos
+        // antiguos), usa su fecha de creación.
+        return $this->estaEnEstado(EstadoOt::EN_REVISION) ? null : $this->created_at;
+    }
+
+    /** Suma de los plazos de cumplimiento de las tareas activas (Phase 13 / D17). */
+    public function diasCumplimientoAsignados(?int $excluyendoTareaId = null): float
+    {
+        $tareas = $this->relationLoaded('tareas') ? $this->tareas : $this->tareas()->get();
+
+        return (float) $tareas
+            ->where('estado_tarea', '!=', 'cancelada')
+            ->when($excluyendoTareaId, fn ($c) => $c->where('id', '!=', $excluyendoTareaId))
+            ->sum(fn (DetalleOt $t) => (float) $t->dias_cumplimiento);
+    }
+
+    /** ¿Alguna tarea activa está atrasada respecto a su plazo? (Phase 13 / D17) */
+    public function tieneTareasAtrasadas(): bool
+    {
+        $tareas = $this->relationLoaded('tareas') ? $this->tareas : $this->tareas()->get();
+
+        return $tareas->contains(fn (DetalleOt $t) => $t->estaAtrasada());
     }
 
     /** El checklist está resuelto cuando existe al menos un ítem y ninguno queda con `cumple` null. */

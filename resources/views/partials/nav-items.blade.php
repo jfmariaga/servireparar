@@ -28,7 +28,10 @@
             'route' => 'ordenes-trabajo.tablero',
             'activePattern' => 'ordenes-trabajo.*',
             'label' => 'Órdenes de trabajo',
-            'ability' => 'manage-ot',
+            // Admin/Jefe gestionan todas; el Técnico también entra pero solo ve las suyas
+            // (OrdenTrabajo::scopeVisiblesPara) — antes solo se llegaba ahí desde el enlace
+            // "← Tablero" del detalle, sin ítem fijo en el menú para el Técnico.
+            'ability' => ['manage-ot', 'execute-ot'],
             'icon' => 'M8 4h8a1 1 0 011 1v15l-5-3-5 3V5a1 1 0 011-1z|M9 9h6|M9 13h4',
         ],
         [
@@ -105,7 +108,14 @@
 @endphp
 
 @foreach ($items as $item)
-    @continue($item['ability'] && ! auth()->user()->can($item['ability']))
+    @php
+        $puedeVer = match (true) {
+            $item['ability'] === null => true,
+            is_array($item['ability']) => auth()->user()->canAny($item['ability']),
+            default => auth()->user()->can($item['ability']),
+        };
+    @endphp
+    @continue(! $puedeVer)
     @php
         $isActive = request()->routeIs($item['activePattern'] ?? $item['route']);
         $badge = ($badges[$item['route']] ?? 0) > 0 ? $badges[$item['route']] : null;

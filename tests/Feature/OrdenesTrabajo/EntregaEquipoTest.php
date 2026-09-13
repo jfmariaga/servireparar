@@ -23,7 +23,7 @@ class EntregaEquipoTest extends TestCase
     private function otFinalizada(): \App\Models\OrdenTrabajo
     {
         $ot = $this->crearOt(tareas: 1);
-        $ot->update(['valor_proyecto' => 1_000_000]); // requerido para solicitar la salida (Phase 11)
+        $ot->update(['valor_proyecto' => 1_000_000]); // requerido para aprobar la salida (Phase 11)
         $this->finalizarTodasLasTareas($ot);
         $this->completarChecklist($ot);
         app(EstadoOtService::class)->recalcular($ot->fresh());
@@ -104,19 +104,30 @@ class EntregaEquipoTest extends TestCase
         app(SalidaEquipoService::class)->solicitar($ot, $this->jefeDeTaller());
     }
 
-    public function test_no_se_puede_solicitar_salida_sin_valor_de_proyecto(): void
+    public function test_el_jefe_puede_solicitar_salida_sin_valor_de_proyecto(): void
     {
         $ot = $this->otFinalizada();
         $ot->update(['valor_proyecto' => null]);
 
+        app(SalidaEquipoService::class)->solicitar($ot->fresh(['estado']), $this->jefeDeTaller());
+
+        $this->assertSame('solicitada', $ot->fresh()->salida_estado);
+    }
+
+    public function test_el_administrador_no_puede_aprobar_salida_sin_valor_de_proyecto(): void
+    {
+        $ot = $this->otFinalizada();
+        $ot->update(['valor_proyecto' => null]);
+        app(SalidaEquipoService::class)->solicitar($ot->fresh(['estado']), $this->jefeDeTaller());
+
         try {
-            app(SalidaEquipoService::class)->solicitar($ot->fresh(['estado']), $this->jefeDeTaller());
+            app(SalidaEquipoService::class)->aprobar($ot->fresh(['estado']), $this->administrador());
             $this->fail('Debía exigir el valor del proyecto.');
         } catch (\Illuminate\Validation\ValidationException $e) {
             $this->assertStringContainsString('valor del proyecto', $e->getMessage());
         }
 
-        $this->assertSame('no_solicitada', $ot->fresh()->salida_estado);
+        $this->assertSame('solicitada', $ot->fresh()->salida_estado);
     }
 
     public function test_ot_con_salida_aprobada_queda_congelada(): void

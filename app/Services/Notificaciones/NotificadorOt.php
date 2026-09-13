@@ -38,6 +38,22 @@ class NotificadorOt
     }
 
     /**
+     * Una solicitud que Bodega había rechazado vuelve a pedirse (el Jefe de
+     * Taller corrigió o simplemente reenvió la tarea). Siempre avisa, aunque
+     * la cantidad/ítem no haya cambiado — antes quedaba en "pendiente" sin
+     * que Bodega se enterara.
+     */
+    public function solicitudInsumoReactivada(SolicitudInsumoOt $s): void
+    {
+        $s->loadMissing('tarea', 'ordenTrabajo', 'inventario');
+        $this->aRoles([RolPrioridad::Almacenista->value], new OtNotificacion(
+            'Solicitud de insumo reactivada',
+            "La OT {$s->ordenTrabajo?->numero_ot} volvió a pedir {$this->nfmt($s->cantidad)} de {$s->inventario?->nombre} (antes rechazado) para «{$s->tarea?->descripcion}».",
+            route('insumos-ot'),
+        ));
+    }
+
+    /**
      * OT liberada por el Jefe de Taller (Phase 12 / D13): avisa a cada técnico
      * con una tarea activa en la OT que ya puede ejecutar su trabajo.
      */

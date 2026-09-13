@@ -46,6 +46,7 @@ class OrdenTrabajoService
                 'prioridad_id' => $datos['prioridad_id'],
                 'estado_id' => $this->estados->estadoInicialId(),
                 'tipo_servicio' => $datos['tipo_servicio'] ?? 'taller',
+                'direccion_servicio' => $datos['direccion_servicio'] ?? null,
                 'descripcion' => $datos['descripcion'],
                 'tiempo_estimado_dias' => $datos['tiempo_estimado_dias'] ?? null,
                 'valor_proyecto' => $datos['valor_proyecto'] ?? null,
@@ -58,12 +59,19 @@ class OrdenTrabajoService
                 'creado_por' => $actor->id,
             ]);
 
+            $this->asegurarSumaPlazos(
+                (float) ($datos['tiempo_estimado_dias'] ?? 0),
+                array_sum(array_map(fn ($t) => $this->plazoDe($t) ?? 0, $tareas)),
+                filled($datos['tiempo_estimado_dias'] ?? null),
+            );
+
             $porUid = [];
             $orden = 1;
             foreach ($tareas as $tarea) {
                 $detalle = $ot->tareas()->create([
                     'descripcion' => $tarea['descripcion'],
                     'orden' => $orden++,
+                    'dias_cumplimiento' => $this->plazoDe($tarea),
                     'tecnico_id' => $tarea['tecnico_id'],
                     'estado_tarea' => 'pendiente',
                 ]);
@@ -114,9 +122,14 @@ class OrdenTrabajoService
     public function corregir(OrdenTrabajo $ot, User $actor, array $cambios): OrdenTrabajo
     {
         $permitidos = Arr::only($cambios, [
-            'prioridad_id', 'descripcion', 'tipo_servicio', 'tiempo_estimado_dias',
+            'prioridad_id', 'descripcion', 'tipo_servicio', 'direccion_servicio', 'tiempo_estimado_dias',
             'valor_proyecto', 'equipo_estado_ingreso', 'observaciones',
         ]);
+
+        // D17: no se puede bajar el estimado por debajo de la suma de plazos ya asignados.
+        if (array_key_exists('tiempo_estimado_dias', $permitidos) && filled($permitidos['tiempo_estimado_dias'])) {
+            $this->asegurarSumaPlazos((float) $permitidos['tiempo_estimado_dias'], $ot->diasCumplimientoAsignados(), true);
+        }
 
         $antes = Arr::only($ot->getOriginal(), array_keys($permitidos));
         $ot->fill($permitidos)->save();
@@ -149,10 +162,18 @@ class OrdenTrabajoService
             throw ValidationException::withMessages(['tarea' => 'La tarea necesita descripción y técnico.']);
         }
 
+        $ot->loadMissing('tareas');
+        $this->asegurarSumaPlazos(
+            (float) $ot->tiempo_estimado_dias,
+            $ot->diasCumplimientoAsignados() + ($this->plazoDe($tarea) ?? 0),
+            $ot->tiempo_estimado_dias !== null,
+        );
+
         return DB::transaction(function () use ($ot, $actor, $tarea) {
             $detalle = $ot->tareas()->create([
                 'descripcion' => $tarea['descripcion'],
                 'orden' => (int) $ot->tareas()->max('orden') + 1,
+                'dias_cumplimiento' => $this->plazoDe($tarea),
                 'tecnico_id' => $tarea['tecnico_id'],
                 'estado_tarea' => 'pendiente',
             ]);
@@ -173,8 +194,18 @@ class OrdenTrabajoService
      */
     public function actualizarTarea(DetalleOt $tarea, User $actor, array $datos): DetalleOt
     {
-        if ($tarea->estado_tarea === 'finalizada') {
-            throw ValidationException::withMessages(['tarea' => 'No se puede editar una tarea finalizada.']);
+        // D18: solo se puede editar una tarea que aún no se ha iniciado.
+        if ($tarea->estado_tarea !== 'pendiente') {
+            throw ValidationException::withMessages(['tarea' => 'Solo se puede editar una tarea que aún no se ha iniciado.']);
+        }
+
+        $ot = $tarea->ordenTrabajo;
+        if (array_key_exists('dias_cumplimiento', $datos) && $ot?->tiempo_estimado_dias !== null) {
+            $this->asegurarSumaPlazos(
+                (float) $ot->tiempo_estimado_dias,
+                $ot->diasCumplimientoAsignados(excluyendoTareaId: $tarea->id) + ($this->plazoDe($datos) ?? 0),
+                true,
+            );
         }
 
         return DB::transaction(function () use ($tarea, $actor, $datos) {
@@ -183,6 +214,9 @@ class OrdenTrabajoService
             $tarea->update([
                 'descripcion' => $datos['descripcion'] ?? $tarea->descripcion,
                 'tecnico_id' => $datos['tecnico_id'] ?? $tarea->tecnico_id,
+                'dias_cumplimiento' => array_key_exists('dias_cumplimiento', $datos)
+                    ? $this->plazoDe($datos)
+                    : $tarea->dias_cumplimiento,
             ]);
 
             $this->insumos->aplicarLineasInsumo($tarea, $this->lineasInsumo($datos), $actor);
@@ -239,62 +273,44 @@ class OrdenTrabajoService
     }
 
     /**
-     * El técnico marca la tarea lista para finalizar (D3). Si todos sus insumos
-     * ya fueron entregados por Bodega, se finaliza directo; si no, queda a la
-     * espera de la confirmación del Jefe de Taller.
+     * El técnico finaliza su tarea. Los días trabajados los calcula el sistema
+     * desde la fecha de inicio (Phase 13); un valor explícito (tests /
+     * correcciones) se respeta. Requiere una imagen de evidencia. Una tarea con
+     * insumos sin entregar no se puede iniciar (Phase 13 / D21), así que al
+     * llegar aquí ya están todos entregados; no hay confirmación del Jefe.
      */
-    public function marcarTareaListaParaFinalizar(DetalleOt $tarea, User $actor, float $diasTrabajados): DetalleOt
+    public function finalizarTareaOperario(DetalleOt $tarea, User $actor, ?float $diasTrabajados = null): DetalleOt
     {
         if ($tarea->estado_tarea !== 'en_curso') {
             throw ValidationException::withMessages(['tarea' => 'La tarea debe estar en curso para finalizarla.']);
         }
 
-        return DB::transaction(function () use ($tarea, $actor, $diasTrabajados) {
-            if ($tarea->insumosPendientesDeEntrega()) {
-                $tarea->update([
-                    'dias_trabajados' => $diasTrabajados,
-                    'finalizacion_solicitada_en' => now(),
-                ]);
-                $tarea->ordenTrabajo?->registrarEvento(
-                    'correccion',
-                    sprintf('Tarea «%s» marcada lista para finalizar; espera confirmación del Jefe (insumos sin entregar).', str($tarea->descripcion)->limit(40)),
-                    $actor,
-                );
-
-                return $tarea->fresh();
-            }
-
-            return $this->finalizarTarea($tarea, $actor, $diasTrabajados);
-        });
-    }
-
-    /** El Jefe de Taller confirma la finalización de una tarea retenida por insumos sin entregar (D3). */
-    public function confirmarFinalizacionTarea(DetalleOt $tarea, User $actor): DetalleOt
-    {
-        if (! $tarea->finalizacionPendiente()) {
-            throw ValidationException::withMessages(['tarea' => 'Esta tarea no está a la espera de confirmación.']);
+        if (! $tarea->tieneEvidenciaImagen()) {
+            throw ValidationException::withMessages(['tarea' => 'Sube una imagen de evidencia de la tarea antes de finalizarla.']);
         }
 
-        return $this->finalizarTarea($tarea, $actor, (float) $tarea->dias_trabajados, confirmadaPorJefe: true);
+        return $this->finalizarTarea($tarea, $actor, $diasTrabajados ?? $this->diasTrabajadosAuto($tarea));
     }
 
-    private function finalizarTarea(DetalleOt $tarea, User $actor, float $dias, bool $confirmadaPorJefe = false): DetalleOt
+    /**
+     * Días trabajados de la tarea calculados por el sistema: días calendario
+     * transcurridos desde el inicio, contando el día de inicio (mínimo 1).
+     */
+    private function diasTrabajadosAuto(DetalleOt $tarea): float
     {
-        return DB::transaction(function () use ($tarea, $actor, $dias, $confirmadaPorJefe) {
+        $inicio = ($tarea->fecha_inicio ?? $tarea->created_at ?? now())->copy()->startOfDay();
+
+        return (float) max(1, $inicio->diffInDays(now()->startOfDay()) + 1);
+    }
+
+    private function finalizarTarea(DetalleOt $tarea, User $actor, float $dias): DetalleOt
+    {
+        return DB::transaction(function () use ($tarea, $actor, $dias) {
             $tarea->update([
                 'estado_tarea' => 'finalizada',
                 'fecha_fin' => now(),
                 'dias_trabajados' => $dias,
-                'finalizacion_solicitada_en' => null,
             ]);
-
-            if ($confirmadaPorJefe) {
-                $tarea->ordenTrabajo?->registrarEvento(
-                    'correccion',
-                    sprintf('El Jefe de Taller confirmó la finalización de la tarea «%s».', str($tarea->descripcion)->limit(40)),
-                    $actor,
-                );
-            }
 
             $this->estados->recalcular($tarea->ordenTrabajo->fresh(), $actor);
 
@@ -327,7 +343,7 @@ class OrdenTrabajoService
             $this->liberarInsumosPendientes($tarea, $actor);
             $this->liberarDependientes($tarea, $actor);
 
-            $tarea->update(['estado_tarea' => 'cancelada', 'finalizacion_solicitada_en' => null]);
+            $tarea->update(['estado_tarea' => 'cancelada']);
             $ot->registrarEvento('correccion', sprintf('Tarea «%s» cancelada. Motivo: %s', str($tarea->descripcion)->limit(40), $motivo), $actor);
             $this->estados->recalcular($ot->fresh(), $actor);
 
@@ -469,6 +485,35 @@ class OrdenTrabajoService
                 ),
                 $actor,
             );
+        }
+    }
+
+    /** Plazo de cumplimiento declarado para una tarea (días), o null. */
+    private function plazoDe(array $tarea): ?float
+    {
+        $v = $tarea['dias_cumplimiento'] ?? null;
+
+        return filled($v) && (float) $v > 0 ? round((float) $v, 2) : null;
+    }
+
+    /**
+     * La suma de los plazos de las tareas activas no puede superar el tiempo
+     * estimado de la OT (Phase 13 / D17). Solo se valida si hay estimado.
+     */
+    private function asegurarSumaPlazos(float $estimado, float $sumaPlazos, bool $hayEstimado): void
+    {
+        if (! $hayEstimado || $estimado <= 0) {
+            return;
+        }
+
+        if (round($sumaPlazos, 2) > round($estimado, 2)) {
+            throw ValidationException::withMessages([
+                'dias_cumplimiento' => sprintf(
+                    'La suma de los plazos de las tareas (%s día(s)) supera el tiempo estimado de la OT (%s día(s)).',
+                    rtrim(rtrim(number_format($sumaPlazos, 2), '0'), '.'),
+                    rtrim(rtrim(number_format($estimado, 2), '0'), '.'),
+                ),
+            ]);
         }
     }
 
