@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\RolPrioridad;
 use App\Models\ChecklistOt;
 use App\Models\DetalleOt;
 use App\Models\Inventario;
@@ -65,6 +66,12 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         $this->ot = $ordenTrabajo;
         Gate::authorize('view', $this->ot);
         $this->syncCabecera();
+    }
+
+    /** El Jefe de Taller, con todas las tareas ya finalizadas, sube el registro fotográfico de salida. */
+    public function esRegistroDeSalida(): bool
+    {
+        return auth()->user()->hasRole(RolPrioridad::JefeDeTaller->value) && $this->ot->tareasActivasFinalizadas();
     }
 
     private function syncCabecera(): void
@@ -259,7 +266,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 
         $ruta = $this->evidencia->store('evidencias-ot', 'public');
         $this->ot->evidencias()->create([
-            'tipo_registro' => 'proceso',
+            'tipo_registro' => $this->esRegistroDeSalida() ? 'salida' : 'proceso',
             'tipo_archivo' => $this->evidencia->getMimeType(),
             'url_archivo' => $ruta,
             'descripcion' => $this->evidenciaDescripcion ?: null,
@@ -1033,8 +1040,11 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                     @endforelse
                 </div>
 
-                @unless ($soloLectura)
-                <div class="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-col sm:flex-row sm:items-start gap-3" @if ($ot->estaBloqueada()) hidden @endif>
+                @unless ($soloLectura || $ot->estaBloqueada())
+                @if ($this->esRegistroDeSalida())
+                    <p class="text-xs font-semibold text-brand-blue dark:text-brand-blue-tint -mb-1">Registro fotográfico de salida</p>
+                @endif
+                <div class="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-col sm:flex-row sm:items-start gap-3">
                     @if ($evidencia)
                         <div class="shrink-0">
                             @if (str((string) $evidencia->getMimeType())->startsWith('image/'))

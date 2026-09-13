@@ -42,6 +42,14 @@ class GuardiasFlujoTest extends TestCase
         $this->assertTrue($tecnico->can('executeTareas', $ot->fresh(['estado'])));
     }
 
+    public function test_el_jefe_de_taller_no_puede_ejecutar_tareas(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        app(EstadoOtService::class)->planificar($ot, $this->jefeDeTaller());
+
+        $this->assertTrue($this->jefeDeTaller()->cannot('executeTareas', $ot->fresh(['estado'])));
+    }
+
     public function test_no_se_inicia_una_tarea_con_insumo_sin_entregar(): void
     {
         $ot = $this->crearOt(tareas: 1);

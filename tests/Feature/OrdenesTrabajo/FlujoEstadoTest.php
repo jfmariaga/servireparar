@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\OrdenesTrabajo;
 
+use App\Enums\RolPrioridad;
 use App\Services\OrdenTrabajo\EstadoOtService;
 use App\Services\OrdenTrabajo\OrdenTrabajoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,10 +25,16 @@ class FlujoEstadoTest extends TestCase
         $ot = $this->crearOt();
         $this->assertSame('en_revision', $ot->estado->slug);
         $tarea = $ot->tareas()->first();
+        $tecnicoUser = $tarea->tecnico->usuario;
+        $tecnicoUser->assignRole(RolPrioridad::Tecnico->value);
 
         Volt::actingAs($this->jefeDeTaller())
             ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
             ->call('planificar')
+            ->assertHasNoErrors();
+
+        Volt::actingAs($tecnicoUser)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()])
             ->call('iniciarTarea', $tarea->id)
             ->assertHasNoErrors();
 
@@ -65,11 +72,15 @@ class FlujoEstadoTest extends TestCase
         $ot = $this->crearOt(tareas: 1);
         $this->completarChecklist($ot);
         $tarea = $ot->tareas()->first();
+        $tecnicoUser = $tarea->tecnico->usuario;
+        $tecnicoUser->assignRole(RolPrioridad::Tecnico->value);
 
-        $comp = Volt::actingAs($this->jefeDeTaller())
-            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot]);
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->call('planificar')->assertHasNoErrors();
 
-        $comp->call('planificar')->assertHasNoErrors();
+        $comp = Volt::actingAs($tecnicoUser)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()]);
         $comp->call('iniciarTarea', $tarea->id)->assertHasNoErrors();
         $this->adjuntarEvidenciaTarea($tarea->fresh());
         // Ya no se piden días al operario: los calcula el sistema desde el inicio.

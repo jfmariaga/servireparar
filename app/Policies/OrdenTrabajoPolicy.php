@@ -69,7 +69,10 @@ class OrdenTrabajoPolicy
 
     public function executeTareas(User $user, OrdenTrabajo $ot): bool
     {
+        // Iniciar/finalizar tareas y subir su evidencia es del Técnico; el Jefe
+        // de Taller gestiona la OT (`manage-ot`) pero no ejecuta tareas.
         return $user->can('execute-ot')
+            && $user->hasRole(RolPrioridad::Tecnico->value)
             && ! $ot->estaBloqueada()
             && in_array(optional($ot->estado)->slug, ['pendiente', 'en_curso'], true);
     }
