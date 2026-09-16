@@ -19,6 +19,15 @@ Mockups Ilustraciones 5, 12 (dashboards de Administrador y Jefe de Taller como p
 - Q: ¿Qué exportaciones son prioritarias para el primer corte funcional del módulo? → A: OT e Inventario
   primero (Fase 2, módulos centrales); Compras/Cotizaciones y Personal se exportan en un corte posterior.
 
+### Session 2026-09-15
+
+- Q: El usuario pidió visibilizar el trabajo en ejecución de forma más "en vivo" que la recarga manual del
+  corte anterior. ¿Cómo se amplía el alcance sin incorporar la infraestructura de websockets que la
+  cotización no contempla? → A: Auto-refresh con `wire:poll` de Livewire (15–30 s) en los dashboards por
+  rol y en la vista de "trabajo en ejecución" del Jefe de Taller, en lugar de solo recarga manual. Sigue
+  sin requerir Laravel Reverb/Echo ni WebSockets; solo cambia la cadencia de la consulta directa a base de
+  datos ya definida en la sesión anterior.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Dashboard en tiempo real con indicadores clave (Priority: P1)
@@ -35,9 +44,9 @@ cada rol refleja las cifras correctas (ej. "OT vencidas: 2" coincide con el cont
 
 **Acceptance Scenarios**:
 
-1. **Given** el Jefe de Taller autenticado, **When** ingresa al sistema o refresca la página, **Then** ve
-   OT activas, próximas a vencer y vencidas, calculadas por consulta directa al estado actual de las OT (sin
-   necesidad de actualización automática en segundo plano).
+1. **Given** el Jefe de Taller autenticado, **When** ingresa al sistema, refresca la página o transcurre el
+   ciclo de auto-refresh (`wire:poll`, 15–30 s), **Then** ve OT activas, próximas a vencer y vencidas,
+   calculadas por consulta directa al estado actual de las OT.
 2. **Given** el Administrador autenticado, **When** ingresa al sistema, **Then** ve cotizaciones activas,
    próximas a vencer y herramientas dañadas pendientes de gestión.
 3. **Given** el Almacenista autenticado, **When** ingresa al sistema, **Then** ve solicitudes pendientes,
@@ -92,7 +101,8 @@ archivo generado refleja exactamente el subconjunto filtrado en pantalla.
   sin degradar el rendimiento del dashboard en tiempo real.
 - Prioridad de exportaciones: OT e Inventario en el primer corte; Compras/Cotizaciones y Personal en un
   corte posterior (ver Clarifications).
-- Nivel de "tiempo real": recarga al navegar/refrescar, sin polling ni websockets (ver Clarifications).
+- Nivel de "tiempo real": recarga al navegar/refrescar + auto-refresh con `wire:poll` (15–30 s), sin
+  websockets (ver Clarifications, sesión 2026-09-15).
 
 ## Requirements *(mandatory)*
 
@@ -113,8 +123,9 @@ archivo generado refleja exactamente el subconjunto filtrado en pantalla.
 - **FR-007**: El sistema DEBE permitir aplicar filtros avanzados (fecha, cliente, técnico, estado, tipo de
   servicio) a los listados antes de exportar o visualizar.
 - **FR-008**: Los indicadores del dashboard y de reportes agregados DEBEN calcularse mediante consulta
-  directa a la base de datos en cada carga/refresco de página, sin requerir mecanismos de actualización
-  automática en segundo plano (polling/websockets) en el alcance contratado.
+  directa a la base de datos, tanto en cada carga/refresco de página como en el auto-refresh periódico
+  (`wire:poll`, 15–30 s) de los dashboards por rol y de la vista de "trabajo en ejecución"; el alcance
+  contratado NO requiere WebSockets/Laravel Reverb (ver Clarifications, sesión 2026-09-15).
 
 ### Key Entities
 
@@ -126,7 +137,8 @@ Este módulo no introduce entidades propias; consume y agrega datos de `ORDENES_
 ### Measurable Outcomes
 
 - **SC-001**: Los indicadores del dashboard reflejan el estado real del sistema en el momento exacto de
-  carga/refresco de la página (sin desfase, al calcularse por consulta directa, no por caché o polling).
+  carga/refresco de la página o del último ciclo de auto-refresh (sin desfase mayor a 15–30 s, al
+  calcularse siempre por consulta directa, no por caché).
 - **SC-002**: Un usuario puede generar una exportación filtrada (Excel o PDF) en menos de 30 segundos para
   volúmenes de datos típicos de la operación.
 - **SC-003**: El 100% de los indicadores mostrados coinciden con el conteo manual/consulta directa a base

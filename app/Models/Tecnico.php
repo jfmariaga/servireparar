@@ -115,4 +115,21 @@ class Tecnico extends Model
     {
         return $query->where('activo', true);
     }
+
+    /**
+     * Tareas activas (spec 004, FR-005): mismo criterio de "activa" que el
+     * dashboard del técnico — `estado_tarea` en pendiente/en_curso y la OT
+     * ya liberada (no en Planificación) y no en un estado terminal.
+     */
+    public function tareasActivasCount(): int
+    {
+        return DetalleOt::query()
+            ->where('tecnico_id', $this->id)
+            ->whereIn('estado_tarea', ['pendiente', 'en_curso'])
+            ->with('ordenTrabajo.estado')
+            ->get()
+            ->filter(fn (DetalleOt $t) => ! $t->ordenTrabajo?->estaEnEstado(EstadoOt::EN_REVISION)
+                && ! optional($t->ordenTrabajo?->estado)->es_terminal)
+            ->count();
+    }
 }

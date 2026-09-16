@@ -51,7 +51,11 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'clientes' => Cliente::activos()->orderBy('nombre')->get(['id', 'nombre']),
             'prioridades' => Prioridad::orderBy('nivel')->get(['id', 'nombre']),
             'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
-                ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id]),
+                ->map(fn (Tecnico $t) => [
+                    'id' => $t->id,
+                    'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id,
+                    'carga' => $t->tareasActivasCount(),
+                ]),
             'insumos' => $this->insumosDisponibles(),
             // El valor del proyecto lo define el Administrador (ability manageCosteo, normalmente
             // desde la pantalla de Costeo); el Jefe de Taller no lo ve al crear la OT.
@@ -358,7 +362,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                                 <x-field label="Técnico" required class="lg:col-span-2">
                                     <x-select wire:model="tareas.{{ $i }}.tecnico_id" :reset-key="'tec-'.($tarea['uid'] ?? $i)">
                                         @foreach ($tecnicos as $t)
-                                            <option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>
+                                            <option value="{{ $t['id'] }}">{{ $t['nombre'] }} ({{ $t['carga'] }} {{ Str::plural('tarea activa', $t['carga']) }})</option>
                                         @endforeach
                                     </x-select>
                                     @error('tareas.'.$i.'.tecnico_id') <x-slot:error>{{ $message }}</x-slot:error> @enderror

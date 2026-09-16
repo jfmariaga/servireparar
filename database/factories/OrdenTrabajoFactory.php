@@ -40,6 +40,7 @@ class OrdenTrabajoFactory extends Factory
             EstadoOt::EN_CURSO => ['En curso', 3, false],
             EstadoOt::FINALIZADA => ['Finalizada', 4, false],
             EstadoOt::ENTREGADA => ['Entregada', 5, true],
+            EstadoOt::CANCELADA => ['Cancelada', 9, true],
         ];
 
         return $this->state(fn () => [

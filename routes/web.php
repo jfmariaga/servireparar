@@ -62,4 +62,7 @@ Route::middleware('auth')->group(function () {
 
     // Catálogo de especialidades (spec 004)
     Volt::route('/especialidades', 'personal.especialidades')->name('especialidades.index');
+
+    // Desempeño del técnico (spec 004, US3)
+    Volt::route('/personal/desempeno', 'personal.desempeno')->name('personal.desempeno');
 });

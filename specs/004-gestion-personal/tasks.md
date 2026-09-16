@@ -76,14 +76,15 @@ aún no está completo), verificar que la carga es visible/consultable
 
 ### Tests for User Story 2
 
-- [ ] T011 [P] [US2] Feature test `tests/Feature/Personal/CargaTecnicoTest.php`: cálculo de tareas activas
+- [x] T011 [P] [US2] Feature test `tests/Feature/Personal/CargaTecnicoTest.php`: cálculo de tareas activas
   por técnico con datos de OT de prueba
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Método `Tecnico::tareasActivasCount()` (o scope) consultando `detalle_ot` (spec 002)
-- [ ] T013 [US2] Exponer la carga en el selector de operario del formulario de OT (integración con spec
-  002 — coordinar con `Livewire/OrdenesTrabajo/Crear.php`)
+- [x] T012 [US2] Método `Tecnico::tareasActivasCount()` consultando `detalle_ot` (spec 002) — mismo criterio
+  de "activa" que `dashboard.blade.php` (estado_tarea pendiente/en_curso, OT liberada y no terminal)
+- [x] T013 [US2] Carga expuesta en el selector de operario de `livewire/ordenes-trabajo/crear.blade.php`
+  ("Nombre (N tareas activas)")
 
 **Checkpoint**: US1 + US2 funcionan de forma independiente
 
@@ -98,15 +99,17 @@ estimado vs. real y conteo de OT
 
 ### Tests for User Story 3
 
-- [ ] T014 [P] [US3] Feature test `tests/Feature/Personal/DesempenoTecnicoTest.php`: cálculo de tiempo
+- [x] T014 [P] [US3] Feature test `tests/Feature/Personal/DesempenoTecnicoTest.php`: cálculo de tiempo
   promedio de ejecución, número de OT/tareas, comparativo estimado vs. real con datos conocidos (SC-003)
 
 ### Implementation for User Story 3
 
-- [ ] T015 [US3] `app/Services/Personal/DesempenoTecnicoService.php` — agregación SQL sobre `detalle_ot`/
-  `ordenes_trabajo` (spec 002), **aislado de la UI para reutilizarse en spec 007**
-- [ ] T016 [US3] Componente Volt `app/Livewire/Personal/Desempeno.php` (reporte con filtro de fechas)
-- [ ] T017 [US3] Ruta `/personal/desempeno`
+- [x] T015 [US3] `app/Services/Personal/DesempenoTecnicoService.php` — agregación sobre `detalle_ot`
+  (spec 002) por técnico y rango de fechas (`resumen()`, `resumenPorTecnico()`), **aislado de la UI**
+  (sin dependencias de Livewire) para que spec 007 lo reutilice
+- [x] T016 [US3] Componente Volt `livewire/personal/desempeno.blade.php` (reporte con filtro de fechas)
+- [x] T017 [US3] Ruta `/personal/desempeno` (`routes/web.php`); además, el placeholder "Resumen operativo"
+  de la hoja de vida (FR-007) ahora muestra carga actual + desempeño reales del técnico
 
 **Checkpoint**: Las 3 historias de usuario son funcionales de forma independiente
 

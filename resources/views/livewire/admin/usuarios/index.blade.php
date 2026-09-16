@@ -416,8 +416,15 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
                 </div>
             </div>
 
-            <div class="mt-6 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-                <span class="font-semibold text-slate-600 dark:text-slate-300">Resumen operativo</span> — carga actual de tareas y desempeño histórico: disponible al implementar Órdenes de Trabajo (spec 002).
+            @php $desempeno = (new \App\Services\Personal\DesempenoTecnicoService())->resumen($t); @endphp
+            <div class="mt-6">
+                <div class="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-2">Resumen operativo</div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 px-4 py-3">
+                    <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Carga actual</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ $t->tareasActivasCount() }} tareas activas</div></div>
+                    <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">OT participadas</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ $desempeno['ot_count'] }}</div></div>
+                    <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Tareas finalizadas</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ $desempeno['tareas_finalizadas'] }}</div></div>
+                    <div><div class="text-slate-400 text-xs uppercase tracking-wide mb-0.5">Cumplimiento de plazo</div><div class="font-semibold text-slate-700 dark:text-slate-200">{{ $desempeno['cumplimiento_pct'] !== null ? $desempeno['cumplimiento_pct'].'%' : '—' }}</div></div>
+                </div>
             </div>
         </div>
     @endif

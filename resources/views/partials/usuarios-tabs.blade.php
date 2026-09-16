@@ -2,6 +2,7 @@
     $tabs = [
         ['route' => 'usuarios.index', 'label' => 'Usuarios'],
         ['route' => 'especialidades.index', 'label' => 'Especialidades'],
+        ['route' => 'personal.desempeno', 'label' => 'Desempeño'],
     ];
 @endphp
 

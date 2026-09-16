@@ -58,7 +58,8 @@ class HojaVidaTest extends TestCase
             ->assertSee('$ 2.700.000')      // sueldo actual
             ->assertSee('$ 90.000')         // valor día = 2.700.000 / 30
             ->assertSee('$ 2.100.000')      // fila del histórico
-            ->assertSee('Órdenes de Trabajo'); // aviso del resumen operativo pendiente
+            ->assertSee('Resumen operativo')
+            ->assertSee('Carga actual');
     }
 
     public function test_no_hay_hoja_de_vida_para_usuarios_sin_ficha_de_tecnico(): void

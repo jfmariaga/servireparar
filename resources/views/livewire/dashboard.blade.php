@@ -2,6 +2,7 @@
 
 use App\Models\DetalleOt;
 use App\Models\PrestamoHerramienta;
+use App\Services\Reportes\IndicadoresAgregadosService;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
@@ -12,7 +13,27 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
         $tecnico = auth()->user()->tecnico;
 
         if (! $tecnico) {
-            return ['tecnico' => null, 'asignadas' => collect(), 'enCurso' => collect(), 'atrasadas' => collect(), 'finalizadas' => 0, 'prestamos' => collect()];
+            $verIndicadores = auth()->user()->hasAnyRole(['Administrador', 'Jefe de Taller']);
+
+            if (! $verIndicadores) {
+                return ['tecnico' => null, 'verIndicadores' => false, 'asignadas' => collect(), 'enCurso' => collect(), 'atrasadas' => collect(), 'finalizadas' => 0, 'prestamos' => collect()];
+            }
+
+            // Dashboard de Administrador/Jefe de Taller (spec 007, US1/US2): OT
+            // abiertas/cerradas/vencidas, cumplimiento de tiempos, productividad
+            // del equipo y trabajo en ejecución ahora mismo. Auto-refresh vía
+            // wire:poll (ver Clarifications spec 007, sesión 2026-09-15).
+            $indicadores = new IndicadoresAgregadosService();
+
+            return [
+                'tecnico' => null,
+                'verIndicadores' => true,
+                'otResumen' => $indicadores->otResumen(),
+                'cumplimientoTiempos' => $indicadores->cumplimientoTiempos(),
+                'productividad' => $indicadores->productividadEquipo(),
+                'tareasEnEjecucion' => $indicadores->tareasEnEjecucion(),
+                'asignadas' => collect(), 'enCurso' => collect(), 'atrasadas' => collect(), 'finalizadas' => 0, 'prestamos' => collect(),
+            ];
         }
 
         $tareas = DetalleOt::query()
@@ -48,8 +69,8 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
     }
 }; ?>
 
-<div class="flex flex-col gap-6">
-    @if (! $tecnico)
+<div class="flex flex-col gap-6"@if (! $tecnico && $verIndicadores ?? false) wire:poll.20s @endif>
+    @if (! $tecnico && ! ($verIndicadores ?? false))
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-7">
             <h1 class="text-xl font-bold mb-1.5">Bienvenido, {{ auth()->user()->name }}</h1>
             <p class="text-sm text-slate-500 dark:text-slate-400">
@@ -59,6 +80,61 @@ new #[Layout('components.layout', ['title' => 'Inicio'])] class extends Componen
                 Los dashboards por rol con indicadores se implementan en un módulo posterior.
                 Por ahora usa el menú de navegación.
             </p>
+        </div>
+    @elseif (! $tecnico)
+        <div>
+            <h1 class="text-xl font-bold font-display">Indicadores de operación</h1>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                Hola, {{ auth()->user()->name }}. Se actualiza solo cada 20 s (spec 007).
+            </p>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            @foreach ([['OT abiertas', $otResumen['abiertas'], 'text-slate-600 dark:text-slate-300'], ['OT vencidas', $otResumen['vencidas'], 'text-brand-red'], ['Próximas a vencer', $otResumen['proximas_a_vencer'], 'text-amber-600 dark:text-amber-400'], ['OT cerradas', $otResumen['cerradas'], 'text-emerald-600 dark:text-emerald-400']] as [$label, $n, $tono])
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">{{ $label }}</p>
+                    <p class="text-2xl font-bold mt-1 {{ $tono }}">{{ $n }}</p>
+                </div>
+            @endforeach
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Cumplimiento de tiempos</p>
+                <p class="text-2xl font-bold mt-1">{{ $cumplimientoTiempos !== null ? $cumplimientoTiempos.'%' : '—' }}</p>
+                <p class="text-xs text-slate-400 mt-1">OT cerradas dentro del tiempo estimado</p>
+            </div>
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Productividad del equipo</p>
+                <p class="text-2xl font-bold mt-1">{{ $productividad['cumplimiento_promedio_pct'] !== null ? $productividad['cumplimiento_promedio_pct'].'%' : '—' }}</p>
+                <p class="text-xs text-slate-400 mt-1">{{ $productividad['tecnicos_activos'] }} técnico(s) · {{ $productividad['tareas_finalizadas_total'] }} tarea(s) finalizada(s)</p>
+            </div>
+            <a href="{{ route('personal.desempeno') }}" wire:navigate class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:ring-2 hover:ring-brand-blue/20 flex flex-col justify-center">
+                <p class="text-sm font-semibold text-brand-blue">Ver desempeño por técnico →</p>
+                <p class="text-xs text-slate-400 mt-1">Detalle con filtro de fechas</p>
+            </a>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col gap-3">
+            <h2 class="font-bold text-sm">Trabajo en ejecución <span class="text-slate-400 font-normal">({{ $tareasEnEjecucion->count() }})</span></h2>
+            @forelse ($tareasEnEjecucion as $t)
+                <a href="{{ route('ordenes-trabajo.detalle', $t->ot_id) }}" wire:navigate wire:key="ejec-{{ $t->id }}"
+                   class="grid sm:grid-cols-[7rem_1fr_auto] gap-2 sm:gap-4 items-start text-sm border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 hover:ring-2 hover:ring-brand-blue/20">
+                    <span class="font-semibold text-brand-blue">{{ $t->ordenTrabajo?->numero_ot }}</span>
+                    <span>
+                        {{ $t->descripcion }}
+                        <span class="block text-xs text-slate-400 mt-0.5">
+                            {{ $t->tecnico?->usuario?->name ?? 'Sin técnico' }} · {{ $t->ordenTrabajo?->cliente?->nombre }}
+                            @if ($t->fecha_inicio) · desde {{ $t->fecha_inicio->diffForHumans() }} @endif
+                        </span>
+                    </span>
+                    <span class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        En curso
+                    </span>
+                </a>
+            @empty
+                <p class="text-xs text-slate-400">No hay tareas en ejecución en este momento.</p>
+            @endforelse
         </div>
     @else
         @php $nfmt = fn ($v) => rtrim(rtrim(number_format((float) $v, 2), '0'), '.'); @endphp
