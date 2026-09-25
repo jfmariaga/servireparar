@@ -62,6 +62,7 @@ new #[Layout('components.layout', ['title' => 'Mi perfil'])] class extends Compo
 }; ?>
 
 <div class="max-w-2xl flex flex-col gap-5">
+    <x-breadcrumbs :items="[['label' => 'Mi perfil']]" />
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-7 flex items-center gap-5">
         <div class="w-16 h-16 rounded-full bg-brand-blue-tint dark:bg-brand-navy-active text-brand-blue dark:text-white flex items-center justify-center text-xl font-bold shrink-0">

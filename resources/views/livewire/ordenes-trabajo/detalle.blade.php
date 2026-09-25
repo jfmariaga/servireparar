@@ -7,6 +7,7 @@ use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
 use App\Models\Prioridad;
 use App\Models\Tecnico;
+use App\Models\VariableTecnica;
 use App\Livewire\Concerns\Notifies;
 use App\Models\PrestamoHerramienta;
 use App\Services\OrdenTrabajo\EstadoOtService;
@@ -33,8 +34,17 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     public ?int $evidenciaTareaId = null;
     public $evidenciaTareaFile = null;
 
+    // Observación del técnico al finalizar cada tarea (opcional), por tarea_id
+    /** @var array<int, string> */
+    public array $tareaObservaciones = [];
+
     // Checklist
     public string $nuevoItem = '';
+
+    // Variables técnicas del equipo, por tarea_id (spec 005, US2/FR-004): el
+    // técnico las registra al ejecutar la tarea, igual que la observación.
+    /** @var array<int, array{nombre: string, valor: string, unidad: string}> */
+    public array $variableForm = [];
 
     // Salida de equipo
     public string $motivoRechazoSalida = '';
@@ -89,6 +99,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             'cliente', 'equipo', 'prioridad', 'estado', 'creadoPor',
             'tareas' => fn ($q) => $q->orderBy('orden')->orderBy('id'),
             'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud', 'tareas.solicitudesInsumo', 'tareas.prerrequisitos', 'tareas.evidencias',
+            'tareas.variablesTecnicas.registradoPor',
             'evidencias.subidaPor', 'checklist', 'eventos.usuario',
             'manoObraContratistas.contratista',
         ]);
@@ -211,13 +222,14 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         }
 
         try {
-            $servicio->finalizarTareaOperario($tarea, auth()->user());
+            $servicio->finalizarTareaOperario($tarea, auth()->user(), null, $this->tareaObservaciones[$tareaId] ?? null);
         } catch (ValidationException $e) {
             $this->notifyError($e->getMessage());
 
             return;
         }
 
+        unset($this->tareaObservaciones[$tareaId]);
         $this->ot->refresh();
         $this->notifySuccess('Tarea finalizada.');
     }
@@ -308,6 +320,49 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
     {
         Gate::authorize('update', $this->ot);
         ChecklistOt::where('ot_id', $this->ot->id)->where('id', $itemId)->delete();
+    }
+
+    // --- Spec 005 US2: variables técnicas del equipo ---
+
+    /**
+     * Registra una variable técnica (temperatura, presión, etc.) al ejecutar
+     * una tarea sobre un equipo, visible luego en su historial. La registra
+     * el técnico mientras la tarea está en curso — mismo criterio que la
+     * evidencia y la observación de cumplimiento.
+     */
+    public function agregarVariableTecnica(int $tareaId): void
+    {
+        Gate::authorize('executeTareas', $this->ot);
+
+        $tarea = $this->ot->tareas()->findOrFail($tareaId);
+
+        if ($tarea->estado_tarea !== 'en_curso') {
+            $this->notifyError('La tarea debe estar en curso para registrar variables técnicas.');
+
+            return;
+        }
+
+        $this->validate([
+            "variableForm.{$tareaId}.nombre" => 'required|string|max:100',
+            "variableForm.{$tareaId}.valor" => 'required|string|max:100',
+            "variableForm.{$tareaId}.unidad" => 'nullable|string|max:20',
+        ], [], [
+            "variableForm.{$tareaId}.nombre" => 'variable',
+            "variableForm.{$tareaId}.valor" => 'valor',
+        ]);
+
+        VariableTecnica::create([
+            'ot_id' => $this->ot->id,
+            'detalle_ot_id' => $tareaId,
+            'nombre' => $this->variableForm[$tareaId]['nombre'],
+            'valor' => $this->variableForm[$tareaId]['valor'],
+            'unidad' => $this->variableForm[$tareaId]['unidad'] ?: null,
+            'registrado_por' => auth()->id(),
+        ]);
+
+        unset($this->variableForm[$tareaId]);
+        $this->ot->refresh();
+        $this->notifySuccess('Variable técnica registrada.');
     }
 
     // --- US3: salida de equipo ---
@@ -614,6 +669,8 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
 @endphp
 
 <div class="w-full flex flex-col gap-6" x-data>
+    <x-breadcrumbs :items="[['label' => 'Órdenes de trabajo', 'route' => 'ordenes-trabajo.tablero'], ['label' => $ot->numero_ot]]" />
+
     @if (session('ok'))
         <div class="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-sm rounded-lg px-4 py-2.5">{{ session('ok') }}</div>
     @endif
@@ -883,6 +940,47 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                         @error('evidenciaTareaFile') <span class="text-brand-red text-[11px]">{{ $message }}</span> @enderror
                                     @endif
                                 </div>
+                            @endif
+
+                            {{-- Variables técnicas del equipo, registradas al ejecutar la tarea (spec 005, US2) --}}
+                            @if ($ot->equipo_id && ($tarea->variablesTecnicas->isNotEmpty() || $puedeSubirEvidencia))
+                                <div class="flex flex-col gap-1.5 pt-1">
+                                    <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Variables técnicas de {{ $ot->equipo?->tipo }}</span>
+                                    @forelse ($tarea->variablesTecnicas as $variable)
+                                        <div wire:key="var-{{ $variable->id }}" class="flex items-center justify-between gap-3 text-[12px] border-b border-slate-50 dark:border-slate-800/60 py-1">
+                                            <span><span class="font-semibold">{{ $variable->nombre }}:</span> {{ $variable->valor }} {{ $variable->unidad }}</span>
+                                            <span class="text-[10px] text-slate-400 shrink-0">{{ $variable->registradoPor?->name }}</span>
+                                        </div>
+                                    @empty
+                                        @if (! $puedeSubirEvidencia)
+                                            <p class="text-[11px] text-slate-400">Sin variables técnicas registradas.</p>
+                                        @endif
+                                    @endforelse
+                                    @if ($puedeSubirEvidencia)
+                                        <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_5rem_auto] gap-1.5 pt-0.5">
+                                            <x-input wire:model="variableForm.{{ $tarea->id }}.nombre" wire:key="var-nombre-{{ $tarea->id }}" placeholder="Variable (ej. Temperatura)" />
+                                            <x-input wire:model="variableForm.{{ $tarea->id }}.valor" wire:key="var-valor-{{ $tarea->id }}" placeholder="Valor" />
+                                            <x-input wire:model="variableForm.{{ $tarea->id }}.unidad" wire:key="var-unidad-{{ $tarea->id }}" placeholder="Unidad" />
+                                            <button wire:click="agregarVariableTecnica({{ $tarea->id }})" class="inline-flex items-center justify-center h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-[12px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">Agregar</button>
+                                        </div>
+                                        @error("variableForm.{$tarea->id}.nombre") <span class="text-brand-red text-[11px]">{{ $message }}</span> @enderror
+                                        @error("variableForm.{$tarea->id}.valor") <span class="text-brand-red text-[11px]">{{ $message }}</span> @enderror
+                                    @endif
+                                </div>
+                            @endif
+
+                            {{-- Observación del técnico al cumplir la tarea (opcional) --}}
+                            @if ($puedeSubirEvidencia)
+                                <div class="flex flex-col gap-1 pt-1">
+                                    <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Observación (opcional)</span>
+                                    <textarea wire:model="tareaObservaciones.{{ $tarea->id }}" wire:key="obs-{{ $tarea->id }}" rows="2" maxlength="500"
+                                              placeholder="Notas sobre el cumplimiento de la tarea…"
+                                              class="w-full text-[12.5px] border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2.5 py-1.5 outline-none focus:border-brand-blue"></textarea>
+                                </div>
+                            @elseif ($tarea->observaciones)
+                                <p class="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                                    <span class="font-semibold text-slate-400">Observación:</span> {{ $tarea->observaciones }}
+                                </p>
                             @endif
 
                             <div class="flex flex-wrap items-center gap-2 pt-1">

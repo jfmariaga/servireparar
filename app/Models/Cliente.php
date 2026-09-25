@@ -26,6 +26,18 @@ class Cliente extends Model
         return $query->where('estado', 'activo');
     }
 
+    /** Búsqueda por nombre o NIT (buscador global). */
+    public function scopeBuscar($query, ?string $termino)
+    {
+        if (blank($termino)) {
+            return $query;
+        }
+
+        return $query->where(fn ($q) => $q
+            ->where('nombre', 'like', "%{$termino}%")
+            ->orWhere('nit', 'like', "%{$termino}%"));
+    }
+
     public function isActivo(): bool
     {
         return $this->estado === 'activo';
@@ -34,5 +46,10 @@ class Cliente extends Model
     public function equipos(): HasMany
     {
         return $this->hasMany(Equipo::class);
+    }
+
+    public function ordenesTrabajo(): HasMany
+    {
+        return $this->hasMany(OrdenTrabajo::class);
     }
 }

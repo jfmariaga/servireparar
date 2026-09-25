@@ -274,12 +274,13 @@ class OrdenTrabajoService
 
     /**
      * El técnico finaliza su tarea. Los días trabajados los calcula el sistema
-     * desde la fecha de inicio (Phase 13); un valor explícito (tests /
-     * correcciones) se respeta. Requiere una imagen de evidencia. Una tarea con
-     * insumos sin entregar no se puede iniciar (Phase 13 / D21), así que al
-     * llegar aquí ya están todos entregados; no hay confirmación del Jefe.
+     * desde la fecha y hora de inicio (horas reales de reloj / jornada de 8h,
+     * no días calendario); un valor explícito (tests / correcciones) se
+     * respeta. Requiere una imagen de evidencia. Una tarea con insumos sin
+     * entregar no se puede iniciar (Phase 13 / D21), así que al llegar aquí ya
+     * están todos entregados; no hay confirmación del Jefe.
      */
-    public function finalizarTareaOperario(DetalleOt $tarea, User $actor, ?float $diasTrabajados = null): DetalleOt
+    public function finalizarTareaOperario(DetalleOt $tarea, User $actor, ?float $diasTrabajados = null, ?string $observaciones = null): DetalleOt
     {
         if ($tarea->estado_tarea !== 'en_curso') {
             throw ValidationException::withMessages(['tarea' => 'La tarea debe estar en curso para finalizarla.']);
@@ -289,27 +290,32 @@ class OrdenTrabajoService
             throw ValidationException::withMessages(['tarea' => 'Sube una imagen de evidencia de la tarea antes de finalizarla.']);
         }
 
-        return $this->finalizarTarea($tarea, $actor, $diasTrabajados ?? $this->diasTrabajadosAuto($tarea));
+        return $this->finalizarTarea($tarea, $actor, $diasTrabajados ?? $this->diasTrabajadosAuto($tarea), $observaciones);
     }
 
     /**
-     * Días trabajados de la tarea calculados por el sistema: días calendario
-     * transcurridos desde el inicio, contando el día de inicio (mínimo 1).
+     * Días trabajados de la tarea calculados por el sistema: horas reales de
+     * reloj transcurridas desde el inicio hasta ahora, divididas entre la
+     * jornada laboral configurada (`ot.horas_jornada_laboral`, 8h por
+     * defecto). Sin mínimo — una tarea de 2 horas cuesta 2/8 = 0.25 días.
      */
     private function diasTrabajadosAuto(DetalleOt $tarea): float
     {
-        $inicio = ($tarea->fecha_inicio ?? $tarea->created_at ?? now())->copy()->startOfDay();
+        $inicio = $tarea->fecha_inicio ?? $tarea->created_at ?? now();
+        $horas = $inicio->diffInMinutes(now()) / 60;
+        $horasJornada = (float) config('ot.horas_jornada_laboral', 8);
 
-        return (float) max(1, $inicio->diffInDays(now()->startOfDay()) + 1);
+        return round($horas / max($horasJornada, 0.01), 2);
     }
 
-    private function finalizarTarea(DetalleOt $tarea, User $actor, float $dias): DetalleOt
+    private function finalizarTarea(DetalleOt $tarea, User $actor, float $dias, ?string $observaciones = null): DetalleOt
     {
-        return DB::transaction(function () use ($tarea, $actor, $dias) {
+        return DB::transaction(function () use ($tarea, $actor, $dias, $observaciones) {
             $tarea->update([
                 'estado_tarea' => 'finalizada',
                 'fecha_fin' => now(),
                 'dias_trabajados' => $dias,
+                'observaciones' => $observaciones !== null && trim($observaciones) !== '' ? trim($observaciones) : $tarea->observaciones,
             ]);
 
             $this->estados->recalcular($tarea->ordenTrabajo->fresh(), $actor);

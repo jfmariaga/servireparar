@@ -30,6 +30,7 @@ Route::middleware('auth')->group(function () {
 
     // Equipos (spec 005)
     Volt::route('/equipos', 'equipos.index')->name('equipos.index');
+    Volt::route('/equipos/{equipo}/historial', 'equipos.historial')->name('equipos.historial');
 
     // Inventario / Bodega (spec 003)
     Volt::route('/inventario', 'inventario.dashboard')->name('inventario.dashboard');
@@ -65,4 +66,7 @@ Route::middleware('auth')->group(function () {
 
     // Desempeño del técnico (spec 004, US3)
     Volt::route('/personal/desempeno', 'personal.desempeno')->name('personal.desempeno');
+
+    // Auditoría / actividad reciente (pulido de producto: bitácora de OT unificada)
+    Volt::route('/reportes/auditoria', 'reportes.auditoria')->name('reportes.auditoria')->middleware('role:Administrador');
 });

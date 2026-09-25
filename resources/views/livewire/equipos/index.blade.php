@@ -121,6 +121,8 @@ new #[Layout('components.layout', ['title' => 'Equipos'])] class extends Compone
 }; ?>
 
 <div>
+    <x-breadcrumbs :items="[['label' => 'Equipos']]" />
+
     <div class="flex items-center justify-end mb-6">
         <x-icon-button wire:click="nuevo" title="Nuevo equipo" variant="primary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
@@ -232,9 +234,16 @@ new #[Layout('components.layout', ['title' => 'Equipos'])] class extends Compone
                                 </span>
                             </td>
                             <td class="px-5 py-3">
-                                <x-icon-button wire:click="editar({{ $equipo->id }})" title="Editar equipo">
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17h4l10-10-4-4L4 13v4z"/></svg>
-                                </x-icon-button>
+                                <div class="flex items-center gap-1.5">
+                                    <a href="{{ route('equipos.historial', $equipo->id) }}" wire:navigate>
+                                        <x-icon-button title="Ver historial técnico">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                                        </x-icon-button>
+                                    </a>
+                                    <x-icon-button wire:click="editar({{ $equipo->id }})" title="Editar equipo">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17h4l10-10-4-4L4 13v4z"/></svg>
+                                    </x-icon-button>
+                                </div>
                             </td>
                         </tr>
                     @empty

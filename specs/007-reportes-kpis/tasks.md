@@ -11,8 +11,12 @@ lectura/agregación, no tiene sentido antes de que existan datos que agregar)
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 `composer require maatwebsite/excel` (barryvdh/laravel-dompdf ya instalado por spec 006 —
-  reutilizar, no reinstalar) — diferido a la implementación de US3 (exportación)
+- [X] T001 ~~`composer require maatwebsite/excel`~~ — no instalable con PHP 8.2 +
+  `phpoffice/phpspreadsheet ^5.9` ya fijado en `composer.json` (todas las versiones de
+  maatwebsite/excel compatibles exigen PHP 8.3 o un phpspreadsheet 1.x/^1.30 incompatible).
+  Se usa `phpoffice/phpspreadsheet` directamente (ya es dependencia del proyecto, usada por
+  `ImportarInventarioExcel`) vía `App\Services\Reportes\ExcelExportService`; dompdf ya instalado
+  por spec 006, reutilizado igual.
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
@@ -98,15 +102,24 @@ archivo coincide exactamente con lo filtrado en pantalla
 
 ### Tests for User Story 3
 
-- [ ] T015 [P] [US3] Feature test `tests/Feature/Reportes/ExportacionTest.php`: Excel y PDF de OT con
+- [X] T015 [P] [US3] Feature test `tests/Feature/Reportes/ExportacionTest.php`: Excel y PDF de OT con
   filtros aplicados
-- [ ] T016 [P] [US3] Feature test: exportación de Inventario con filtros
+- [X] T016 [P] [US3] Feature test: exportación de Inventario con filtros (mismo archivo)
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] `app/Exports/OrdenesTrabajoExport.php` (maatwebsite/excel)
-- [ ] T018 [P] [US3] `app/Exports/InventarioExport.php`
-- [ ] T019 [US3] Componente Volt `app/Livewire/Reportes/Exportador.php` (filtros + botones Excel/PDF)
+- [X] T017 [US3] ~~`app/Exports/OrdenesTrabajoExport.php` (maatwebsite/excel)`~~ — sin Export classes
+  aparte: `otsFiltradas()` (query privada ya compartida con la paginación) alimenta
+  `App\Services\Reportes\ExcelExportService::descargar()` directamente desde
+  `resources/views/livewire/ordenes-trabajo/tablero.blade.php`, para que el Excel nunca pueda
+  desalinearse de lo que se ve filtrado en pantalla. PDF vía `resources/views/pdf/ordenes-trabajo.blade.php`.
+- [X] T018 [P] [US3] Mismo patrón para inventario: `itemsFiltrados()` en
+  `resources/views/livewire/inventario/catalogo.blade.php` + `resources/views/pdf/inventario.blade.php`.
+- [X] T019 [US3] ~~Componente Volt `app/Livewire/Reportes/Exportador.php`~~ — sin componente/página
+  aparte: los botones "Exportar Excel"/"Exportar PDF" viven en el propio tablero de OT y catálogo de
+  inventario (junto a sus filtros existentes), no en una pantalla nueva — así el export siempre usa
+  exactamente el filtro que el usuario ya tiene activo, sin duplicar la UI de filtros. `tablero.blade.php`
+  ganó además los filtros de **técnico** y **rango de fechas** que pedía FR-007 y que aún no existían ahí.
 
 **Checkpoint**: Las 3 historias de usuario son funcionales de forma independiente
 

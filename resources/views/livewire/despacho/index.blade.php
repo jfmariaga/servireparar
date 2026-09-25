@@ -47,6 +47,8 @@ new #[Layout('components.layout', ['title' => 'Despachos'])] class extends Compo
 }; ?>
 
 <div class="flex flex-col gap-6">
+    <x-breadcrumbs :items="[['label' => 'Despachos']]" />
+
     @if ($pendientesAlmacen)
         <div class="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm rounded-xl px-4 py-3">
             Tienes <strong>{{ $pendientesAlmacen }}</strong> {{ $pendientesAlmacen === 1 ? 'solicitud pendiente' : 'solicitudes pendientes' }} por gestionar (recibir, remisionar o entregar).

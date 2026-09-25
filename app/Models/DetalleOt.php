@@ -32,6 +32,7 @@ class DetalleOt extends Model
         'fecha_inicio',
         'fecha_fin',
         'dias_trabajados',
+        'observaciones',
     ];
 
     protected function casts(): array
@@ -144,6 +145,12 @@ class DetalleOt extends Model
     public function evidencias(): HasMany
     {
         return $this->hasMany(EvidenciaOt::class, 'detalle_ot_id');
+    }
+
+    /** Variables técnicas del equipo registradas durante esta tarea (spec 005, US2/FR-004). */
+    public function variablesTecnicas(): HasMany
+    {
+        return $this->hasMany(VariableTecnica::class, 'detalle_ot_id');
     }
 
     /** ¿La tarea tiene al menos una imagen de evidencia? (requisito para finalizar, Phase 13). */

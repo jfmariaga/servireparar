@@ -38,8 +38,10 @@ class DashboardPorRolTest extends TestCase
             ->test('dashboard')
             ->assertSee('Indicadores de operación')
             ->assertSee('OT abiertas')
-            ->assertSee('Trabajo en ejecución')
-            ->assertSee('Cambio de compresor');
+            ->assertSee('Tendencia OT en curso')
+            ->assertSee('En el taller')
+            ->assertSee('A domicilio')
+            ->assertSee($ot->numero_ot);
     }
 
     public function test_administrador_ve_los_mismos_indicadores(): void

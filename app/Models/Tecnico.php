@@ -123,13 +123,6 @@ class Tecnico extends Model
      */
     public function tareasActivasCount(): int
     {
-        return DetalleOt::query()
-            ->where('tecnico_id', $this->id)
-            ->whereIn('estado_tarea', ['pendiente', 'en_curso'])
-            ->with('ordenTrabajo.estado')
-            ->get()
-            ->filter(fn (DetalleOt $t) => ! $t->ordenTrabajo?->estaEnEstado(EstadoOt::EN_REVISION)
-                && ! optional($t->ordenTrabajo?->estado)->es_terminal)
-            ->count();
+        return app(\App\Services\Personal\DesempenoTecnicoService::class)->tareasActivas($this)->count();
     }
 }

@@ -118,4 +118,27 @@ class DesempenoTecnicoTest extends TestCase
         $this->assertCount(1, $resultado);
         $this->assertSame($conHistorial->id, $resultado->first()['tecnico_id']);
     }
+
+    public function test_tareas_activas_excluye_planificacion_terminales_y_finalizadas(): void
+    {
+        $tecnico = Tecnico::factory()->create();
+
+        $enCurso = OrdenTrabajo::factory()->enEstado(\App\Models\EstadoOt::EN_CURSO)->create();
+        DetalleOt::factory()->for($enCurso, 'ordenTrabajo')->create(['tecnico_id' => $tecnico->id, 'estado_tarea' => 'en_curso']);
+
+        $pendiente = OrdenTrabajo::factory()->enEstado(\App\Models\EstadoOt::EN_CURSO)->create();
+        DetalleOt::factory()->for($pendiente, 'ordenTrabajo')->create(['tecnico_id' => $tecnico->id, 'estado_tarea' => 'pendiente']);
+
+        // En planificación: no cuenta aunque tenga tarea pendiente.
+        $enPlanificacion = OrdenTrabajo::factory()->create();
+        DetalleOt::factory()->for($enPlanificacion, 'ordenTrabajo')->create(['tecnico_id' => $tecnico->id, 'estado_tarea' => 'pendiente']);
+
+        // Finalizada: no es una tarea activa.
+        DetalleOt::factory()->for($enCurso, 'ordenTrabajo')->create(['tecnico_id' => $tecnico->id, 'estado_tarea' => 'finalizada']);
+
+        $activas = $this->service->tareasActivas($tecnico);
+
+        $this->assertCount(2, $activas);
+        $this->assertSame($tecnico->tareasActivasCount(), $activas->count());
+    }
 }

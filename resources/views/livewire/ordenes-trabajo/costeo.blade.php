@@ -83,6 +83,12 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
 }; ?>
 
 <div class="max-w-3xl flex flex-col gap-6">
+    <x-breadcrumbs :items="[
+        ['label' => 'Órdenes de trabajo', 'route' => 'ordenes-trabajo.tablero'],
+        ['label' => $ot->numero_ot, 'route' => 'ordenes-trabajo.detalle', 'params' => [$ot->id]],
+        ['label' => 'Costeo'],
+    ]" />
+
     <div class="flex items-center gap-3">
         <a href="{{ route('ordenes-trabajo.detalle', $ot) }}" wire:navigate class="text-sm text-brand-blue hover:underline">← {{ $ot->numero_ot }}</a>
         <h1 class="text-lg font-bold">Costeo y utilidad neta</h1>

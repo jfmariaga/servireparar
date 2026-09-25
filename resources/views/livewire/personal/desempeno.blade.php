@@ -38,6 +38,8 @@ new #[Layout('components.layout', ['title' => 'Desempeño'])] class extends Comp
 }; ?>
 
 <div>
+    <x-breadcrumbs :items="[['label' => 'Usuarios', 'route' => 'usuarios.index'], ['label' => 'Desempeño']]" />
+
     @include('partials.usuarios-tabs')
 
     <p class="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-2xl">

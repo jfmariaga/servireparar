@@ -125,6 +125,8 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
 }; ?>
 
 <div class="max-w-3xl flex flex-col gap-6">
+    <x-breadcrumbs :items="[['label' => 'Despachos', 'route' => 'despachos.index'], ['label' => $solicitud->numero]]" />
+
     @if (session('ok'))
         <div class="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm rounded-xl px-4 py-3">{{ session('ok') }}</div>
     @endif

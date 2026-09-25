@@ -76,6 +76,8 @@ new #[Layout('components.layout', ['title' => 'Especialidades'])] class extends 
 }; ?>
 
 <div>
+    <x-breadcrumbs :items="[['label' => 'Usuarios', 'route' => 'usuarios.index'], ['label' => 'Especialidades']]" />
+
     @include('partials.usuarios-tabs')
 
     <p class="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-2xl">

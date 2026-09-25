@@ -118,6 +118,8 @@ new #[Layout('components.layout', ['title' => 'Nueva solicitud de despacho'])] c
 }; ?>
 
 <div class="max-w-3xl flex flex-col gap-6">
+    <x-breadcrumbs :items="[['label' => 'Despachos', 'route' => 'despachos.index'], ['label' => 'Nuevo despacho']]" />
+
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-5">
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div>

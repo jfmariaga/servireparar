@@ -5,6 +5,7 @@ namespace Tests\Feature\OrdenesTrabajo;
 use App\Enums\RolPrioridad;
 use App\Events\OtCreada;
 use App\Models\Cliente;
+use App\Models\Equipo;
 use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
 use App\Models\SolicitudInsumoOt;
@@ -137,6 +138,145 @@ class CrearOtTest extends TestCase
             ->assertHasNoErrors();
 
         Event::assertDispatched(OtCreada::class);
+    }
+
+    public function test_la_seccion_de_equipo_esta_bloqueada_hasta_elegir_cliente(): void
+    {
+        $cliente = Cliente::factory()->create();
+
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.crear')
+            ->assertSee('Selecciona un cliente arriba para registrar los datos del equipo')
+            ->assertDontSee('Equipo registrado')
+            ->assertDontSee('Tipo de equipo')
+            ->set('clienteId', $cliente->id)
+            ->assertDontSee('Selecciona un cliente arriba para registrar los datos del equipo')
+            ->assertSee('Equipo registrado')
+            ->assertSee('Tipo de equipo');
+    }
+
+    public function test_selecciona_un_equipo_registrado_del_cliente_y_queda_vinculado(): void
+    {
+        $cliente = Cliente::factory()->create();
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+        $equipo = Equipo::factory()->create(['cliente_id' => $cliente->id, 'tipo' => 'Compresor', 'marca' => 'Ingersoll', 'serie' => 'SN-99']);
+
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.crear')
+            ->set('clienteId', $cliente->id)
+            ->assertSee('Compresor')
+            ->set('equipoId', $equipo->id)
+            ->set('descripcion', 'Mantenimiento preventivo')
+            ->set('tareas', [
+                ['uid' => 'a', 'descripcion' => 'Revisión', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
+            ])
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $ot = OrdenTrabajo::first();
+        $this->assertSame($equipo->id, $ot->equipo_id);
+        $this->assertSame('Compresor', $ot->equipo_descripcion);
+        $this->assertSame('Ingersoll', $ot->equipo_marca);
+        $this->assertSame('SN-99', $ot->equipo_serie);
+    }
+
+    public function test_sin_datos_de_equipo_la_ot_queda_sin_equipo_vinculado(): void
+    {
+        $cliente = Cliente::factory()->create();
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.crear')
+            ->set('clienteId', $cliente->id)
+            ->set('descripcion', 'Servicio')
+            ->set('tareas', [
+                ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
+            ])
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $ot = OrdenTrabajo::first();
+        $this->assertNull($ot->equipo_id);
+        $this->assertSame(0, Equipo::count());
+    }
+
+    public function test_llenar_el_equipo_a_mano_lo_registra_y_lo_vincula(): void
+    {
+        $cliente = Cliente::factory()->create();
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.crear')
+            ->set('clienteId', $cliente->id)
+            ->set('descripcion', 'Servicio')
+            ->set('equipoDescripcion', 'Escalera')
+            ->set('equipoMarca', 'Genérica')
+            ->set('equipoModelo', 'X1')
+            ->set('equipoSerie', 'SN-001')
+            ->set('tareas', [
+                ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
+            ])
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $ot = OrdenTrabajo::first();
+        $equipo = Equipo::first();
+        $this->assertSame(1, Equipo::count());
+        $this->assertSame($equipo->id, $ot->equipo_id);
+        $this->assertSame($cliente->id, $equipo->cliente_id);
+        $this->assertSame('Escalera', $equipo->tipo);
+        $this->assertSame('X1', $equipo->modelo);
+        $this->assertSame('SN-001', $equipo->serie);
+    }
+
+    public function test_llenar_a_mano_un_equipo_con_mismo_modelo_y_serie_no_lo_duplica(): void
+    {
+        $cliente = Cliente::factory()->create();
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+        $equipo = Equipo::factory()->create([
+            'cliente_id' => $cliente->id,
+            'tipo' => 'Compresor',
+            'modelo' => 'X1',
+            'serie' => 'SN-001',
+        ]);
+
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.crear')
+            ->set('clienteId', $cliente->id)
+            ->set('descripcion', 'Segunda visita')
+            ->set('equipoDescripcion', 'Compresor')
+            ->set('equipoModelo', 'x1') // mayúsculas/minúsculas no deben importar
+            ->set('equipoSerie', 'sn-001')
+            ->set('tareas', [
+                ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
+            ])
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $ot = OrdenTrabajo::first();
+        $this->assertSame(1, Equipo::count(), 'No debe crear un segundo equipo duplicado');
+        $this->assertSame($equipo->id, $ot->equipo_id);
+    }
+
+    public function test_equipo_manual_sin_serie_no_intenta_emparejar_y_crea_uno_nuevo_cada_vez(): void
+    {
+        $cliente = Cliente::factory()->create();
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+
+        foreach (range(1, 2) as $i) {
+            Volt::actingAs($this->jefeDeTaller())
+                ->test('ordenes-trabajo.crear')
+                ->set('clienteId', $cliente->id)
+                ->set('descripcion', "Visita {$i}")
+                ->set('equipoDescripcion', 'Taladro')
+                ->set('tareas', [
+                    ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
+                ])
+                ->call('guardar')
+                ->assertHasNoErrors();
+        }
+
+        $this->assertSame(2, Equipo::count(), 'Sin modelo+serie no hay forma confiable de emparejar');
     }
 
     public function test_tecnico_no_puede_abrir_el_formulario_de_creacion(): void

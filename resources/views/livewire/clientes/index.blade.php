@@ -131,6 +131,8 @@ new #[Layout('components.layout', ['title' => 'Clientes'])] class extends Compon
 }; ?>
 
 <div>
+    <x-breadcrumbs :items="[['label' => 'Clientes']]" />
+
     <div class="flex items-center justify-end mb-6">
         <x-icon-button wire:click="nuevo" title="Nuevo cliente" variant="primary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>

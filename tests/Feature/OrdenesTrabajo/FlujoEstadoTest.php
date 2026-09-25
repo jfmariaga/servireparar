@@ -3,6 +3,7 @@
 namespace Tests\Feature\OrdenesTrabajo;
 
 use App\Enums\RolPrioridad;
+use App\Services\OrdenTrabajo\CosteoOtService;
 use App\Services\OrdenTrabajo\EstadoOtService;
 use App\Services\OrdenTrabajo\OrdenTrabajoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -82,13 +83,61 @@ class FlujoEstadoTest extends TestCase
         $comp = Volt::actingAs($tecnicoUser)
             ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()]);
         $comp->call('iniciarTarea', $tarea->id)->assertHasNoErrors();
+        $tarea->fresh()->update(['fecha_inicio' => now()->subHours(4)]);
         $this->adjuntarEvidenciaTarea($tarea->fresh());
-        // Ya no se piden días al operario: los calcula el sistema desde el inicio.
+        // Ya no se piden días al operario: los calcula el sistema por horas reales.
         $comp->call('finalizarTarea', $tarea->id)->assertHasNoErrors();
 
         $ot->refresh();
         $this->assertSame('finalizada', $ot->estado->slug);
-        $this->assertEquals(1, (float) $tarea->fresh()->dias_trabajados); // iniciada y finalizada el mismo día
+        $this->assertEquals(0.5, (float) $tarea->fresh()->dias_trabajados); // 4 horas / jornada de 8h
+    }
+
+    public function test_la_observacion_al_finalizar_queda_guardada_en_la_tarea(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $this->completarChecklist($ot);
+        $tarea = $ot->tareas()->first();
+        $tecnicoUser = $tarea->tecnico->usuario;
+        $tecnicoUser->assignRole(RolPrioridad::Tecnico->value);
+
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->call('planificar')->assertHasNoErrors();
+
+        $comp = Volt::actingAs($tecnicoUser)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()]);
+        $comp->call('iniciarTarea', $tarea->id)->assertHasNoErrors();
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
+        $comp->set("tareaObservaciones.{$tarea->id}", 'Se reemplazó el filtro, quedó pendiente una segunda visita.')
+            ->call('finalizarTarea', $tarea->id)
+            ->assertHasNoErrors();
+
+        $this->assertSame(
+            'Se reemplazó el filtro, quedó pendiente una segunda visita.',
+            $tarea->fresh()->observaciones
+        );
+    }
+
+    public function test_finalizar_sin_observacion_no_falla_y_queda_nula(): void
+    {
+        $ot = $this->crearOt(tareas: 1);
+        $this->completarChecklist($ot);
+        $tarea = $ot->tareas()->first();
+        $tecnicoUser = $tarea->tecnico->usuario;
+        $tecnicoUser->assignRole(RolPrioridad::Tecnico->value);
+
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->call('planificar')->assertHasNoErrors();
+
+        $comp = Volt::actingAs($tecnicoUser)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot->fresh()]);
+        $comp->call('iniciarTarea', $tarea->id)->assertHasNoErrors();
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
+        $comp->call('finalizarTarea', $tarea->id)->assertHasNoErrors();
+
+        $this->assertNull($tarea->fresh()->observaciones);
     }
 
     public function test_no_se_finaliza_una_tarea_sin_imagen_de_evidencia(): void
@@ -119,8 +168,23 @@ class FlujoEstadoTest extends TestCase
 
         app(OrdenTrabajoService::class)->finalizarTareaOperario($tarea->fresh(), $this->jefeDeTaller());
 
-        // Inicio hace 3 días, contando el día de inicio → 4 días trabajados.
-        $this->assertEquals(4, (float) $tarea->fresh()->dias_trabajados);
+        // Inicio hace 3 días (72 horas) / jornada de 8h → 9 días trabajados.
+        $this->assertEquals(9, (float) $tarea->fresh()->dias_trabajados);
+    }
+
+    public function test_una_tarea_de_dos_horas_se_costea_como_fraccion_del_dia_no_el_dia_completo(): void
+    {
+        $ot = $this->crearOt(tareas: 1); // técnico con sueldo 2.400.000 → valor día 80.000
+        $tarea = $ot->tareas()->first();
+        $tarea->update(['estado_tarea' => 'en_curso', 'fecha_inicio' => now()->subHours(2)]);
+        $this->adjuntarEvidenciaTarea($tarea->fresh());
+
+        app(OrdenTrabajoService::class)->finalizarTareaOperario($tarea->fresh(), $this->jefeDeTaller());
+
+        $this->assertEquals(0.25, (float) $tarea->fresh()->dias_trabajados); // 2 horas / jornada de 8h
+
+        $costeo = app(CosteoOtService::class)->calcular($ot->fresh());
+        $this->assertEqualsWithDelta(20_000, $costeo['mano_obra_propia'], 0.01); // 0.25 × 80.000
     }
 
     public function test_comparativo_tiempo_estimado_vs_real(): void

@@ -103,6 +103,18 @@ class Inventario extends Model
         return $query->where('activo', true);
     }
 
+    /** Búsqueda por nombre o código (buscador global y catálogo). */
+    public function scopeBuscar(Builder $query, ?string $termino): Builder
+    {
+        if (blank($termino)) {
+            return $query;
+        }
+
+        return $query->where(fn (Builder $q) => $q
+            ->where('nombre', 'like', "%{$termino}%")
+            ->orWhere('codigo', 'like', "%{$termino}%"));
+    }
+
     public function costoUnitarioFormateado(): string
     {
         return Moneda::cop($this->costo_unitario);

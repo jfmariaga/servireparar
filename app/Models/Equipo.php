@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Equipo extends Model
@@ -31,6 +32,11 @@ class Equipo extends Model
     public function mantenimientoPreventivo(): HasOne
     {
         return $this->hasOne(MantenimientoPreventivo::class);
+    }
+
+    public function ordenesTrabajo(): HasMany
+    {
+        return $this->hasMany(OrdenTrabajo::class);
     }
 
     public function tienePreventivoProgramado(): bool

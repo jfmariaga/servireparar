@@ -1,0 +1,17 @@
+{
+    "name": "ServiReparar",
+    "short_name": "ServiReparar",
+    "description": "Gestión de órdenes de trabajo, inventario y personal técnico",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#2648d6",
+    "icons": [
+        {
+            "src": "/img/apple-touch-icon.png",
+            "sizes": "1312x1199",
+            "type": "image/png",
+            "purpose": "any"
+        }
+    ]
+}

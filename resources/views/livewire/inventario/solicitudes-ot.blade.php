@@ -81,6 +81,8 @@ new #[Layout('components.layout', ['title' => 'Insumos para OT'])] class extends
 }; ?>
 
 <div class="w-full flex flex-col gap-5">
+    <x-breadcrumbs :items="[['label' => 'Insumos para OT']]" />
+
     <div class="flex flex-wrap items-center gap-3">
         <h1 class="text-lg font-bold font-display">Insumos para OT</h1>
         <p class="text-sm text-slate-400">Solicitudes de insumo generadas por las tareas de las órdenes de trabajo.</p>

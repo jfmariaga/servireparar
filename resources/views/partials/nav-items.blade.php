@@ -74,6 +74,12 @@
             'ability' => 'manage-usuarios',
             'icon' => 'M9 8a3.2 3.2 0 110 6.4A3.2 3.2 0 019 8z|M3.5 20c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5|M17.5 8.5a2.4 2.4 0 110 4.8|M15.7 14.8c2.3.4 3.8 2.2 3.8 5.2',
         ],
+        [
+            'route' => 'reportes.auditoria',
+            'label' => 'Auditoría',
+            'ability' => 'view-auditoria',
+            'icon' => 'M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z|M9.5 12l2 2 3.5-3.5',
+        ],
     ];
 
     $user = auth()->user();

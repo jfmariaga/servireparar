@@ -42,6 +42,8 @@ class RolesSeeder extends Seeder
             'approve-auditorias-inventario',
             // Despachos / venta mostrador sin OT (spec 003, US6)
             'manage-despachos',
+            // Auditoría / actividad reciente (pulido de producto, solo Administrador)
+            'view-auditoria',
         ];
 
         foreach ($permisos as $permiso) {

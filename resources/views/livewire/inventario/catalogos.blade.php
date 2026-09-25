@@ -140,6 +140,8 @@ new #[Layout('components.layout', ['title' => 'Categorías y unidades'])] class 
 }; ?>
 
 <div>
+    <x-breadcrumbs :items="[['label' => 'Inventario', 'route' => 'inventario.dashboard'], ['label' => 'Categorías y unidades']]" />
+
     @include('partials.inventario-tabs')
 
     <p class="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-2xl">

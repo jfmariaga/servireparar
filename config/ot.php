@@ -15,6 +15,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Jornada laboral (en horas)
+    |--------------------------------------------------------------------------
+    | Equivalencia usada para convertir las horas reales trabajadas en una
+    | tarea (fecha_inicio → fecha_fin) a "días" para el costeo de mano de obra
+    | (`dias_trabajados × valor_día del técnico`, spec 004). Una tarea de 2
+    | horas cuesta 2/8 = 0.25 días, no un día completo.
+    */
+    'horas_jornada_laboral' => (int) env('OT_HORAS_JORNADA_LABORAL', 8),
+
+    /*
+    |--------------------------------------------------------------------------
     | Refresco de la campana de notificaciones
     |--------------------------------------------------------------------------
     | Cada cuántos segundos la campana del layout consulta si hay avisos nuevos

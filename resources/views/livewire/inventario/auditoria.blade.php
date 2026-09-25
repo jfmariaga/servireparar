@@ -149,6 +149,8 @@ new #[Layout('components.layout', ['title' => 'Auditoría de inventario'])] clas
 }; ?>
 
 <div class="flex flex-col gap-6">
+    <x-breadcrumbs :items="[['label' => 'Inventario', 'route' => 'inventario.dashboard'], ['label' => 'Auditoría']]" />
+
     @include('partials.inventario-tabs')
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">

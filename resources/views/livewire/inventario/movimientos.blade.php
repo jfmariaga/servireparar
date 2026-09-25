@@ -173,6 +173,8 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
 }; ?>
 
 <div class="flex flex-col gap-6">
+    <x-breadcrumbs :items="[['label' => 'Inventario', 'route' => 'inventario.dashboard'], ['label' => 'Solicitudes']]" />
+
     @include('partials.inventario-tabs')
 
     <div class="flex items-center justify-end gap-2">

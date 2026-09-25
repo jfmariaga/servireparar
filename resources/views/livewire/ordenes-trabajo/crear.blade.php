@@ -2,6 +2,7 @@
 
 use App\Enums\RolPrioridad;
 use App\Models\Cliente;
+use App\Models\Equipo;
 use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
 use App\Models\Prioridad;
@@ -27,6 +28,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
     public string $tiempoEstimadoDias = '';
     public string $valorProyecto = '';
 
+    public ?int $equipoId = null;
     public string $equipoDescripcion = '';
     public string $equipoMarca = '';
     public string $equipoModelo = '';
@@ -45,10 +47,19 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
         $this->agregarTarea();
     }
 
+    /** Cambiar de cliente invalida el equipo seleccionado (pertenece al cliente anterior). */
+    public function updatedClienteId(): void
+    {
+        $this->equipoId = null;
+    }
+
     public function with(): array
     {
         return [
             'clientes' => Cliente::activos()->orderBy('nombre')->get(['id', 'nombre']),
+            'equiposDelCliente' => $this->clienteId
+                ? Equipo::where('cliente_id', $this->clienteId)->orderBy('tipo')->get(['id', 'tipo', 'marca', 'modelo', 'serie'])
+                : collect(),
             'prioridades' => Prioridad::orderBy('nivel')->get(['id', 'nombre']),
             'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
                 ->map(fn (Tecnico $t) => [
@@ -125,6 +136,46 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
         $this->tareas[$i]['insumos'] = array_values($this->tareas[$i]['insumos']);
     }
 
+    /**
+     * Cuando se llenan los datos del equipo a mano (sin seleccionarlo de la
+     * lista), se busca si el cliente ya tiene un equipo con el mismo
+     * modelo+serie (spec 005): si existe, se asume que es el mismo y se
+     * reutiliza en vez de duplicarlo; si no, se registra uno nuevo. Así toda
+     * OT queda vinculada a un Equipo y alimenta su historial técnico, aunque
+     * el operario nunca lo haya buscado explícitamente en el selector.
+     */
+    private function resolverEquipoManual(int $clienteId): ?Equipo
+    {
+        $tipo = trim($this->equipoDescripcion);
+
+        if ($tipo === '') {
+            return null;
+        }
+
+        $modelo = trim($this->equipoModelo);
+        $serie = trim($this->equipoSerie);
+
+        if ($modelo !== '' && $serie !== '') {
+            $existente = Equipo::where('cliente_id', $clienteId)
+                ->whereRaw('LOWER(modelo) = ?', [mb_strtolower($modelo)])
+                ->whereRaw('LOWER(serie) = ?', [mb_strtolower($serie)])
+                ->first();
+
+            if ($existente) {
+                return $existente;
+            }
+        }
+
+        return Equipo::create([
+            'cliente_id' => $clienteId,
+            'tipo' => $tipo,
+            'marca' => $this->equipoMarca ?: null,
+            'modelo' => $modelo ?: null,
+            'serie' => $serie ?: null,
+            'estado' => 'operativo',
+        ]);
+    }
+
     public function guardar(OrdenTrabajoService $servicio): void
     {
         Gate::authorize('create', OrdenTrabajo::class);
@@ -137,6 +188,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'descripcion' => 'required|string|max:2000',
             'tiempoEstimadoDias' => 'nullable|numeric|min:0',
             'valorProyecto' => 'nullable|numeric|min:0',
+            'equipoId' => 'nullable|exists:equipos,id',
             'equipoMarca' => 'nullable|string|max:100',
             'equipoModelo' => 'nullable|string|max:100',
             'equipoSerie' => 'nullable|string|max:100',
@@ -164,6 +216,14 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'tareas.*.insumos.*.cantidad' => 'cantidad de insumo',
         ]);
 
+        // Si se seleccionó un equipo ya registrado (spec 005), la OT queda vinculada
+        // a su historial técnico y el snapshot se toma de su ficha. Si se llenó a
+        // mano, se resuelve (encontrar por modelo+serie o crear) para que igual
+        // quede vinculada — así el historial se alimenta aunque no se use el selector.
+        $equipoSeleccionado = $datos['equipoId']
+            ? Equipo::find($datos['equipoId'])
+            : $this->resolverEquipoManual((int) $datos['clienteId']);
+
         try {
             $ot = $servicio->crear(auth()->user(), [
                 'cliente_id' => (int) $datos['clienteId'],
@@ -177,10 +237,11 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                 'valor_proyecto' => auth()->user()->hasRole(RolPrioridad::Administrador->value) && $datos['valorProyecto'] !== ''
                     ? (float) $datos['valorProyecto']
                     : null,
-                'equipo_descripcion' => $this->equipoDescripcion ?: null,
-                'equipo_marca' => $this->equipoMarca ?: null,
-                'equipo_modelo' => $this->equipoModelo ?: null,
-                'equipo_serie' => $this->equipoSerie ?: null,
+                'equipo_id' => $equipoSeleccionado?->id,
+                'equipo_descripcion' => $equipoSeleccionado?->tipo ?? ($this->equipoDescripcion ?: null),
+                'equipo_marca' => $equipoSeleccionado?->marca ?? ($this->equipoMarca ?: null),
+                'equipo_modelo' => $equipoSeleccionado?->modelo ?? ($this->equipoModelo ?: null),
+                'equipo_serie' => $equipoSeleccionado?->serie ?? ($this->equipoSerie ?: null),
                 'equipo_estado_ingreso' => $this->equipoEstadoIngreso ?: null,
             ], $this->tareas);
         } catch (ValidationException $e) {
@@ -210,6 +271,8 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
 }; ?>
 
 <div class="w-full flex flex-col gap-6">
+    <x-breadcrumbs :items="[['label' => 'Órdenes de trabajo', 'route' => 'ordenes-trabajo.tablero'], ['label' => 'Nueva OT']]" />
+
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 flex flex-col gap-9">
 
         {{-- Datos generales --}}
@@ -221,7 +284,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
 
             <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
                 <x-field label="Cliente" required>
-                    <x-select wire:model="clienteId">
+                    <x-select wire:model.live="clienteId">
                         @foreach ($clientes as $c)
                             <option value="{{ $c->id }}">{{ $c->nombre }}</option>
                         @endforeach
@@ -277,19 +340,39 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                 <p class="text-xs text-slate-400 mt-0.5">Datos y estado del equipo al ingresar al taller.</p>
             </header>
 
+            @if (! $clienteId)
+                <p class="text-sm text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-xl px-4 py-3">
+                    Selecciona un cliente arriba para registrar los datos del equipo.
+                </p>
+            @else
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <x-field label="Tipo de equipo">
-                    <x-input wire:model="equipoDescripcion" placeholder="Compresor, escalera…" />
+                <x-field label="Equipo registrado" class="sm:col-span-2 lg:col-span-4"
+                         hint="Si el equipo del cliente ya está registrado, selecciónalo para vincular esta OT a su historial técnico (spec 005). Si no, completa los datos manualmente abajo.">
+                    <x-select wire:model.live="equipoId" :reset-key="'equipo-'.($clienteId ?? 'sin-cliente')" placeholder="Sin registrar (completar datos manualmente)">
+                        @foreach ($equiposDelCliente as $eq)
+                            <option value="{{ $eq->id }}">{{ $eq->tipo }}{{ trim(($eq->marca ?? '').' '.($eq->modelo ?? '')) ? ' — '.trim(($eq->marca ?? '').' '.($eq->modelo ?? '')) : '' }}{{ $eq->serie ? ' ('.$eq->serie.')' : '' }}</option>
+                        @endforeach
+                    </x-select>
+                    @error('equipoId') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                    @if ($equiposDelCliente->isEmpty())
+                        <p class="text-xs text-slate-400 mt-1">Este cliente no tiene equipos registrados. Puedes <a href="{{ route('equipos.index') }}" wire:navigate class="text-brand-blue font-semibold">registrar uno</a> o completar los datos manualmente abajo.</p>
+                    @endif
                 </x-field>
-                <x-field label="Marca">
-                    <x-input wire:model="equipoMarca" placeholder="Marca" />
-                </x-field>
-                <x-field label="Modelo">
-                    <x-input wire:model="equipoModelo" placeholder="Modelo" />
-                </x-field>
-                <x-field label="Serie">
-                    <x-input wire:model="equipoSerie" placeholder="Número de serie" />
-                </x-field>
+
+                @unless ($equipoId)
+                    <x-field label="Tipo de equipo">
+                        <x-input wire:model="equipoDescripcion" placeholder="Compresor, escalera…" />
+                    </x-field>
+                    <x-field label="Marca">
+                        <x-input wire:model="equipoMarca" placeholder="Marca" />
+                    </x-field>
+                    <x-field label="Modelo">
+                        <x-input wire:model="equipoModelo" placeholder="Modelo" />
+                    </x-field>
+                    <x-field label="Serie">
+                        <x-input wire:model="equipoSerie" placeholder="Número de serie" />
+                    </x-field>
+                @endunless
                 <x-field label="Estado de ingreso del equipo" class="sm:col-span-2 lg:col-span-3">
                     <x-input wire:model="equipoEstadoIngreso" placeholder="Cómo llegó el equipo (golpes, faltantes, etc.)" />
                 </x-field>
@@ -311,6 +394,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                     @error('fotoEntrada') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                 </x-field>
             </div>
+            @endif
         </section>
 
         {{-- Tareas --}}

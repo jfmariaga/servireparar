@@ -5,6 +5,9 @@ use App\Models\CategoriaInventario;
 use App\Models\Inventario;
 use App\Models\UnidadMedida;
 use App\Services\Inventario\CodigoInternoService;
+use App\Services\Reportes\ExcelExportService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -35,19 +38,59 @@ new #[Layout('components.layout', ['title' => 'Inventario'])] class extends Comp
         Gate::authorize('viewAny', Inventario::class);
     }
 
+    /**
+     * Query filtrada compartida entre la paginación en pantalla y las
+     * exportaciones (spec 007, US3, FR-007): así el Excel/PDF nunca puede
+     * mostrar algo distinto de lo que el usuario ve filtrado en el catálogo.
+     */
+    private function itemsFiltrados(): Builder
+    {
+        return Inventario::query()
+            ->activos()
+            ->when($this->filtroCategoria !== 'todas', fn ($q) => $q->where('categoria_id', $this->filtroCategoria))
+            ->when($this->filtroTipo !== 'todos', fn ($q) => $q->where('tipo', $this->filtroTipo))
+            ->buscar($this->busqueda)
+            ->with(['categoria', 'unidadMedida'])
+            ->orderByDesc('id');
+    }
+
+    public function exportarExcel(ExcelExportService $excel)
+    {
+        $filas = $this->itemsFiltrados()->get()->map(fn (Inventario $item) => [
+            $item->codigo,
+            $item->nombre,
+            ucfirst($item->tipo),
+            $item->categoria?->nombre,
+            $item->stock_actual,
+            $item->stock_minimo,
+            $item->unidadMedida?->nombre,
+        ]);
+
+        return $excel->descargar(
+            'inventario-'.now()->format('Y-m-d-His').'.xlsx',
+            ['Código', 'Nombre', 'Tipo', 'Categoría', 'Stock actual', 'Stock mínimo', 'Unidad'],
+            $filas,
+        );
+    }
+
+    public function exportarPdf()
+    {
+        $pdf = Pdf::loadView('pdf.inventario', ['items' => $this->itemsFiltrados()->get()]);
+
+        // Livewire solo detecta la descarga si la acción devuelve un
+        // StreamedResponse/BinaryFileResponse; el Response plano de dompdf no
+        // dispara la descarga en el navegador, por eso se envuelve así.
+        return response()->streamDownload(
+            fn () => print ($pdf->output()),
+            'inventario-'.now()->format('Y-m-d-His').'.pdf',
+            ['Content-Type' => 'application/pdf'],
+        );
+    }
+
     public function with(): array
     {
         return [
-            'items' => Inventario::query()
-                ->activos()
-                ->when($this->filtroCategoria !== 'todas', fn ($q) => $q->where('categoria_id', $this->filtroCategoria))
-                ->when($this->filtroTipo !== 'todos', fn ($q) => $q->where('tipo', $this->filtroTipo))
-                ->when($this->busqueda, fn ($q) => $q->where(fn ($q2) => $q2
-                    ->where('nombre', 'like', "%{$this->busqueda}%")
-                    ->orWhere('codigo', 'like', "%{$this->busqueda}%")))
-                ->with(['categoria', 'unidadMedida', 'lotesDisponibles'])
-                ->orderByDesc('id')
-                ->paginate(10),
+            'items' => $this->itemsFiltrados()->with('lotesDisponibles')->paginate(10),
             'categorias' => CategoriaInventario::activas()->orderBy('nombre')->get(),
             'unidadesMedida' => UnidadMedida::activas()->orderBy('nombre')->get(),
         ];
@@ -152,6 +195,8 @@ new #[Layout('components.layout', ['title' => 'Inventario'])] class extends Comp
 }; ?>
 
 <div>
+    <x-breadcrumbs :items="[['label' => 'Inventario', 'route' => 'inventario.dashboard'], ['label' => 'Catálogo']]" />
+
     @include('partials.inventario-tabs')
 
     <div class="flex items-center justify-end mb-6">
@@ -180,6 +225,14 @@ new #[Layout('components.layout', ['title' => 'Inventario'])] class extends Comp
                 <option value="herramienta">Herramientas</option>
                 <option value="consumible">Consumibles</option>
             </x-select>
+        </div>
+        <div class="flex items-center gap-2 sm:ml-auto">
+            <button wire:click="exportarExcel" class="text-[12.5px] font-semibold px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
+                Exportar Excel
+            </button>
+            <button wire:click="exportarPdf" class="text-[12.5px] font-semibold px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
+                Exportar PDF
+            </button>
         </div>
     </div>
 

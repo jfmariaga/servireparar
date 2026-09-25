@@ -1,6 +1,20 @@
 import './bootstrap';
 import Notify from './notify';
 import TomSelect from 'tom-select';
+import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Legend, Tooltip } from 'chart.js';
+
+Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Legend, Tooltip);
+
+/**
+ * PWA básica (pulido de producto): registra el service worker que cachea los
+ * assets estáticos de Vite (/build/...) para que la app cargue más rápido y
+ * sea instalable. No cachea HTML ni datos — sin edición offline de OT.
+ */
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+}
 
 /**
  * Convención: cualquier <select> de la app usa el componente <x-select>
@@ -48,6 +62,50 @@ document.addEventListener('livewire:init', () => {
 });
 
 document.addEventListener('alpine:init', () => {
+    /**
+     * Convención: la gráfica "Tendencia OT en curso" del dashboard de piso
+     * (spec 007 extendida) vive en un x-data="serviopsPisoChart(...)" con un
+     * <canvas x-ref="canvas"> dentro de un wire:ignore, para que Chart.js
+     * mantenga su propio DOM entre polls de Livewire. Los datos nuevos llegan
+     * por el evento 'piso-tendencia-actualizada' ($this->dispatch en el
+     * componente) y solo actualizan los datasets, sin recrear el canvas.
+     */
+    window.Alpine.data('serviopsPisoChart', (data) => ({
+        chart: null,
+
+        init() {
+            this.chart = new Chart(this.$refs.canvas, {
+                type: 'line',
+                data: this.buildData(data),
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                    plugins: { legend: { position: 'bottom' } },
+                },
+            });
+
+            Livewire.on('piso-tendencia-actualizada', ({ data }) => this.actualizar(data));
+        },
+
+        buildData(data) {
+            return {
+                labels: data.map((b) => b.hora),
+                datasets: [
+                    { label: 'Taller', data: data.map((b) => b.taller), borderColor: '#0ea5e9', backgroundColor: '#0ea5e9', tension: 0.3 },
+                    { label: 'A domicilio', data: data.map((b) => b.domicilio), borderColor: '#f59e0b', backgroundColor: '#f59e0b', tension: 0.3 },
+                ],
+            };
+        },
+
+        actualizar(data) {
+            const nuevos = this.buildData(data);
+            this.chart.data.labels = nuevos.labels;
+            this.chart.data.datasets.forEach((ds, i) => { ds.data = nuevos.datasets[i].data; });
+            this.chart.update();
+        },
+    }));
+
     window.Alpine.store('ui', {
         dark: localStorage.getItem('serviops.dark') === '1',
         navMode: localStorage.getItem('serviops.navMode') || 'sidebar',

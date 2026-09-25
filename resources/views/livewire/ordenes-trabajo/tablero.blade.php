@@ -3,6 +3,10 @@
 use App\Models\Cliente;
 use App\Models\EstadoOt;
 use App\Models\OrdenTrabajo;
+use App\Models\Tecnico;
+use App\Services\Reportes\ExcelExportService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -25,6 +29,15 @@ new #[Layout('components.layout', ['title' => 'Órdenes de trabajo'])] class ext
     #[Url]
     public string $tipo = '';
 
+    #[Url]
+    public string $tecnico = '';
+
+    #[Url]
+    public string $desde = '';
+
+    #[Url]
+    public string $hasta = '';
+
     public function mount(): void
     {
         Gate::authorize('viewAny', OrdenTrabajo::class);
@@ -32,39 +45,88 @@ new #[Layout('components.layout', ['title' => 'Órdenes de trabajo'])] class ext
 
     public function updating($campo): void
     {
-        if (in_array($campo, ['buscar', 'estado', 'cliente', 'tipo'], true)) {
+        if (in_array($campo, ['buscar', 'estado', 'cliente', 'tipo', 'tecnico', 'desde', 'hasta'], true)) {
             $this->resetPage();
         }
     }
 
     public function limpiar(): void
     {
-        $this->reset('buscar', 'estado', 'cliente', 'tipo');
+        $this->reset('buscar', 'estado', 'cliente', 'tipo', 'tecnico', 'desde', 'hasta');
         $this->resetPage();
     }
 
-    public function with(): array
+    /**
+     * Query filtrada compartida entre la paginación en pantalla y las
+     * exportaciones (spec 007, US3, FR-007): así el Excel/PDF nunca puede
+     * mostrar algo distinto de lo que el usuario ve filtrado en el tablero.
+     */
+    private function otsFiltradas(): Builder
     {
-        $ots = OrdenTrabajo::query()
+        return OrdenTrabajo::query()
             ->visiblesPara(auth()->user())
             ->with(['cliente:id,nombre', 'estado', 'prioridad:id,nombre'])
             ->buscar($this->buscar)
             ->when($this->estado !== '', fn ($q) => $q->whereHas('estado', fn ($e) => $e->where('slug', $this->estado)))
             ->when($this->cliente !== '', fn ($q) => $q->where('cliente_id', $this->cliente))
             ->when($this->tipo !== '', fn ($q) => $q->where('tipo_servicio', $this->tipo))
-            ->latest('id')
-            ->paginate(15);
+            ->when($this->tecnico !== '', fn ($q) => $q->whereHas('tareas', fn ($t) => $t->where('tecnico_id', $this->tecnico)))
+            ->when($this->desde !== '', fn ($q) => $q->whereDate('created_at', '>=', $this->desde))
+            ->when($this->hasta !== '', fn ($q) => $q->whereDate('created_at', '<=', $this->hasta))
+            ->latest('id');
+    }
+
+    public function exportarExcel(ExcelExportService $excel)
+    {
+        $filas = $this->otsFiltradas()->get()->map(fn (OrdenTrabajo $ot) => [
+            $ot->numero_ot,
+            $ot->cliente?->nombre,
+            $ot->descripcion,
+            ucfirst($ot->tipo_servicio),
+            $ot->prioridad?->nombre,
+            $ot->estado?->nombre,
+            $ot->created_at?->format('d/m/Y'),
+        ]);
+
+        return $excel->descargar(
+            'ordenes-trabajo-'.now()->format('Y-m-d-His').'.xlsx',
+            ['N.º', 'Cliente', 'Descripción', 'Tipo', 'Prioridad', 'Estado', 'Creada'],
+            $filas,
+        );
+    }
+
+    public function exportarPdf()
+    {
+        $pdf = Pdf::loadView('pdf.ordenes-trabajo', ['ots' => $this->otsFiltradas()->get()]);
+
+        // Livewire solo detecta la descarga si la acción devuelve un
+        // StreamedResponse/BinaryFileResponse; el Response plano de dompdf no
+        // dispara la descarga en el navegador, por eso se envuelve así.
+        return response()->streamDownload(
+            fn () => print ($pdf->output()),
+            'ordenes-trabajo-'.now()->format('Y-m-d-His').'.pdf',
+            ['Content-Type' => 'application/pdf'],
+        );
+    }
+
+    public function with(): array
+    {
+        $ots = $this->otsFiltradas()->paginate(15);
 
         return [
             'ots' => $ots,
             'estados' => EstadoOt::orderBy('orden')->get(),
             'clientes' => Cliente::activos()->orderBy('nombre')->get(['id', 'nombre']),
+            'tecnicos' => Tecnico::disponibles()->with('usuario:id,name')->get()
+                ->map(fn (Tecnico $t) => ['id' => $t->id, 'nombre' => $t->usuario?->name ?? 'Técnico #'.$t->id]),
             'puedeCrear' => Gate::allows('create', OrdenTrabajo::class),
         ];
     }
 }; ?>
 
 <div class="flex flex-col gap-5">
+    <x-breadcrumbs :items="[['label' => 'Órdenes de trabajo']]" />
+
     <div class="flex items-center justify-between">
         <h1 class="text-lg font-bold">Órdenes de trabajo</h1>
         @if ($puedeCrear)
@@ -76,7 +138,7 @@ new #[Layout('components.layout', ['title' => 'Órdenes de trabajo'])] class ext
         <div class="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-sm rounded-lg px-4 py-2.5">{{ session('ok') }}</div>
     @endif
 
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-5 gap-3 text-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-sm">
         <input type="text" wire:model.live.debounce.400ms="buscar" placeholder="Buscar N.º, descripción o cliente" class="sm:col-span-2 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
         <select wire:model.live="estado" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
             <option value="">Todos los estados</option>
@@ -95,6 +157,25 @@ new #[Layout('components.layout', ['title' => 'Órdenes de trabajo'])] class ext
             <option value="taller">Taller</option>
             <option value="domicilio">Domicilio</option>
         </select>
+        <select wire:model.live="tecnico" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+            <option value="">Todos los técnicos</option>
+            @foreach ($tecnicos as $t)
+                <option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>
+            @endforeach
+        </select>
+        <div class="flex items-center gap-2">
+            <input type="date" wire:model.live="desde" title="Creada desde" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-2 py-2 outline-none focus:border-brand-blue text-xs">
+            <input type="date" wire:model.live="hasta" title="Creada hasta" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-2 py-2 outline-none focus:border-brand-blue text-xs">
+        </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-2 -mt-2">
+        <button wire:click="exportarExcel" class="text-[12.5px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5">
+            Exportar Excel
+        </button>
+        <button wire:click="exportarPdf" class="text-[12.5px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5">
+            Exportar PDF
+        </button>
     </div>
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto">
@@ -127,7 +208,7 @@ new #[Layout('components.layout', ['title' => 'Órdenes de trabajo'])] class ext
                     </tr>
                 @empty
                     <tr><td colspan="7" class="px-4 py-10 text-center text-slate-400">Sin órdenes de trabajo que coincidan.
-                        @if ($buscar || $estado || $cliente || $tipo)
+                        @if ($buscar || $estado || $cliente || $tipo || $tecnico || $desde || $hasta)
                             <button wire:click="limpiar" class="text-brand-blue hover:underline ml-1">Limpiar filtros</button>
                         @endif
                     </td></tr>

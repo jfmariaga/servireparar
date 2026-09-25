@@ -6,6 +6,8 @@
     <title>{{ $title ?? 'SERVIREPARAR' }}</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="apple-touch-icon" href="{{ asset('img/apple-touch-icon.png') }}">
+    <link rel="manifest" href="{{ asset('manifest.json') }}">
+    <meta name="theme-color" content="#2648d6">
     <script>
         if (localStorage.getItem('serviops.dark') === '1') {
             document.documentElement.classList.add('dark');
@@ -28,7 +30,7 @@
             {{-- Sidebar (navegación lateral) --}}
             <aside x-show="$store.ui.navMode === 'sidebar'" x-cloak
                    :class="$store.ui.mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
-                   class="w-64 shrink-0 bg-brand-navy min-h-screen p-3.5 flex flex-col gap-5 fixed inset-y-0 left-0 z-40 transition-transform duration-200 lg:static lg:z-auto">
+                   class="w-64 shrink-0 bg-brand-navy h-screen p-3.5 flex flex-col gap-5 fixed inset-y-0 left-0 z-40 transition-transform duration-200 overflow-y-auto lg:sticky lg:top-0 lg:self-start lg:z-auto">
                 <div class="bg-white rounded-lg px-3 py-2.5 w-fit">
                     <img src="{{ asset('img/logo.png') }}" alt="ServiReparar" class="h-9 w-auto block">
                 </div>
@@ -49,7 +51,7 @@
             <div class="flex-1 min-w-0 flex flex-col">
 
                 {{-- Topbar --}}
-                <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 h-16 flex items-center gap-3">
+                <header class="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 h-16 flex items-center gap-3 shrink-0">
 
                     <button @click="$store.ui.toggleMobileNav()"
                             x-show="$store.ui.navMode === 'sidebar'" x-cloak
@@ -74,6 +76,8 @@
                     </nav>
 
                     <div class="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+                            @livewire('buscador-global')
+
                             @livewire('notificaciones.campana')
 
                             {{-- Preferencias de apariencia --}}

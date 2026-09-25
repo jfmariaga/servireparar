@@ -226,6 +226,8 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
 }; ?>
 
 <div>
+    <x-breadcrumbs :items="[['label' => 'Usuarios']]" />
+
     @include('partials.usuarios-tabs')
 
     <div class="flex items-center justify-end mb-6">

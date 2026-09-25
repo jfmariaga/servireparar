@@ -156,6 +156,8 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
 }; ?>
 
 <div class="w-full flex flex-col gap-5">
+    <x-breadcrumbs :items="[['label' => 'Préstamos de herramienta']]" />
+
     <div class="flex flex-wrap items-center gap-3">
         <h1 class="text-lg font-bold font-display">Préstamos de herramienta</h1>
         <p class="text-sm text-slate-400">Bodega presta la herramienta directamente al técnico y registra la devolución al recibirla.</p>

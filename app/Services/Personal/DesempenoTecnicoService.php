@@ -3,6 +3,7 @@
 namespace App\Services\Personal;
 
 use App\Models\DetalleOt;
+use App\Models\EstadoOt;
 use App\Models\Tecnico;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -64,6 +65,32 @@ class DesempenoTecnicoService
                 $this->resumen($t, $desde, $hasta),
             ))
             ->filter(fn (array $r) => $r['tareas_finalizadas'] > 0)
+            ->values();
+    }
+
+    /**
+     * Tareas activas de un técnico ahora mismo (pendiente o en_curso), con el
+     * mismo criterio de "activa" que `Tecnico::tareasActivasCount()` y la
+     * vista de "Mis tareas" del propio técnico (dashboard.blade.php): la OT
+     * ya debe estar liberada (no en Planificación) y no en estado terminal.
+     * Único lugar donde vive esta consulta — ambos la reutilizan.
+     *
+     * @return Collection<int, DetalleOt>
+     */
+    public function tareasActivas(Tecnico $tecnico): Collection
+    {
+        return DetalleOt::query()
+            ->where('tecnico_id', $tecnico->id)
+            ->whereIn('estado_tarea', ['pendiente', 'en_curso'])
+            ->with([
+                'ordenTrabajo:id,numero_ot,cliente_id,estado_id,tiempo_estimado_dias',
+                'ordenTrabajo.cliente:id,nombre',
+                'ordenTrabajo.estado:id,slug,nombre,es_terminal',
+            ])
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (DetalleOt $t) => ! $t->ordenTrabajo?->estaEnEstado(EstadoOt::EN_REVISION)
+                && ! optional($t->ordenTrabajo?->estado)->es_terminal)
             ->values();
     }
 }
