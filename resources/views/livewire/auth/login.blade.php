@@ -7,7 +7,7 @@ use Livewire\Volt\Component;
 
 new #[Layout('components.layout')] class extends Component
 {
-    public string $email = '';
+    public string $nickuser = '';
     public string $password = '';
     public bool $remember = false;
     public string $errorMessage = '';
@@ -17,12 +17,12 @@ new #[Layout('components.layout')] class extends Component
         $this->errorMessage = '';
 
         $this->validate([
-            'email' => 'required|email',
+            'nickuser' => 'required|string',
             'password' => 'required',
         ]);
 
-        if (! Auth::attempt(['email' => $this->email, 'password' => $this->password], $this->remember)) {
-            // Mensaje genérico: no revela si el correo existe (spec 001, Acceptance Scenario 2)
+        if (! Auth::attempt(['nickuser' => $this->nickuser, 'password' => $this->password], $this->remember)) {
+            // Mensaje genérico: no revela si el usuario existe (spec 001, Acceptance Scenario 2)
             $this->errorMessage = 'Las credenciales no coinciden con nuestros registros.';
 
             return;
@@ -87,10 +87,10 @@ new #[Layout('components.layout')] class extends Component
 
             <form wire:submit="login" class="space-y-4">
                 <div>
-                    <label class="block text-[13px] font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Correo electrónico</label>
-                    <input type="email" wire:model="email" required autofocus
+                    <label class="block text-[13px] font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Usuario</label>
+                    <input type="text" wire:model="nickuser" required autofocus autocomplete="username"
                            class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue-tint dark:focus:ring-0">
-                    @error('email') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                    @error('nickuser') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                 </div>
 
                 <div>
@@ -105,8 +105,9 @@ new #[Layout('components.layout')] class extends Component
                         <input type="checkbox" wire:model="remember" class="accent-brand-blue">
                         Recordarme
                     </label>
-                    <a href="{{ route('password.request') }}" class="text-[13px] text-brand-blue font-semibold hover:underline">¿Olvidaste tu contraseña?</a>
                 </div>
+
+                <p class="text-[12px] text-slate-400 text-center">¿Olvidaste tu contraseña? Pídele a un Administrador que te la restablezca.</p>
 
                 <button type="submit" wire:loading.attr="disabled" wire:target="login"
                         class="w-full bg-brand-blue hover:bg-brand-blue-dark text-white rounded-lg py-3 text-[15px] font-semibold transition disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2.5">

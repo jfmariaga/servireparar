@@ -24,4 +24,14 @@ return [
     // Sede preseleccionada al crear una solicitud (una de las claves de 'sedes').
     'sede_por_defecto' => env('DESPACHO_SEDE', 'BAQ'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Alerta de firma física pendiente
+    |--------------------------------------------------------------------------
+    | Días desde que una solicitud queda `despachada` (salió con mensajero)
+    | sin que vuelva el papel firmado por el cliente, antes de avisar a
+    | Bodega y Ventas (`despacho:revisar-firmas-pendientes`).
+    */
+    'dias_alerta_firma_pendiente' => env('DESPACHO_DIAS_ALERTA_FIRMA', 3),
+
 ];

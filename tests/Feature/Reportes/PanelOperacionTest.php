@@ -3,11 +3,13 @@
 namespace Tests\Feature\Reportes;
 
 use App\Enums\RolPrioridad;
+use App\Models\Cliente;
 use App\Models\DetalleOt;
 use App\Models\EstadoOt;
 use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
 use App\Models\PrestamoHerramienta;
+use App\Models\SolicitudDespacho;
 use App\Models\Tecnico;
 use App\Models\User;
 use Database\Seeders\RolesSeeder;
@@ -86,6 +88,16 @@ class PanelOperacionTest extends TestCase
             ->assertDontSee('Tareas actuales');
     }
 
+    public function test_solo_administrador_y_jefe_de_taller_pueden_abrir_el_panel(): void
+    {
+        foreach ([RolPrioridad::Almacenista, RolPrioridad::Vendedor, RolPrioridad::Tecnico] as $rol) {
+            $user = User::factory()->create(['estado' => 'activo']);
+            $user->assignRole($rol->value);
+
+            Volt::actingAs($user)->test('reportes.panel-operacion')->assertForbidden();
+        }
+    }
+
     public function test_jefe_de_taller_no_ve_el_boton_de_desempeno_ni_puede_abrirlo(): void
     {
         $jefe = User::factory()->create(['estado' => 'activo']);
@@ -133,6 +145,24 @@ class PanelOperacionTest extends TestCase
             ->call('abrirSimple', 'stock')
             ->assertSee('Filtro de aceite')
             ->assertDontSee('Aceite abundante');
+    }
+
+    public function test_tarjeta_de_despachos_pendientes_incluye_con_mensajero_y_excluye_entregadas(): void
+    {
+        $cliente = Cliente::factory()->create(['nombre' => 'Avianca Cargo']);
+        SolicitudDespacho::factory()->create(['numero' => 'SD-00001', 'cliente_id' => $cliente->id, 'estado' => 'remisionada']);
+        SolicitudDespacho::factory()->create(['numero' => 'SD-00002', 'estado' => 'despachada']);
+        SolicitudDespacho::factory()->create(['numero' => 'SD-00003', 'estado' => 'entregada']);
+        SolicitudDespacho::factory()->create(['numero' => 'SD-00004', 'estado' => 'anulada']);
+
+        Volt::actingAs($this->actingAsAdmin())
+            ->test('reportes.panel-operacion')
+            ->assertDontSee('Avianca Cargo')
+            ->call('abrirSimple', 'despachos')
+            ->assertSee('Avianca Cargo')
+            ->assertSee('SD-00002')
+            ->assertDontSee('SD-00003')
+            ->assertDontSee('SD-00004');
     }
 
     public function test_tecnicos_disponibilidad_cuenta_libres_y_ocupados(): void

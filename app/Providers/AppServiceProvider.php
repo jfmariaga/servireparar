@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Events\MantenimientoPreventivoProximoAVencer;
 use App\Events\OtCreada;
 use App\Events\OtEntregada;
 use App\Events\OtProximaAVencer;
 use App\Events\StockBajo;
+use App\Listeners\NotificarEventosEquipos;
 use App\Listeners\NotificarEventosOt;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -30,5 +32,8 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(OtEntregada::class, [NotificarEventosOt::class, 'otEntregada']);
         Event::listen(OtProximaAVencer::class, [NotificarEventosOt::class, 'otProximaAVencer']);
         Event::listen(StockBajo::class, [NotificarEventosOt::class, 'stockBajo']);
+
+        // Avisos in-app de Equipos (spec 005), micro-slice del spec 008.
+        Event::listen(MantenimientoPreventivoProximoAVencer::class, [NotificarEventosEquipos::class, 'mantenimientoProximoAVencer']);
     }
 }

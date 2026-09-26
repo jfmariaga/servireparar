@@ -18,18 +18,18 @@ class UsuariosDemoSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->crearUsuario('Jefe de Taller Demo', 'jefe@servireparar.com', RolPrioridad::JefeDeTaller);
-        $this->crearUsuario('Almacenista Demo', 'almacen@servireparar.com', RolPrioridad::Almacenista);
-        $this->crearUsuario('Vendedor Demo', 'vendedor@servireparar.com', RolPrioridad::Vendedor);
+        $this->crearUsuario('Jefe de Taller Demo', 'jefe', 'jefe@servireparar.com', RolPrioridad::JefeDeTaller);
+        $this->crearUsuario('Almacenista Demo', 'almacen', 'almacen@servireparar.com', RolPrioridad::Almacenista);
+        $this->crearUsuario('Vendedor Demo', 'vendedor', 'vendedor@servireparar.com', RolPrioridad::Vendedor);
 
         $tecnicos = [
-            ['Carlos Soldador', 'tecnico1@servireparar.com', 'Estructuras y soldadura', 2_600_000],
-            ['Diana Mecánica', 'tecnico2@servireparar.com', 'Mecánico', 2_400_000],
-            ['Andrés Eléctrico', 'tecnico3@servireparar.com', 'Eléctrico', 2_800_000],
+            ['Carlos Soldador', 'csoldador', 'tecnico1@servireparar.com', 'Estructuras y soldadura', 2_600_000],
+            ['Diana Mecánica', 'dmecanica', 'tecnico2@servireparar.com', 'Mecánico', 2_400_000],
+            ['Andrés Eléctrico', 'aelectrico', 'tecnico3@servireparar.com', 'Eléctrico', 2_800_000],
         ];
 
-        foreach ($tecnicos as [$nombre, $email, $especialidad, $sueldo]) {
-            $user = $this->crearUsuario($nombre, $email, RolPrioridad::Tecnico);
+        foreach ($tecnicos as [$nombre, $nickuser, $email, $especialidad, $sueldo]) {
+            $user = $this->crearUsuario($nombre, $nickuser, $email, RolPrioridad::Tecnico);
             $espId = Especialidad::firstOrCreate(['nombre' => $especialidad])->id;
 
             $tecnico = Tecnico::firstOrCreate(
@@ -47,11 +47,11 @@ class UsuariosDemoSeeder extends Seeder
         }
     }
 
-    private function crearUsuario(string $nombre, string $email, RolPrioridad $rol): User
+    private function crearUsuario(string $nombre, string $nickuser, string $email, RolPrioridad $rol): User
     {
         $user = User::firstOrCreate(
             ['email' => $email],
-            ['name' => $nombre, 'password' => 'password', 'estado' => 'activo'],
+            ['name' => $nombre, 'nickuser' => $nickuser, 'password' => 'password', 'estado' => 'activo'],
         );
 
         if (! $user->hasRole($rol->value)) {

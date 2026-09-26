@@ -15,7 +15,7 @@ use Livewire\Volt\Component;
  */
 new class extends Component
 {
-    public ?string $modal = null; // 'ot' | 'desempeno' | 'herramientas' | 'prestamos' | 'stock' | 'estancadas' | 'tecnicos'
+    public ?string $modal = null; // 'ot' | 'desempeno' | 'herramientas' | 'prestamos' | 'stock' | 'estancadas' | 'tecnicos' | 'despachos'
 
     public ?string $categoriaOt = null;
 
@@ -27,6 +27,8 @@ new class extends Component
 
     public function mount(): void
     {
+        abort_unless(auth()->user()->hasAnyRole(['Administrador', 'Jefe de Taller']), 403);
+
         $this->hasta = Carbon::today()->toDateString();
         $this->desde = Carbon::today()->subMonths(1)->toDateString();
     }
@@ -94,6 +96,7 @@ new class extends Component
             'herramientasPendientes' => $indicadores->herramientasPendientesGestion(),
             'prestamosSinDevolver' => $indicadores->prestamosSinDevolver(),
             'stockBajo' => $indicadores->stockBajo(),
+            'despachosPendientes' => $indicadores->despachosPendientes(),
             'tecnicosDisponibilidad' => $indicadores->tecnicosDisponibilidad(),
             'otEstancadas' => $indicadores->otEstancadas(),
         ];
@@ -137,16 +140,6 @@ new class extends Component
         </p>
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        @foreach ([['abiertas', 'OT abiertas', $otResumen['abiertas'], 'text-slate-600 dark:text-slate-300'], ['vencidas', 'OT vencidas', $otResumen['vencidas'], 'text-brand-red'], ['proximas_a_vencer', 'Próximas a vencer', $otResumen['proximas_a_vencer'], 'text-amber-600 dark:text-amber-400'], ['cerradas', 'OT cerradas', $otResumen['cerradas'], 'text-emerald-600 dark:text-emerald-400']] as [$categoria, $label, $n, $tono])
-            <button type="button" wire:click="abrirOt('{{ $categoria }}')"
-                    class="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:ring-2 hover:ring-brand-blue/20">
-                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">{{ $label }}</p>
-                <p class="text-2xl font-bold mt-1 {{ $tono }}">{{ $n }}</p>
-            </button>
-        @endforeach
-    </div>
-
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Cumplimiento de tiempos</p>
@@ -168,6 +161,16 @@ new class extends Component
     </div>
 
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        @foreach ([['abiertas', 'OT abiertas', $otResumen['abiertas'], 'text-slate-600 dark:text-slate-300'], ['vencidas', 'OT vencidas', $otResumen['vencidas'], 'text-brand-red'], ['proximas_a_vencer', 'Próximas a vencer', $otResumen['proximas_a_vencer'], 'text-amber-600 dark:text-amber-400'], ['cerradas', 'OT cerradas', $otResumen['cerradas'], 'text-emerald-600 dark:text-emerald-400']] as [$categoria, $label, $n, $tono])
+            <button type="button" wire:click="abrirOt('{{ $categoria }}')"
+                    class="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:ring-2 hover:ring-brand-blue/20">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">{{ $label }}</p>
+                <p class="text-2xl font-bold mt-1 {{ $tono }}">{{ $n }}</p>
+            </button>
+        @endforeach
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <button type="button" wire:click="abrirSimple('herramientas')"
                 class="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:ring-2 hover:ring-brand-blue/20">
             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Herramientas por gestionar</p>
@@ -185,6 +188,12 @@ new class extends Component
             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Stock bajo</p>
             <p class="text-2xl font-bold mt-1 {{ $stockBajo->isNotEmpty() ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' }}">{{ $stockBajo->count() }}</p>
             <p class="text-xs text-slate-400 mt-1">Consumibles bajo el mínimo</p>
+        </button>
+        <button type="button" wire:click="abrirSimple('despachos')"
+                class="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:ring-2 hover:ring-brand-blue/20">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Despachos pendientes</p>
+            <p class="text-2xl font-bold mt-1 {{ $despachosPendientes->isNotEmpty() ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' }}">{{ $despachosPendientes->count() }}</p>
+            <p class="text-xs text-slate-400 mt-1">Por gestionar o con mensajero</p>
         </button>
         <button type="button" wire:click="abrirSimple('tecnicos')"
                 class="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:ring-2 hover:ring-brand-blue/20">
@@ -383,6 +392,40 @@ new class extends Component
                     <div class="grid sm:grid-cols-[1fr_auto] gap-2 items-center text-sm border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3">
                         <span>{{ $item->nombre }} <span class="text-xs text-slate-400">({{ $item->codigo }})</span></span>
                         <span class="shrink-0 text-[11px] font-semibold text-amber-600 dark:text-amber-400">{{ $item->stock_actual }} / {{ $item->stock_minimo }} {{ $item->unidadMedida?->abreviatura }}</span>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </x-modal>
+    @endif
+
+    @if ($modal === 'despachos')
+    <x-modal :show="true" title="Despachos pendientes" maxWidth="max-w-2xl">
+        @if ($despachosPendientes->isEmpty())
+            <p class="text-sm text-slate-400 py-6 text-center">No hay despachos pendientes.</p>
+        @else
+            @php
+                $etiquetasEstado = [
+                    'solicitada' => 'Solicitada', 'recibida' => 'Recibida',
+                    'remisionada' => 'Remisionada', 'despachada' => 'Con mensajero',
+                ];
+                $tonoEstado = [
+                    'solicitada' => 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+                    'recibida' => 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+                    'remisionada' => 'bg-brand-blue-tint text-brand-blue',
+                    'despachada' => 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+                ];
+            @endphp
+            <div class="flex flex-col gap-2">
+                @foreach ($despachosPendientes as $s)
+                    <div class="grid sm:grid-cols-[1fr_auto] gap-2 items-center text-sm border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3">
+                        <span>
+                            {{ $s->numero }} · {{ $s->cliente?->nombre }}
+                            <span class="block text-xs text-slate-400 mt-0.5">desde {{ $s->fecha_solicitud->diffForHumans() }}</span>
+                        </span>
+                        <span class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold {{ $tonoEstado[$s->estado] ?? '' }}">
+                            {{ $etiquetasEstado[$s->estado] ?? $s->estado }}
+                        </span>
                     </div>
                 @endforeach
             </div>

@@ -18,6 +18,7 @@ class AdminUserSeeder extends Seeder
             ['email' => 'admin@servireparar.com'],
             [
                 'name' => 'Administrador ServiReparar',
+                'nickuser' => 'admin',
                 'password' => 'password',
                 'estado' => 'activo',
             ]

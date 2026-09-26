@@ -84,7 +84,7 @@ class FlujoEntregaFirmadaTest extends TestCase
         $this->assertNull($solicitud->detallesCompraExterna->first()->movimiento_id);
     }
 
-    public function test_la_entrega_exige_firma_de_quien_entrega_y_de_quien_recibe(): void
+    public function test_la_entrega_exige_firma_de_quien_entrega(): void
     {
         $despachos = app(DespachoService::class);
         $movimientos = app(MovimientoService::class);
@@ -109,6 +109,34 @@ class FlujoEntregaFirmadaTest extends TestCase
         }
 
         $this->assertSame('remisionada', $solicitud->fresh()->estado);
+    }
+
+    /**
+     * La firma de quien recibe es OPCIONAL en mostrador: el cliente puede
+     * firmar el papel físico en vez de la pantalla.
+     */
+    public function test_la_entrega_no_exige_firma_de_quien_recibe(): void
+    {
+        $despachos = app(DespachoService::class);
+        $movimientos = app(MovimientoService::class);
+        $almacen = $this->almacenista();
+
+        $cliente = Cliente::factory()->create(['correo' => null]);
+        $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 0, 'costo_unitario' => 0]);
+        $movimientos->entrada($item, 20, $almacen, costoUnitario: 100);
+
+        $solicitud = $despachos->crear($this->vendedor(), $cliente->id, null, [
+            ['origen' => 'inventario', 'inventario_id' => $item->id, 'descripcion' => '', 'cantidad' => '2', 'proveedor_externo' => '', 'costo_compra_externa' => ''],
+        ]);
+        $despachos->recibir($solicitud, $almacen);
+        $despachos->generarRemision($solicitud, $almacen);
+
+        $despachos->confirmarEntrega($solicitud, $almacen, 'Cliente', '1', '', null, null, $this->firmaDummy());
+
+        $solicitud->refresh();
+        $this->assertSame('entregada', $solicitud->estado);
+        $this->assertEmpty($solicitud->remision->firma);
+        $this->assertNotEmpty($solicitud->remision->firma_entrega);
     }
 
     public function test_si_el_cliente_no_tiene_correo_no_se_envia_copia(): void

@@ -119,6 +119,11 @@ class OrdenTrabajo extends Model
         return $this->hasMany(VariableTecnica::class, 'ot_id');
     }
 
+    public function checklistTecnico(): HasMany
+    {
+        return $this->hasMany(ChecklistMantenimiento::class, 'ot_id');
+    }
+
     /** Trazabilidad de la OT en orden cronológico ascendente: la creación primero (spec 002, FR-019). */
     public function eventos(): HasMany
     {

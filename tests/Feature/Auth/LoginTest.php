@@ -23,13 +23,14 @@ class LoginTest extends TestCase
     {
         $user = User::factory()->create([
             'email' => 'tecnico@servireparar.com',
+            'nickuser' => 'jtecnico',
             'password' => 'password123',
             'estado' => 'activo',
         ]);
         $user->assignRole(RolPrioridad::Tecnico->value);
 
         Volt::test('auth.login')
-            ->set('email', 'tecnico@servireparar.com')
+            ->set('nickuser', 'jtecnico')
             ->set('password', 'password123')
             ->call('login')
             ->assertRedirect(route(RolPrioridad::rutaDashboard(RolPrioridad::Tecnico->value)));
@@ -41,12 +42,13 @@ class LoginTest extends TestCase
     {
         User::factory()->create([
             'email' => 'existe@servireparar.com',
+            'nickuser' => 'jexiste',
             'password' => 'password123',
             'estado' => 'activo',
         ]);
 
         Volt::test('auth.login')
-            ->set('email', 'existe@servireparar.com')
+            ->set('nickuser', 'jexiste')
             ->set('password', 'incorrecta')
             ->call('login')
             ->assertSet('errorMessage', 'Las credenciales no coinciden con nuestros registros.');
@@ -58,12 +60,13 @@ class LoginTest extends TestCase
     {
         User::factory()->create([
             'email' => 'inactivo@servireparar.com',
+            'nickuser' => 'jinactivo',
             'password' => 'password123',
             'estado' => 'inactivo',
         ]);
 
         Volt::test('auth.login')
-            ->set('email', 'inactivo@servireparar.com')
+            ->set('nickuser', 'jinactivo')
             ->set('password', 'password123')
             ->call('login')
             ->assertSet('errorMessage', 'Tu cuenta está inactiva. Contacta al Administrador.');
@@ -75,13 +78,14 @@ class LoginTest extends TestCase
     {
         $user = User::factory()->create([
             'email' => 'multirol@servireparar.com',
+            'nickuser' => 'jmultirol',
             'password' => 'password123',
             'estado' => 'activo',
         ]);
         $user->assignRole([RolPrioridad::Tecnico->value, RolPrioridad::JefeDeTaller->value]);
 
         Volt::test('auth.login')
-            ->set('email', 'multirol@servireparar.com')
+            ->set('nickuser', 'jmultirol')
             ->set('password', 'password123')
             ->call('login')
             ->assertRedirect(route(RolPrioridad::rutaDashboard(RolPrioridad::JefeDeTaller->value)));

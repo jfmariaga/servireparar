@@ -41,7 +41,7 @@ class SolicitudDespachoPolicy
     public function anular(User $user, SolicitudDespacho $solicitud): bool
     {
         return $solicitud->puedeAnularse()
-            && $user->hasAnyRole(['Vendedor', 'Almacenista', 'Administrador']);
+            && $user->hasAnyRole(['Vendedor', 'Administrador']);
     }
 
     public function gestionarAlmacen(User $user, SolicitudDespacho $solicitud): bool

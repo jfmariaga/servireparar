@@ -58,18 +58,25 @@ class DespachoPolicyTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_vendedor_y_almacenista_pueden_anular(): void
+    public function test_vendedor_puede_anular_pero_almacenista_no(): void
     {
-        foreach ([$this->vendedor(), $this->almacenista()] as $actor) {
-            $solicitud = $this->solicitudRemisionada();
+        $solicitud = $this->solicitudRemisionada();
 
-            Volt::actingAs($actor)
-                ->test('despacho.entrega', ['solicitud' => $solicitud])
-                ->call('anular')
-                ->assertHasNoErrors();
+        Volt::actingAs($this->vendedor())
+            ->test('despacho.entrega', ['solicitud' => $solicitud])
+            ->call('anular')
+            ->assertHasNoErrors();
 
-            $this->assertSame('anulada', $solicitud->fresh()->estado);
-        }
+        $this->assertSame('anulada', $solicitud->fresh()->estado);
+
+        $otra = $this->solicitudRemisionada();
+
+        Volt::actingAs($this->almacenista())
+            ->test('despacho.entrega', ['solicitud' => $otra])
+            ->call('anular')
+            ->assertForbidden();
+
+        $this->assertSame('remisionada', $otra->fresh()->estado);
     }
 
     public function test_tecnico_no_puede_ver_la_bandeja_de_despachos(): void

@@ -13,7 +13,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * Solicitud de despacho — canal de venta mostrador sin OT (spec 003, US6).
  * El Vendedor la crea; el Almacenista la hace avanzar
  * `solicitada → recibida → remisionada → entregada`. Anulable en cualquier
- * estado previo a `entregada`. El stock solo se mueve al confirmar la entrega.
+ * estado previo a `entregada`. El stock se mueve al confirmar la entrega.
+ *
+ * Envío con mensajero: desde `remisionada`, `remisionada → despachada →
+ * entregada` — el mensajero se lleva la remisión impresa con solo la firma
+ * de quien entrega (el stock ya se descuenta en ese punto); al volver con el
+ * papel firmado por el cliente se adjunta la evidencia y pasa a `entregada`.
  */
 class SolicitudDespacho extends Model
 {
@@ -34,7 +39,11 @@ class SolicitudDespacho extends Model
         'recibida_en',
         'remisionada_por',
         'remisionada_en',
+        'mensajero_nombre',
+        'despachada_por',
+        'despachada_en',
         'entregada_en',
+        'alertado_firma_pendiente_en',
         'anulada_por',
         'motivo_anulacion',
     ];
@@ -45,7 +54,9 @@ class SolicitudDespacho extends Model
             'fecha_solicitud' => 'datetime',
             'recibida_en' => 'datetime',
             'remisionada_en' => 'datetime',
+            'despachada_en' => 'datetime',
             'entregada_en' => 'datetime',
+            'alertado_firma_pendiente_en' => 'datetime',
         ];
     }
 
@@ -57,6 +68,11 @@ class SolicitudDespacho extends Model
     public function vendedor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'vendedor_id');
+    }
+
+    public function despachadaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'despachada_por');
     }
 
     public function detalles(): HasMany
@@ -79,9 +95,13 @@ class SolicitudDespacho extends Model
         return $this->hasOne(RemisionEntrega::class, 'solicitud_id');
     }
 
+    /**
+     * `despachada` ya descontó stock (salió físicamente con el mensajero), así
+     * que no es anulable — igual que `entregada`.
+     */
     public function puedeAnularse(): bool
     {
-        return ! in_array($this->estado, ['entregada', 'anulada'], true);
+        return ! in_array($this->estado, ['despachada', 'entregada', 'anulada'], true);
     }
 
     public function scopeEnEstado(Builder $query, string $estado): Builder

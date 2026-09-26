@@ -7,6 +7,7 @@ use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
 use App\Models\Prioridad;
 use App\Models\Tecnico;
+use App\Models\ChecklistMantenimiento;
 use App\Models\VariableTecnica;
 use App\Livewire\Concerns\Notifies;
 use App\Models\PrestamoHerramienta;
@@ -99,7 +100,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
             'cliente', 'equipo', 'prioridad', 'estado', 'creadoPor',
             'tareas' => fn ($q) => $q->orderBy('orden')->orderBy('id'),
             'tareas.tecnico.usuario', 'tareas.insumos.inventario', 'tareas.insumos.solicitud', 'tareas.solicitudesInsumo', 'tareas.prerrequisitos', 'tareas.evidencias',
-            'tareas.variablesTecnicas.registradoPor',
+            'tareas.variablesTecnicas.registradoPor', 'tareas.checklistTecnico',
             'evidencias.subidaPor', 'checklist', 'eventos.usuario',
             'manoObraContratistas.contratista',
         ]);
@@ -363,6 +364,31 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
         unset($this->variableForm[$tareaId]);
         $this->ot->refresh();
         $this->notifySuccess('Variable técnica registrada.');
+    }
+
+    /**
+     * Responde un ítem del checklist técnico de mantenimiento (spec 005,
+     * US4/FR-007) — misma ventana que las variables técnicas: mientras el
+     * técnico ejecuta su tarea.
+     */
+    public function responderChecklistTecnico(int $tareaId, int $itemId, bool $cumple): void
+    {
+        Gate::authorize('executeTareas', $this->ot);
+
+        $tarea = $this->ot->tareas()->findOrFail($tareaId);
+
+        if ($tarea->estado_tarea !== 'en_curso') {
+            $this->notifyError('La tarea debe estar en curso para responder el checklist técnico.');
+
+            return;
+        }
+
+        ChecklistMantenimiento::where('detalle_ot_id', $tareaId)->where('id', $itemId)->update([
+            'cumple' => $cumple,
+            'respondido_por' => auth()->id(),
+        ]);
+
+        $this->ot->refresh();
     }
 
     // --- US3: salida de equipo ---
@@ -931,8 +957,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                     @endif
                                     @if ($puedeSubirEvidencia)
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <input type="file" accept="image/*" wire:model="evidenciaTareaFile" wire:key="evtf-{{ $tarea->id }}"
-                                                   class="text-[11px] text-slate-500 dark:text-slate-400 file:mr-2 file:rounded-md file:border-0 file:bg-brand-blue-tint file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-brand-blue dark:file:bg-brand-navy-active dark:file:text-white">
+                                            <x-file-input accept="image/*" wire:model="evidenciaTareaFile" wire:key="evtf-{{ $tarea->id }}" size="sm" />
                                             <button wire:click="subirEvidenciaTarea({{ $tarea->id }})" wire:loading.attr="disabled" wire:target="subirEvidenciaTarea,evidenciaTareaFile"
                                                     class="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60">Subir imagen</button>
                                         </div>
@@ -966,6 +991,28 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                         @error("variableForm.{$tarea->id}.nombre") <span class="text-brand-red text-[11px]">{{ $message }}</span> @enderror
                                         @error("variableForm.{$tarea->id}.valor") <span class="text-brand-red text-[11px]">{{ $message }}</span> @enderror
                                     @endif
+                                </div>
+                            @endif
+
+                            {{-- Checklist técnico digital de mantenimiento (spec 005, US4/FR-007) --}}
+                            @if ($ot->equipo_id && $tarea->checklistTecnico->isNotEmpty())
+                                <div class="flex flex-col gap-1.5 pt-1">
+                                    <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Checklist técnico</span>
+                                    @foreach ($tarea->checklistTecnico as $item)
+                                        <div wire:key="chk-tec-{{ $item->id }}" class="flex items-center justify-between gap-3 text-[12px] border-b border-slate-50 dark:border-slate-800/60 py-1">
+                                            <span>{{ $item->item }}</span>
+                                            @if ($puedeSubirEvidencia)
+                                                <span class="flex gap-1 shrink-0">
+                                                    <button wire:click="responderChecklistTecnico({{ $tarea->id }}, {{ $item->id }}, true)" class="text-[11px] font-bold px-2 py-0.5 rounded-md {{ $item->cumple === true ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800' }}">SÍ</button>
+                                                    <button wire:click="responderChecklistTecnico({{ $tarea->id }}, {{ $item->id }}, false)" class="text-[11px] font-bold px-2 py-0.5 rounded-md {{ $item->cumple === false ? 'bg-brand-red text-white' : 'bg-slate-100 dark:bg-slate-800' }}">NO</button>
+                                                </span>
+                                            @else
+                                                <span class="text-[10px] font-bold shrink-0 {{ $item->cumple === true ? 'text-emerald-600 dark:text-emerald-400' : ($item->cumple === false ? 'text-brand-red' : 'text-slate-400') }}">
+                                                    {{ $item->cumple === true ? 'Sí' : ($item->cumple === false ? 'No' : 'Pendiente') }}
+                                                </span>
+                                            @endif
+                                        </div>
+                                    @endforeach
                                 </div>
                             @endif
 
@@ -1153,8 +1200,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                         </div>
                     @endif
                     <div class="flex-1 flex flex-col gap-2">
-                        <input type="file" wire:model="evidencia"
-                               class="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-blue-tint file:px-3 file:py-2 file:text-[12px] file:font-semibold file:text-brand-blue hover:file:bg-brand-blue/15 dark:file:bg-brand-navy-active dark:file:text-white cursor-pointer">
+                        <x-file-input wire:model="evidencia" class="w-full" size="sm" />
                         <div wire:loading wire:target="evidencia" class="text-xs text-slate-400">Cargando previsualización…</div>
                         <div class="flex gap-2">
                             <x-input wire:model="evidenciaDescripcion" placeholder="Descripción (opcional)" class="flex-1 !h-10 text-xs" />

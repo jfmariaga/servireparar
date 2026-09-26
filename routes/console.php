@@ -13,3 +13,6 @@ Schedule::command('mantenimientos:revisar-preventivos')->daily();
 
 // Spec 002 (Órdenes de Trabajo), FR-010: revisa OT próximas a vencer o vencidas.
 Schedule::command('ot:revisar-vencimientos')->daily();
+
+// Spec 003 (Inventario/Bodega): avisa de despachos con mensajero sin firma física de vuelta.
+Schedule::command('despacho:revisar-firmas-pendientes')->daily();

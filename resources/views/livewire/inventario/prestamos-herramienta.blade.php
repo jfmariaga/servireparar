@@ -30,14 +30,21 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
     public function mount(): void
     {
         abort_unless(
-            Gate::allows('attend-ot-insumo') || Gate::allows('manage-ot') || auth()->user()->tecnico,
+            Gate::allows('attend-ot-insumo') || Gate::allows('manage-ot') || (Gate::allows('execute-ot') && auth()->user()->tecnico),
             403,
         );
     }
 
+    /**
+     * Un técnico ve solo sus propios préstamos. El permiso `execute-ot` es la
+     * autorización real; `->tecnico` solo dice por cuál ficha filtrar (un ex
+     * técnico conserva su ficha para la hoja de vida, spec 004, pero pierde
+     * `execute-ot` al quitarle el rol — y con eso, este acceso).
+     */
     private function soloMisPrestamos(): bool
     {
-        return ! Gate::allows('attend-ot-insumo') && ! Gate::allows('manage-ot') && auth()->user()->tecnico;
+        return ! Gate::allows('attend-ot-insumo') && ! Gate::allows('manage-ot')
+            && Gate::allows('execute-ot') && auth()->user()->tecnico;
     }
 
     public function updatingEstado(): void

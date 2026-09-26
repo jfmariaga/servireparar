@@ -4,6 +4,7 @@ use App\Livewire\Concerns\Notifies;
 use App\Models\Contratista;
 use App\Models\OrdenTrabajo;
 use App\Services\OrdenTrabajo\CosteoOtService;
+use App\Support\Jornada;
 use App\Support\Moneda;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -38,6 +39,7 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
             'costeo' => app(CosteoOtService::class)->calcular($this->ot),
             'contratistas' => Contratista::where('estado', 'activo')->orderBy('nombre')->get(['id', 'nombre']),
             'Moneda' => Moneda::class,
+            'Jornada' => Jornada::class,
             'puedeEditar' => Gate::allows('manageCosteo', $this->ot),
         ];
     }
@@ -105,6 +107,11 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
         <h2 class="font-bold text-sm mb-1">Mano de obra Servireparar (por días)</h2>
         <p class="text-xs text-slate-400">Sueldo vigente a la fecha de referencia: {{ $costeo['fecha_referencia']->format('d/m/Y') }}</p>
         @foreach ($ot->tareas as $tarea)
+            @php
+                $dias = (float) ($tarea->dias_trabajados ?? 0);
+                $valorDia = (float) ($tarea->tecnico?->valorDia($costeo['fecha_referencia']) ?? 0);
+                $subtotalTarea = $dias * $valorDia;
+            @endphp
             <div class="flex justify-between border-b border-slate-50 dark:border-slate-800/60 py-1.5">
                 <span>
                     {{ $tarea->tecnico?->usuario?->name ?? 'Técnico #'.$tarea->tecnico_id }} — {{ $tarea->descripcion }}
@@ -112,7 +119,10 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
                         <span class="text-[11px] text-amber-600 dark:text-amber-400">· tarea {{ str($tarea->estado_tarea)->replace('_', ' ') }}, sin días registrados aún</span>
                     @endif
                 </span>
-                <span class="text-slate-500">{{ rtrim(rtrim(number_format((float) ($tarea->dias_trabajados ?? 0), 2), '0'), '.') }} día(s) × {{ $Moneda::cop($tarea->tecnico?->valorDia($costeo['fecha_referencia'])) }}</span>
+                <span class="text-slate-500 text-right">
+                    {{ $Jornada::humanoDesdeDias($dias) }} <span class="text-slate-400">·</span> {{ $Moneda::cop($valorDia) }}<span class="text-slate-400">/día</span>
+                    <span class="text-slate-700 dark:text-slate-300 font-medium">= {{ $Moneda::cop($subtotalTarea) }}</span>
+                </span>
             </div>
         @endforeach
         <div class="flex justify-between font-semibold pt-1">

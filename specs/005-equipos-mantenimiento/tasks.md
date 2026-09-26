@@ -113,7 +113,7 @@ calculada; forzar vencimiento y verificar disparo de alerta
 
 ---
 
-## Phase 6: User Story 4 - Checklist técnico digital (Priority: P2) — DIFERIDA
+## Phase 6: User Story 4 - Checklist técnico digital (Priority: P2)
 
 **Goal**: Completar checklist de plantilla única durante una intervención de mantenimiento
 
@@ -122,15 +122,22 @@ historial del equipo
 
 ### Tests for User Story 4
 
-- [ ] T022 [P] [US4] Feature test `tests/Feature/Equipos/ChecklistMantenimientoTest.php`: resultado
+- [X] T022 [P] [US4] Feature test `tests/Feature/Equipos/ChecklistMantenimientoTest.php`: resultado
   almacenado y visible en el historial
 
 ### Implementation for User Story 4
 
-- [ ] T023 [US4] Componente Volt `app/Livewire/Equipos/ChecklistMantenimiento.php`
-- [ ] T024 [US4] Seeder de ítems fijos del checklist técnico (plantilla única genérica)
+- [X] T023 [US4] ~~Componente Volt `app/Livewire/Equipos/ChecklistMantenimiento.php`~~ — sin componente
+  aparte: se responde inline en `livewire/ordenes-trabajo/detalle.blade.php`
+  (`responderChecklistTecnico()`), mismo lugar y momento (tarea en curso) que las variables técnicas
+  (US2), para no duplicar la vista de ejecución de tareas que ya tiene el técnico.
+- [X] T024 [US4] ~~Seeder de ítems fijos~~ — plantilla única genérica en
+  `config('equipos.checklist_tecnico_por_defecto')` (mismo patrón que `config('ot.checklist_por_defecto')`
+  del checklist de cierre de OT, spec 002), precargada por tarea en `OrdenTrabajoService::crear()` cuando
+  la OT tiene `equipo_id`. Tabla `checklist_mantenimiento` (migración `2026_09_25_120000`), modelo
+  `ChecklistMantenimiento`. Visible en `livewire/equipos/historial.blade.php`.
 
-**Checkpoint**: Las 4 historias de usuario son funcionales de forma independiente
+**Checkpoint**: Las 4 historias de usuario son funcionales de forma independiente ✅ — spec 005 completo
 
 ---
 

@@ -8,6 +8,7 @@ use App\Models\EstadoOt;
 use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
 use App\Models\PrestamoHerramienta;
+use App\Models\SolicitudDespacho;
 use App\Models\Tecnico;
 use App\Services\Personal\DesempenoTecnicoService;
 use Illuminate\Support\Carbon;
@@ -262,6 +263,23 @@ class IndicadoresAgregadosService
             ->get()
             ->filter(fn (Inventario $i) => $i->stockBajoMinimo())
             ->values();
+    }
+
+    /**
+     * Solicitudes de despacho (venta mostrador sin OT, spec 003 US6) que aún
+     * no llegaron a `entregada` ni `anulada` — incluye las `despachada`
+     * (salieron con mensajero, pendientes de la firma física de vuelta), más
+     * antiguas primero para detectar las que llevan más tiempo sin cerrar.
+     *
+     * @return Collection<int, SolicitudDespacho>
+     */
+    public function despachosPendientes(): Collection
+    {
+        return SolicitudDespacho::query()
+            ->whereIn('estado', ['solicitada', 'recibida', 'remisionada', 'despachada'])
+            ->with('cliente:id,nombre')
+            ->orderBy('fecha_solicitud')
+            ->get();
     }
 
     /**

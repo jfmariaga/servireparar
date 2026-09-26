@@ -153,6 +153,12 @@ class DetalleOt extends Model
         return $this->hasMany(VariableTecnica::class, 'detalle_ot_id');
     }
 
+    /** Checklist técnico digital de esta tarea (spec 005, US4/FR-007). */
+    public function checklistTecnico(): HasMany
+    {
+        return $this->hasMany(ChecklistMantenimiento::class, 'detalle_ot_id');
+    }
+
     /** ¿La tarea tiene al menos una imagen de evidencia? (requisito para finalizar, Phase 13). */
     public function tieneEvidenciaImagen(): bool
     {

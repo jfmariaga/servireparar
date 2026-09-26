@@ -8,12 +8,15 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class extends Component
 {
-    use Notifies;
+    use Notifies, WithFileUploads;
 
     public SolicitudDespacho $solicitud;
+
+    public bool $modoMensajero = false;
 
     public string $entregadoPor = '';
     public string $recibidoPorNombre = '';
@@ -21,7 +24,11 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
     public string $notaEntrega = '';
     public string $firmaEntrega = '';
     public string $firma = '';
+    public string $mensajeroNombre = '';
     public string $motivoAnulacion = '';
+
+    /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
+    public $fotoFirmaFisica = null;
 
     public function mount(SolicitudDespacho $solicitud): void
     {
@@ -64,7 +71,7 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
             'recibidoPorDocumento' => 'required|string|max:40',
             'notaEntrega' => 'nullable|string|max:1000',
             'firmaEntrega' => 'required|string',
-            'firma' => 'required|string',
+            'firma' => 'nullable|string',
         ], [], [
             'entregadoPor' => 'nombre de quien entrega',
             'recibidoPorNombre' => 'nombre de quien recibe',
@@ -99,6 +106,80 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
             : 'Entrega confirmada. El cliente no tiene correo registrado: no se envió copia.');
     }
 
+    public function confirmarSalidaMensajero(DespachoService $despachos): void
+    {
+        Gate::authorize('gestionarAlmacen', $this->solicitud);
+
+        $this->validate([
+            'entregadoPor' => 'required|string|max:150',
+            'mensajeroNombre' => 'nullable|string|max:150',
+            'notaEntrega' => 'nullable|string|max:1000',
+            'firmaEntrega' => 'required|string',
+        ], [], [
+            'entregadoPor' => 'nombre de quien entrega',
+            'mensajeroNombre' => 'nombre del mensajero',
+            'notaEntrega' => 'nota de entrega',
+            'firmaEntrega' => 'firma de quien entrega',
+        ]);
+
+        try {
+            $despachos->confirmarSalidaMensajero(
+                $this->solicitud,
+                auth()->user(),
+                $this->firmaEntrega,
+                $this->entregadoPor,
+                $this->mensajeroNombre !== '' ? $this->mensajeroNombre : null,
+                $this->notaEntrega !== '' ? $this->notaEntrega : null,
+            );
+        } catch (ValidationException $e) {
+            $this->notifyError(collect($e->errors())->flatten()->first() ?? 'No se pudo despachar con mensajero.');
+
+            return;
+        }
+
+        $this->solicitud->refresh();
+        $this->reset(['firmaEntrega', 'modoMensajero']);
+        $this->notifySuccess('Salida con mensajero confirmada. Imprime la remisión para que la lleve — el stock ya se descontó.');
+    }
+
+    public function confirmarFirmaFisica(DespachoService $despachos): void
+    {
+        Gate::authorize('gestionarAlmacen', $this->solicitud);
+
+        $this->validate([
+            'recibidoPorNombre' => 'required|string|max:150',
+            'recibidoPorDocumento' => 'required|string|max:40',
+            'fotoFirmaFisica' => 'required|image|max:8192',
+        ], [], [
+            'recibidoPorNombre' => 'nombre de quien recibió',
+            'recibidoPorDocumento' => 'documento de quien recibió',
+            'fotoFirmaFisica' => 'foto del papel firmado',
+        ]);
+
+        $ruta = $this->fotoFirmaFisica->store('remisiones', 'public');
+
+        try {
+            $correoEnviado = $despachos->confirmarFirmaFisica(
+                $this->solicitud,
+                auth()->user(),
+                $this->recibidoPorNombre,
+                $this->recibidoPorDocumento,
+                $ruta,
+            );
+        } catch (ValidationException $e) {
+            $this->notifyError(collect($e->errors())->flatten()->first() ?? 'No se pudo registrar la firma física.');
+
+            return;
+        }
+
+        $this->solicitud->refresh();
+        $this->reset(['recibidoPorNombre', 'recibidoPorDocumento', 'fotoFirmaFisica']);
+
+        $this->notifySuccess($correoEnviado
+            ? 'Firma física registrada. Copia de la remisión enviada a '.$this->solicitud->cliente->correo.'.'
+            : 'Firma física registrada. El cliente no tiene correo registrado: no se envió copia.');
+    }
+
     public function anular(DespachoService $despachos): void
     {
         Gate::authorize('anular', $this->solicitud);
@@ -124,12 +205,15 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
     }
 }; ?>
 
-<div class="max-w-3xl flex flex-col gap-6">
+<div class="w-full flex flex-col gap-6">
     <x-breadcrumbs :items="[['label' => 'Despachos', 'route' => 'despachos.index'], ['label' => $solicitud->numero]]" />
 
     @if (session('ok'))
         <div class="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm rounded-xl px-4 py-3">{{ session('ok') }}</div>
     @endif
+
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_460px] gap-6 items-start">
+    <div class="flex flex-col gap-6 min-w-0 lg:order-2">
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
         <div class="flex items-start justify-between gap-4">
@@ -142,9 +226,10 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
                 'px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide',
                 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' => in_array($solicitud->estado, ['solicitada', 'recibida']),
                 'bg-brand-blue-tint text-brand-blue' => $solicitud->estado === 'remisionada',
+                'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' => $solicitud->estado === 'despachada',
                 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' => $solicitud->estado === 'entregada',
                 'bg-brand-red-tint text-brand-red' => $solicitud->estado === 'anulada',
-            ])>{{ $solicitud->estado }}</span>
+            ])>{{ $solicitud->estado === 'despachada' ? 'con mensajero' : $solicitud->estado }}</span>
         </div>
 
         @if ($solicitud->observaciones)
@@ -166,8 +251,14 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
         @if ($solicitud->remision)
             <div class="text-sm text-slate-600 dark:text-slate-300">
                 Remisión <span class="font-mono">{{ $solicitud->remision->numero }}</span>
-                @if ($solicitud->estado === 'entregada')
+                @if (in_array($solicitud->estado, ['despachada', 'entregada']))
                     · <a href="{{ route('despachos.remision', $solicitud) }}" target="_blank" class="text-brand-blue font-semibold hover:underline">Ver PDF</a>
+                @endif
+                @if ($solicitud->estado === 'despachada')
+                    <span class="block text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                        Salió con {{ $solicitud->mensajero_nombre ?: 'mensajero' }} el {{ $solicitud->despachada_en->format('d/m/Y H:i') }} —
+                        pendiente de que vuelva con la firma física del cliente.
+                    </span>
                 @endif
             </div>
         @endif
@@ -220,6 +311,9 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
         </table>
     </div>
 
+    </div>
+
+    <div class="flex flex-col gap-6 lg:sticky lg:top-6 lg:order-1">
     @if ($esAlmacen && ! in_array($solicitud->estado, ['entregada', 'anulada']))
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
             @if ($solicitud->estado === 'solicitada')
@@ -227,14 +321,108 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
             @elseif ($solicitud->estado === 'recibida')
                 <button wire:click="generarRemision" class="self-start bg-brand-blue hover:bg-brand-blue-dark text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg">Generar remisión</button>
             @elseif ($solicitud->estado === 'remisionada')
-                <h3 class="font-bold text-sm text-slate-700 dark:text-slate-200">Confirmar entrega (firma del receptor)</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Entrega (nombre) *</label>
-                        <input type="text" wire:model="entregadoPor" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
-                        @error('entregadoPor') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                <div class="flex gap-2 text-[13px] font-semibold">
+                    <button type="button" wire:click="$set('modoMensajero', false)" @class([
+                        'px-3 py-1.5 rounded-lg border',
+                        'bg-brand-blue text-white border-brand-blue' => ! $modoMensajero,
+                        'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400' => $modoMensajero,
+                    ])>Entrega en mostrador</button>
+                    <button type="button" wire:click="$set('modoMensajero', true)" @class([
+                        'px-3 py-1.5 rounded-lg border',
+                        'bg-brand-blue text-white border-brand-blue' => $modoMensajero,
+                        'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400' => ! $modoMensajero,
+                    ])>Envío con mensajero</button>
+                </div>
+
+                @if (! $modoMensajero)
+                <div wire:key="panel-mostrador" class="contents">
+                    <h3 class="font-bold text-sm text-slate-700 dark:text-slate-200">Confirmar entrega (firma del receptor)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Entrega (nombre) *</label>
+                            <input type="text" wire:model="entregadoPor" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+                            @error('entregadoPor') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div></div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Recibe (nombre) *</label>
+                            <input type="text" wire:model="recibidoPorNombre" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+                            @error('recibidoPorNombre') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Documento (C.C.) *</label>
+                            <input type="text" wire:model="recibidoPorDocumento" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+                            @error('recibidoPorDocumento') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Descripción de la entrega</label>
+                            <textarea wire:model="notaEntrega" rows="3" placeholder="Ej.: Se realiza la entrega de 2 ventiladores (extractores) en buen estado al señor…" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue"></textarea>
+                            @error('notaEntrega') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
                     </div>
-                    <div></div>
+
+                    <p class="text-xs text-slate-400">Al confirmar, se envía una copia del PDF al correo del cliente
+                        @if ($solicitud->cliente->correo) ({{ $solicitud->cliente->correo }}) @else (el cliente no tiene correo registrado) @endif.</p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div wire:key="firma-entrega-mostrador" x-data="firmaPad($wire, 'firmaEntrega')" class="flex flex-col gap-2">
+                            <label class="block font-semibold text-slate-600 dark:text-slate-300">Firma de quien entrega *</label>
+                            <canvas x-ref="canvas" width="600" height="180"
+                                    class="border border-slate-300 dark:border-slate-600 rounded-lg bg-white touch-none w-full max-w-full"></canvas>
+                            <button type="button" @click="limpiar" class="self-start text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline">Borrar y volver a firmar</button>
+                            @error('firmaEntrega') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div wire:key="firma-recibe-mostrador" x-data="firmaPad($wire, 'firma')" class="flex flex-col gap-2">
+                            <label class="block font-semibold text-slate-600 dark:text-slate-300">Firma de quien recibe <span class="font-normal text-slate-400">(opcional — puede firmar el papel físico)</span></label>
+                            <canvas x-ref="canvas" width="600" height="180"
+                                    class="border border-slate-300 dark:border-slate-600 rounded-lg bg-white touch-none w-full max-w-full"></canvas>
+                            <button type="button" @click="limpiar" class="self-start text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline">Borrar y volver a firmar</button>
+                            @error('firma') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+
+                    <button wire:click="confirmarEntrega" class="self-start bg-emerald-600 hover:bg-emerald-700 text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg">Confirmar entrega</button>
+                </div>
+                @else
+                <div wire:key="panel-mensajero" class="contents">
+                    <h3 class="font-bold text-sm text-slate-700 dark:text-slate-200">Despachar con mensajero (firma de quien entrega)</h3>
+                    <p class="text-xs text-slate-400 max-w-lg">El mensajero se lleva la remisión impresa con esta firma para que el cliente firme físicamente. El stock se descuenta ahora; la solicitud queda pendiente hasta que registres la firma de vuelta.</p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Entrega (nombre) *</label>
+                            <input type="text" wire:model="entregadoPor" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+                            @error('entregadoPor') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Mensajero (nombre)</label>
+                            <input type="text" wire:model="mensajeroNombre" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+                            @error('mensajeroNombre') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Descripción de la entrega</label>
+                            <textarea wire:model="notaEntrega" rows="3" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue"></textarea>
+                            @error('notaEntrega') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+
+                    <div wire:key="firma-entrega-mensajero" x-data="firmaPad($wire, 'firmaEntrega')" class="flex flex-col gap-2 max-w-md">
+                        <label class="block font-semibold text-slate-600 dark:text-slate-300">Firma de quien entrega *</label>
+                        <canvas x-ref="canvas" width="600" height="180"
+                                class="border border-slate-300 dark:border-slate-600 rounded-lg bg-white touch-none w-full max-w-full"></canvas>
+                        <button type="button" @click="limpiar" class="self-start text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline">Borrar y volver a firmar</button>
+                        @error('firmaEntrega') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <button wire:click="confirmarSalidaMensajero" class="self-start bg-amber-600 hover:bg-amber-700 text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg">Confirmar salida con mensajero</button>
+                </div>
+                @endif
+            @elseif ($solicitud->estado === 'despachada')
+                <h3 class="font-bold text-sm text-slate-700 dark:text-slate-200">Registrar firma física de vuelta</h3>
+                <p class="text-xs text-slate-400 max-w-lg">Cuando el mensajero regrese con el papel firmado por el cliente, adjunta una foto del documento para cerrar la entrega.</p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
                         <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Recibe (nombre) *</label>
                         <input type="text" wire:model="recibidoPorNombre" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
@@ -246,35 +434,17 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
                         @error('recibidoPorDocumento') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                     </div>
                     <div class="sm:col-span-2">
-                        <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Descripción de la entrega</label>
-                        <textarea wire:model="notaEntrega" rows="3" placeholder="Ej.: Se realiza la entrega de 2 ventiladores (extractores) en buen estado al señor…" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue"></textarea>
-                        @error('notaEntrega') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Foto del papel firmado *</label>
+                        <x-file-input wire:model="fotoFirmaFisica" accept="image/*" capture="environment" class="w-full" />
+                        <div wire:loading wire:target="fotoFirmaFisica" class="text-xs text-slate-400 mt-1">Subiendo foto…</div>
+                        @if ($fotoFirmaFisica)
+                            <img src="{{ $fotoFirmaFisica->temporaryUrl() }}" class="mt-2 max-h-40 rounded-lg border border-slate-200 dark:border-slate-700">
+                        @endif
+                        @error('fotoFirmaFisica') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
-                <p class="text-xs text-slate-400">Al confirmar, se envía una copia del PDF al correo del cliente
-                    @if ($solicitud->cliente->correo) ({{ $solicitud->cliente->correo }}) @else (el cliente no tiene correo registrado) @endif.</p>
-
-                <div x-data="{ recibeFirmado: false }" class="flex flex-col gap-5 max-w-lg">
-                    <div x-data="firmaPad($wire, 'firma', v => recibeFirmado = !!v)" class="flex flex-col gap-2">
-                        <label class="block font-semibold text-slate-600 dark:text-slate-300">1. Firma de quien recibe *</label>
-                        <canvas x-ref="canvas" width="600" height="180"
-                                class="border border-slate-300 dark:border-slate-600 rounded-lg bg-white touch-none w-full max-w-full"></canvas>
-                        <button type="button" @click="limpiar" class="self-start text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline">Borrar y volver a firmar</button>
-                        @error('firma') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div x-data="firmaPad($wire, 'firmaEntrega')" x-show="recibeFirmado" x-transition class="flex flex-col gap-2">
-                        <label class="block font-semibold text-slate-600 dark:text-slate-300">2. Firma de quien entrega *</label>
-                        <canvas x-ref="canvas" width="600" height="180"
-                                class="border border-slate-300 dark:border-slate-600 rounded-lg bg-white touch-none w-full max-w-full"></canvas>
-                        <button type="button" @click="limpiar" class="self-start text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline">Borrar y volver a firmar</button>
-                        @error('firmaEntrega') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    <p x-show="! recibeFirmado" class="text-xs text-slate-400">La firma de quien entrega se habilita cuando el cliente haya firmado.</p>
-                </div>
-
-                <button wire:click="confirmarEntrega" class="self-start bg-emerald-600 hover:bg-emerald-700 text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg">Confirmar entrega</button>
+                <button wire:click="confirmarFirmaFisica" class="self-start bg-emerald-600 hover:bg-emerald-700 text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg">Registrar firma física recibida</button>
             @endif
 
             @if ($puedeAnular)
@@ -296,6 +466,8 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
             <button wire:click="anular" class="text-[13px] font-semibold px-4 py-2 rounded-lg border border-brand-red/40 text-brand-red hover:bg-brand-red-tint">Anular solicitud</button>
         </div>
     @endif
+    </div>
+    </div>
 </div>
 
 @script

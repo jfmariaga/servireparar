@@ -81,6 +81,12 @@ class OrdenTrabajoService
                 }
 
                 $this->insumos->aplicarLineasInsumo($detalle, $this->lineasInsumo($tarea), $actor);
+
+                if ($ot->equipo_id) {
+                    foreach ((array) config('equipos.checklist_tecnico_por_defecto', []) as $item) {
+                        $detalle->checklistTecnico()->create(['ot_id' => $ot->id, 'item' => $item]);
+                    }
+                }
             }
 
             // Prerrequisitos entre tareas del mismo lote (referidos por su `uid`, D10).

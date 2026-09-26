@@ -16,8 +16,10 @@ use Illuminate\Validation\ValidationException;
  * Orquesta el canal de venta mostrador sin OT (spec 003, US6): creación de la
  * solicitud de despacho con líneas, transiciones de estado y confirmación de la
  * entrega firmada. El descuento de stock (por línea de inventario, vía
- * MovimientoService con `origen: despacho` y costeo FIFO) ocurre SOLO en
- * `confirmarEntrega()`. Las líneas de compra externa nunca tocan el inventario.
+ * MovimientoService con `origen: despacho` y costeo FIFO) ocurre en
+ * `confirmarEntrega()` (mostrador) o en `confirmarSalidaMensajero()` (envío
+ * con mensajero) — nunca dos veces para la misma solicitud. Las líneas de
+ * compra externa nunca tocan el inventario.
  */
 class DespachoService
 {
@@ -124,11 +126,13 @@ class DespachoService
     }
 
     /**
-     * Confirma la entrega: exige la firma del receptor (FR-024), genera un
-     * movimiento de salida `origen: despacho` por cada línea de inventario
-     * (descuento + costeo FIFO) y bloquea toda la operación si alguna línea de
-     * inventario no tiene stock suficiente (FR-009 / escenario 7). Las líneas de
-     * compra externa no producen efecto en inventario.
+     * Confirma la entrega: exige la firma de quien entrega (FR-024); la firma
+     * de quien recibe es OPCIONAL (puede quedar firmada en el papel físico en
+     * vez de en pantalla). Genera un movimiento de salida `origen: despacho`
+     * por cada línea de inventario (descuento + costeo FIFO) y bloquea toda la
+     * operación si alguna línea de inventario no tiene stock suficiente
+     * (FR-009 / escenario 7). Las líneas de compra externa no producen efecto
+     * en inventario.
      *
      * Recibida a satisfacción, envía una copia del PDF de la remisión al correo
      * del cliente (si tiene uno registrado).
@@ -147,33 +151,12 @@ class DespachoService
     ): bool {
         $this->asegurarEstado($solicitud, 'remisionada');
 
-        if (trim($firma) === '') {
-            throw ValidationException::withMessages(['firma' => 'La firma del receptor es obligatoria para confirmar la entrega.']);
-        }
-
         if (trim($firmaEntrega) === '') {
             throw ValidationException::withMessages(['firmaEntrega' => 'La firma de quien entrega es obligatoria para confirmar la entrega.']);
         }
 
         DB::transaction(function () use ($solicitud, $almacenista, $recibidoPorNombre, $recibidoPorDocumento, $firma, $firmaEntrega, $entregadoPorNombre, $notaEntrega) {
-            $solicitud->loadMissing('cliente');
-
-            foreach ($solicitud->detallesInventario()->with('inventario')->get() as $detalle) {
-                $movimiento = $this->movimientos->salida(
-                    $detalle->inventario,
-                    (float) $detalle->cantidad,
-                    $almacenista,
-                    origen: 'despacho',
-                    cliente: $solicitud->cliente,
-                    motivo: 'Despacho '.$solicitud->numero.' (venta sin OT)',
-                    referencia: $solicitud->remision->numero,
-                );
-
-                $detalle->update([
-                    'movimiento_id' => $movimiento->id,
-                    'costo_unitario' => $movimiento->costo_unitario ?? $detalle->costo_unitario,
-                ]);
-            }
+            $this->descontarStock($solicitud, $almacenista);
 
             $solicitud->remision->update([
                 'entregado_por_nombre' => $entregadoPorNombre ?: $almacenista->name,
@@ -192,6 +175,111 @@ class DespachoService
         });
 
         return $this->enviarCopiaAlCliente($solicitud->fresh(['cliente', 'vendedor', 'detalles.inventario', 'remision.generadaPor']));
+    }
+
+    /**
+     * Envío con mensajero: solo exige la firma de quien entrega. El stock se
+     * descuenta en este punto (la mercancía ya salió físicamente del taller),
+     * y la solicitud queda `despachada` — pendiente de que el mensajero
+     * regrese con el papel firmado por el cliente (`confirmarFirmaFisica`).
+     */
+    public function confirmarSalidaMensajero(
+        SolicitudDespacho $solicitud,
+        User $almacenista,
+        string $firmaEntrega,
+        ?string $entregadoPorNombre = null,
+        ?string $mensajeroNombre = null,
+        ?string $notaEntrega = null,
+    ): void {
+        $this->asegurarEstado($solicitud, 'remisionada');
+
+        if (trim($firmaEntrega) === '') {
+            throw ValidationException::withMessages(['firmaEntrega' => 'La firma de quien entrega es obligatoria para despachar con mensajero.']);
+        }
+
+        DB::transaction(function () use ($solicitud, $almacenista, $firmaEntrega, $entregadoPorNombre, $mensajeroNombre, $notaEntrega) {
+            $this->descontarStock($solicitud, $almacenista);
+
+            $solicitud->remision->update([
+                'entregado_por_nombre' => $entregadoPorNombre ?: $almacenista->name,
+                'firma_entrega' => $firmaEntrega,
+                'nota_entrega' => $notaEntrega,
+            ]);
+
+            $solicitud->update([
+                'estado' => 'despachada',
+                'mensajero_nombre' => $mensajeroNombre,
+                'despachada_por' => $almacenista->id,
+                'despachada_en' => now(),
+            ]);
+        });
+    }
+
+    /**
+     * Cierra el envío con mensajero cuando vuelve el papel firmado por el
+     * cliente: adjunta la foto de la firma física como evidencia y solo
+     * entonces la solicitud pasa a `entregada`. No mueve stock (ya se
+     * descontó en `confirmarSalidaMensajero`).
+     */
+    public function confirmarFirmaFisica(
+        SolicitudDespacho $solicitud,
+        User $actor,
+        string $recibidoPorNombre,
+        string $recibidoPorDocumento,
+        string $fotoFirma,
+    ): bool {
+        $this->asegurarEstado($solicitud, 'despachada');
+
+        if (trim($fotoFirma) === '') {
+            throw ValidationException::withMessages(['fotoFirma' => 'Adjunta la foto del papel firmado por el cliente.']);
+        }
+
+        DB::transaction(function () use ($solicitud, $recibidoPorNombre, $recibidoPorDocumento, $fotoFirma) {
+            $solicitud->remision->update([
+                'recibido_por_nombre' => $recibidoPorNombre,
+                'recibido_por_documento' => $recibidoPorDocumento,
+                'firma_fisica_foto' => $fotoFirma,
+                'firma_fisica_recibida_en' => now(),
+                'entregada_en' => now(),
+            ]);
+
+            $solicitud->update([
+                'estado' => 'entregada',
+                'entregada_en' => now(),
+            ]);
+        });
+
+        return $this->enviarCopiaAlCliente($solicitud->fresh(['cliente', 'vendedor', 'detalles.inventario', 'remision.generadaPor']));
+    }
+
+    /**
+     * Movimiento de salida `origen: despacho` por cada línea de inventario
+     * (descuento + costeo FIFO); bloquea si alguna línea no tiene stock
+     * suficiente (FR-009 / escenario 7). Las líneas de compra externa no
+     * producen efecto en inventario. Compartido por la entrega en mostrador
+     * y la salida con mensajero — el stock sale una sola vez, sin importar
+     * cuál de los dos flujos se use.
+     */
+    private function descontarStock(SolicitudDespacho $solicitud, User $almacenista): void
+    {
+        $solicitud->loadMissing('cliente');
+
+        foreach ($solicitud->detallesInventario()->with('inventario')->get() as $detalle) {
+            $movimiento = $this->movimientos->salida(
+                $detalle->inventario,
+                (float) $detalle->cantidad,
+                $almacenista,
+                origen: 'despacho',
+                cliente: $solicitud->cliente,
+                motivo: 'Despacho '.$solicitud->numero.' (venta sin OT)',
+                referencia: $solicitud->remision->numero,
+            );
+
+            $detalle->update([
+                'movimiento_id' => $movimiento->id,
+                'costo_unitario' => $movimiento->costo_unitario ?? $detalle->costo_unitario,
+            ]);
+        }
     }
 
     /**

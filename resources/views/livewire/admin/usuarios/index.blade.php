@@ -6,6 +6,7 @@ use App\Models\Especialidad;
 use App\Models\Tecnico;
 use App\Models\User;
 use App\Support\Moneda;
+use App\Support\NickUser;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Js;
@@ -26,6 +27,8 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
     public ?int $editandoId = null;
 
     public string $name = '';
+    public string $nickuser = '';
+    public bool $nickuserTocado = false;
     public string $email = '';
     public string $telefono = '';
     public string $estado = 'activo';
@@ -49,6 +52,18 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
     public function mount(): void
     {
         Gate::authorize('viewAny', User::class);
+    }
+
+    public function updatedName(string $value): void
+    {
+        if (! $this->editandoId && ! $this->nickuserTocado) {
+            $this->nickuser = NickUser::sugerir($value);
+        }
+    }
+
+    public function updatedNickuser(): void
+    {
+        $this->nickuserTocado = true;
     }
 
     public function with(): array
@@ -88,7 +103,7 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
     {
         Gate::authorize('create', User::class);
         $this->reset([
-            'name', 'email', 'telefono', 'editandoId', 'password', 'roles', 'errorDesactivar',
+            'name', 'nickuser', 'nickuserTocado', 'email', 'telefono', 'editandoId', 'password', 'roles', 'errorDesactivar',
             'especialidadId', 'sueldo', 'fechaIngreso', 'cargo', 'tipoContrato',
         ]);
         $this->estado = 'activo';
@@ -103,6 +118,8 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
         $u = User::with(['roles', 'tecnico'])->findOrFail($id);
         $this->editandoId = $u->id;
         $this->name = $u->name;
+        $this->nickuser = (string) $u->nickuser;
+        $this->nickuserTocado = true;
         $this->email = $u->email;
         $this->telefono = (string) $u->telefono;
         $this->estado = $u->estado;
@@ -138,6 +155,7 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
 
         $reglas = [
             'name' => 'required|string|max:150',
+            'nickuser' => 'required|string|max:30|alpha_dash|unique:users,nickuser,'.$this->editandoId,
             'email' => 'required|email|max:150|unique:users,email,'.$this->editandoId,
             'telefono' => 'nullable|string|max:20',
             'estado' => 'required|in:activo,inactivo',
@@ -270,8 +288,14 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                     <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Nombre *</label>
-                    <input type="text" wire:model="name" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+                    <input type="text" wire:model.live.debounce.500ms="name" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
                     @error('name') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Usuario (acceso) *</label>
+                    <input type="text" wire:model.live="nickuser" placeholder="ej. jmariaga" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+                    <p class="text-[11px] text-slate-400 mt-1">Sugerido a partir del nombre — se puede editar. Con esto inicia sesión, no con el email.</p>
+                    @error('nickuser') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                 </div>
                 <div>
                     <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Email *</label>
@@ -437,6 +461,7 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
                 <thead>
                     <tr class="text-left border-b border-slate-100 dark:border-slate-800">
                         <th class="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Nombre</th>
+                        <th class="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Usuario</th>
                         <th class="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Email</th>
                         <th class="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Roles</th>
                         <th class="px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-400">Especialidad</th>
@@ -448,6 +473,7 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
                     @forelse ($usuarios as $u)
                         <tr class="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                             <td class="px-5 py-3 font-medium whitespace-nowrap">{{ $u->name }}</td>
+                            <td class="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap font-mono text-xs">{{ $u->nickuser ?? '—' }}</td>
                             <td class="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ $u->email }}</td>
                             <td class="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ $u->roles->pluck('name')->implode(', ') ?: '—' }}</td>
                             <td class="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ $u->tecnico?->especialidad?->nombre ?? '—' }}</td>

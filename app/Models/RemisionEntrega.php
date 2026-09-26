@@ -8,8 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Remisión de entrega (spec 003, US6, FR-023/FR-024): documento 1:1 con la
- * solicitud de despacho, con consecutivo propio `REM-#####` y la firma digital
- * del receptor (PNG base64 capturado en pantalla) embebida.
+ * solicitud de despacho, con consecutivo propio `REM-#####`. La entrega en
+ * mostrador guarda la firma digital del receptor (`firma`, PNG base64
+ * capturado en pantalla); el envío con mensajero guarda en su lugar una foto
+ * del papel firmado físicamente (`firma_fisica_foto`), adjuntada cuando el
+ * mensajero regresa.
  */
 class RemisionEntrega extends Model
 {
@@ -28,6 +31,8 @@ class RemisionEntrega extends Model
         'recibido_por_documento',
         'firma',
         'firma_entrega',
+        'firma_fisica_foto',
+        'firma_fisica_recibida_en',
         'nota_entrega',
         'entregada_en',
         'enviada_al_cliente_en',
@@ -38,6 +43,7 @@ class RemisionEntrega extends Model
         return [
             'fecha' => 'datetime',
             'entregada_en' => 'datetime',
+            'firma_fisica_recibida_en' => 'datetime',
             'enviada_al_cliente_en' => 'datetime',
         ];
     }

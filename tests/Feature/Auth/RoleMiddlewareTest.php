@@ -61,13 +61,14 @@ class RoleMiddlewareTest extends TestCase
     {
         $user = User::factory()->create([
             'email' => 'almacen-vendedor@servireparar.com',
+            'nickuser' => 'jalmacenvendedor',
             'password' => 'password123',
             'estado' => 'activo',
         ]);
         $user->assignRole([RolPrioridad::Vendedor->value, RolPrioridad::Almacenista->value]);
 
         Volt::test('auth.login')
-            ->set('email', 'almacen-vendedor@servireparar.com')
+            ->set('nickuser', 'jalmacenvendedor')
             ->set('password', 'password123')
             ->call('login')
             ->assertRedirect(route('dashboard.almacenista'));

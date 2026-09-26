@@ -110,6 +110,22 @@ new #[Layout('components.layout', ['title' => 'Historial del equipo'])] class ex
                         </div>
                     @endif
 
+                    @if ($ot->checklistTecnico->isNotEmpty())
+                        <div>
+                            <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Checklist técnico</h3>
+                            <div class="flex flex-col gap-1">
+                                @foreach ($ot->checklistTecnico as $item)
+                                    <div class="flex items-center justify-between gap-3 text-xs">
+                                        <span>{{ $item->item }}</span>
+                                        <span class="font-semibold shrink-0 {{ $item->cumple === true ? 'text-emerald-600 dark:text-emerald-400' : ($item->cumple === false ? 'text-brand-red' : 'text-slate-400') }}">
+                                            {{ $item->cumple === true ? 'Sí' : ($item->cumple === false ? 'No' : 'Pendiente') }}
+                                        </span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
                     @if ($ot->evidencias->isNotEmpty())
                         <div>
                             <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Evidencias ({{ $ot->evidencias->count() }})</h3>

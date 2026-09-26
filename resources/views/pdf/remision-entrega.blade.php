@@ -10,6 +10,13 @@
         : null;
     $ciudad = config('despachos.sedes.'.$solicitud->sede);
 
+    $fotoFirmaFisicaPath = $rem->firma_fisica_foto
+        ? \Illuminate\Support\Facades\Storage::disk('public')->path($rem->firma_fisica_foto)
+        : null;
+    $fotoFirmaFisica = $fotoFirmaFisicaPath && is_file($fotoFirmaFisicaPath)
+        ? 'data:image/'.pathinfo($fotoFirmaFisicaPath, PATHINFO_EXTENSION).';base64,'.base64_encode(file_get_contents($fotoFirmaFisicaPath))
+        : null;
+
     // Todas las líneas se listan juntas para el cliente: qué se le entregó.
     // La distinción inventario / compra externa es trazabilidad interna y no
     // aparece en este documento.
@@ -112,6 +119,8 @@
             <td>
                 @if ($rem->firma)
                     <div class="sign" style="margin-left:20px;"><img src="{{ $rem->firma }}" alt="Firma de quien recibe"></div>
+                @elseif ($fotoFirmaFisica)
+                    <div class="sign" style="margin-left:20px;"><img src="{{ $fotoFirmaFisica }}" alt="Firma física del cliente"></div>
                 @endif
                 <div class="line" style="margin-left:20px;">
                     <strong>Recibe:</strong> {{ $rem->recibido_por_nombre ?? '—' }}<br>

@@ -12,8 +12,8 @@ use App\Models\User;
  *
  * - Administrador y Jefe de Taller: crear y corregir OT (`manage-ot`).
  * - Técnico: ejecutar tareas asignadas (`execute-ot`), sin crear ni corregir.
- * - Aprobar/rechazar la salida de equipo: SOLO Administrador (FR-013).
- * - Ver el costeo y la utilidad neta: SOLO Administrador (User Story 5).
+ * - Aprobar/rechazar la salida de equipo: `approve-ot-exit` (FR-013, hoy solo Administrador).
+ * - Ver/editar el costeo y la utilidad neta: `manage-ot-costeo` (User Story 5, hoy solo Administrador).
  */
 class OrdenTrabajoPolicy
 {
@@ -84,17 +84,17 @@ class OrdenTrabajoPolicy
 
     public function approveEquipmentExit(User $user, OrdenTrabajo $ot): bool
     {
-        return $user->hasRole(RolPrioridad::Administrador->value);
+        return $user->can('approve-ot-exit');
     }
 
     public function viewCosteo(User $user, OrdenTrabajo $ot): bool
     {
-        return $user->hasRole(RolPrioridad::Administrador->value);
+        return $user->can('manage-ot-costeo');
     }
 
-    /** Editar el costeo (contratistas, valor del proyecto): Admin y solo si la OT no está congelada. */
+    /** Editar el costeo (contratistas, valor del proyecto): solo si la OT no está congelada. */
     public function manageCosteo(User $user, OrdenTrabajo $ot): bool
     {
-        return $user->hasRole(RolPrioridad::Administrador->value) && ! $ot->estaBloqueada();
+        return $user->can('manage-ot-costeo') && ! $ot->estaBloqueada();
     }
 }

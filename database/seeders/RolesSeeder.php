@@ -44,6 +44,10 @@ class RolesSeeder extends Seeder
             'manage-despachos',
             // Auditoría / actividad reciente (pulido de producto, solo Administrador)
             'view-auditoria',
+            // OT — aprobar salida de equipo y costeo/utilidad neta (spec 002 FR-013, US5): solo
+            // Administrador, normalizado a permiso (antes era un hasRole directo en la policy).
+            'approve-ot-exit',
+            'manage-ot-costeo',
         ];
 
         foreach ($permisos as $permiso) {
