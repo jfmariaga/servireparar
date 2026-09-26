@@ -84,12 +84,16 @@ indicador de cumplimiento de tiempos
 
 ### Implementation for User Story 2
 
-- [~] T013 Los indicadores agregados se muestran directamente en `livewire/dashboard.blade.php` (Phase 3)
-  en vez de una pantalla `IndicadoresAgregados` separada — **pendiente evaluar** si se necesita una vista
-  propia con filtro de rango de fechas cuando se aborde exportación (US3)
-- [ ] T014 [US2] Ruta `/reportes/indicadores` — diferida junto con T013
+- [X] T013 Los indicadores agregados se muestran directamente en `livewire/dashboard.blade.php` (Phase 3)
+  en vez de una pantalla `IndicadoresAgregados` separada. **Decisión (2026-09-26)**: se descarta la
+  pantalla propia — US3 (exportación) terminó implementándose sobre el tablero de OT y el catálogo de
+  inventario, no sobre los indicadores agregados, así que ya no hay motivo pendiente para evaluarlo; el
+  dashboard con `wire:poll` cubre la necesidad de Administrador/Jefe de Taller.
+- [X] T014 [US2] ~~Ruta `/reportes/indicadores`~~ — descartada junto con T013 (2026-09-26): no se
+  construye, el dashboard existente es suficiente.
 
-**Checkpoint**: US1 + US2 cubiertos por el mismo dashboard; falta decidir si ameritan pantalla propia
+**Checkpoint**: US1 + US2 cubiertos por el mismo dashboard, sin pantalla propia (decisión de alcance
+2026-09-26) ✅
 
 ---
 
