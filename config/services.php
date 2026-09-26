@@ -35,4 +35,21 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cuenta de correo oficial de Cotizaciones (spec 006, FR-010)
+    |--------------------------------------------------------------------------
+    | Credenciales IMAP para el polling de solicitudes de cotización entrantes
+    | (ImapPollingProveedorCorreo). Sin configurar, el comando programado
+    | simplemente no encuentra credenciales y no hace nada — no es requisito
+    | para el resto del módulo, que se prueba con un fake en memoria.
+    */
+    'correo_cotizaciones' => [
+        'host' => env('COTIZACIONES_IMAP_HOST'),
+        'port' => (int) env('COTIZACIONES_IMAP_PORT', 993),
+        'encryption' => env('COTIZACIONES_IMAP_ENCRYPTION', 'ssl'),
+        'username' => env('COTIZACIONES_IMAP_USERNAME'),
+        'password' => env('COTIZACIONES_IMAP_PASSWORD'),
+    ],
+
 ];

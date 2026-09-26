@@ -16,3 +16,7 @@ Schedule::command('ot:revisar-vencimientos')->daily();
 
 // Spec 003 (Inventario/Bodega): avisa de despachos con mensajero sin firma física de vuelta.
 Schedule::command('despacho:revisar-firmas-pendientes')->daily();
+
+// Spec 006 (Compras/Cotizaciones), FR-010: polling IMAP de la cuenta de correo oficial.
+Schedule::command('cotizaciones:procesar-correo')
+    ->cron('*/'.(int) config('cotizaciones.polling_minutos', 5).' * * * *');

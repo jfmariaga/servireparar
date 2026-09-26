@@ -38,6 +38,25 @@ para que toda spec nueva o pantalla nueva la cumpla por defecto sin tener que pe
   mostrar el costo unitario suelto (poco útil por sí solo, y ya no existe como "el" costo del ítem), muestra
   el valor total del ítem, calculado sumando sus lotes con saldo disponible.
 
+### Session 2026-09-26 (navegación transversal: buscador global, breadcrumbs, modal, PWA — documentado retroactivamente)
+
+> Esta sección documenta funcionalidad que ya estaba construida y en producción (commit `66eb2f4`,
+> 2026-09-25) sin haber pasado por `/speckit-clarify` — se registra aquí porque, igual que Moneda y
+> `<x-select>`, son componentes de navegación/UX transversales a toda la app, no de un módulo en particular.
+
+- Q: Con varios módulos ya operativos, ¿cómo llega un usuario rápido a una OT, cliente o ítem de inventario
+  puntual sin recorrer menús? → A: Buscador global (Ctrl+K / Cmd+K), disponible en todo el layout, que
+  busca en OT/Clientes/Inventario respetando el mismo permiso que ya protege cada listado — nadie encuentra
+  por ahí algo que no vería en su pantalla normal.
+- Q: ¿Las pantallas internas (ej. Especialidades dentro de Usuarios) necesitan indicar dónde están dentro
+  de la jerarquía de navegación? → A: Sí — componente `<x-breadcrumbs>` reutilizable, usado en pantallas que
+  cuelgan de otra (ej. `Usuarios → Especialidades`).
+- Q: ¿Cómo se estandarizan los diálogos de confirmación/formulario emergente entre módulos? → A: Componente
+  `<x-modal>` reutilizable en vez de que cada pantalla arme su propio overlay con Alpine desde cero.
+- Q: ¿La app debe poder instalarse como aplicación (PWA) en el taller? → A: Sí — `public/manifest.json` +
+  `public/sw.js` (service worker básico) para que se pueda "agregar a inicio" desde el navegador, sin que
+  esto implique soporte offline completo (fuera de alcance).
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -61,6 +80,15 @@ para que toda spec nueva o pantalla nueva la cumpla por defecto sin tener que pe
   catálogo — se deriva únicamente de sus lotes de entrada (FR-016 de spec 003: costeo por lotes, consumo
   FIFO). El listado de catálogo muestra el valor total del ítem (suma de sus lotes con saldo disponible),
   no un costo unitario aislado.
+- **FR-006**: El sistema DEBE ofrecer un buscador global (atajo Ctrl+K/Cmd+K, disponible en todo el layout
+  autenticado) que permita saltar directo a una OT, cliente o ítem de inventario por texto, respetando en
+  cada categoría el mismo permiso que ya protege su listado propio.
+- **FR-007**: Toda pantalla que cuelgue de otra en la jerarquía de navegación (ej. un catálogo dentro de
+  Usuarios) DEBE mostrar su ruta con el componente reutilizable `<x-breadcrumbs>`, no un título suelto.
+- **FR-008**: Los diálogos de confirmación o formulario emergente DEBEN usar el componente reutilizable
+  `<x-modal>`, no un overlay armado ad-hoc por pantalla.
+- **FR-009**: La aplicación DEBE ser instalable como PWA (manifest + service worker básico), sin que esto
+  implique soporte de uso sin conexión.
 
 ### Alcance ya cubierto (retrofit, 2026-08-25)
 
@@ -70,9 +98,11 @@ para que toda spec nueva o pantalla nueva la cumpla por defecto sin tener que pe
 - **Listas desplegables (`<x-select>` / Tom Select)**: filtros y formularios de Inventario (catálogo,
   movimientos/entradas, auditoría, categorías y unidades), Usuarios (rol, estado, especialidad de
   técnico), Equipos, Clientes, Proveedores y Contratistas.
-- Pendiente de nacer con las specs que aún no se implementan (002 Órdenes de Trabajo, 006 Compras/
-  Cotizaciones, 007 Reportes/KPIs, 008 Notificaciones): deben nacer ya cumpliendo FR-001 a FR-004, sin
-  necesidad de un retrofit posterior.
+- Pendiente de nacer con las specs que aún no se implementan (006 Compras/Cotizaciones): debe nacer ya
+  cumpliendo FR-001 a FR-004 y FR-006 a FR-008, sin necesidad de un retrofit posterior.
+- **Navegación/UX (2026-09-26)**: buscador global (`livewire/buscador-global.blade.php`, FR-006),
+  `<x-breadcrumbs>` (FR-007, usado en Especialidades y Configuración), `<x-modal>` (FR-008), PWA
+  (`public/manifest.json` + `public/sw.js`, FR-009).
 
 ## Success Criteria *(mandatory)*
 

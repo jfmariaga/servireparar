@@ -32,6 +32,20 @@ plano, ningún formateo de moneda fuera del helper) más los tests ya existentes
   entradas, auditoría, categorías y unidades), Usuarios (rol, estado, especialidad), Equipos, Clientes,
   Proveedores, Contratistas — cero `<select>` planos fuera del propio componente
 
+## Phase 2b: Navegación transversal (FR-006 a FR-009)
+
+**Documentado retroactivamente (2026-09-26)**: implementado en el commit `66eb2f4` (2026-09-25) sin pasar
+por `/speckit-tasks` en su momento.
+
+- [X] T012 [FR-006] `resources/views/livewire/buscador-global.blade.php` — atajo Ctrl+K/Cmd+K, busca en
+  OT/Clientes/Inventario respetando el permiso que ya protege cada listado (`Gate::authorize` por
+  categoría), incluido en el layout global.
+- [X] T013 [FR-007] `resources/views/components/breadcrumbs.blade.php` (`<x-breadcrumbs>`), usado en
+  Especialidades (`Usuarios → Especialidades`) y Configuración.
+- [X] T014 [FR-008] `resources/views/components/modal.blade.php` (`<x-modal>`) reutilizable.
+- [X] T015 [FR-009] `public/manifest.json` + `public/sw.js` (service worker básico), enlazados desde
+  `resources/js/app.js` — instalable como PWA, sin soporte offline.
+
 ## Phase 3: Verificación
 
 - [X] T009 `php artisan test` completo en verde (87/87) tras el retrofit

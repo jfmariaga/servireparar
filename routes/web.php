@@ -69,4 +69,24 @@ Route::middleware('auth')->group(function () {
 
     // Auditoría / actividad reciente (pulido de producto: bitácora de OT unificada)
     Volt::route('/reportes/auditoria', 'reportes.auditoria')->name('reportes.auditoria')->middleware('role:Administrador');
+
+    // Notificaciones (spec 008, T011): listado completo más allá de la campana
+    Volt::route('/notificaciones', 'notificaciones.index')->name('notificaciones.index');
+
+    // Configuración de umbrales editables (spec 008, T003-T006)
+    Volt::route('/configuraciones', 'configuraciones.index')->name('configuraciones.index')->middleware('permission:manage-configuraciones');
+
+    // Cotizaciones a clientes (spec 006)
+    Route::middleware('permission:manage-cotizaciones')->group(function () {
+        Volt::route('/cotizaciones', 'cotizaciones.tablero')->name('cotizaciones.tablero');
+        Volt::route('/cotizaciones/servicios', 'cotizaciones.servicios-maestra')->name('cotizaciones.servicios');
+        Volt::route('/cotizaciones/{cotizacion}', 'cotizaciones.gestionar')->name('cotizaciones.gestionar');
+    });
+
+    // Compras a proveedores (spec 006, US4)
+    Route::middleware('permission:manage-compras')->group(function () {
+        Volt::route('/compras', 'compras.tablero')->name('compras.tablero');
+        Volt::route('/compras/nueva', 'compras.form')->name('compras.nueva');
+        Volt::route('/compras/{compra}', 'compras.gestionar')->name('compras.gestionar');
+    });
 });

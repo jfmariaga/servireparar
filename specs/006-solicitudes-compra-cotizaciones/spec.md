@@ -26,6 +26,23 @@ prerrequisito de Inventario (spec 003) y OT (spec 002); este spec los consume po
   ("Cotizaciones" + detalle + mensajes del hilo), separada de `ORDENES_TRABAJO`, dado que su ciclo de vida
   (recepción por correo, envío, aceptación, facturación) es distinto al de una OT operativa.
 
+### Session 2026-09-26 (implementación)
+
+- Q: El punto abierto sobre identificación automática del cliente remitente (match por dominio/correo
+  exacto vs. selección manual) — ¿cómo se resuelve? → A: **Match exacto por `Cliente.correo`**. Si el
+  remitente coincide exactamente, se asocia automáticamente; si no, la Cotización se crea igual (en
+  `en_revision`) pero sin cliente, y el Administrador lo asigna manualmente al abrir el caso. La integridad
+  del hilo de correo (`correo_original_referencia` + `message_id_correo` por mensaje) no depende de que el
+  cliente esté identificado — funciona igual en ambos casos.
+- Q: FR-001 exige que el correo "siga la plantilla esperada" para crear un caso automáticamente, pero no
+  define qué es esa plantilla. ¿Cómo se determina en código? → A: Heurística simple y configurable: el
+  correo no es una respuesta de un hilo existente, y su asunto contiene un texto disparador
+  (`config('cotizaciones.asunto_disparador')`, por defecto `"cotiz"`, ajustable por variable de entorno
+  sin tocar código). Si no cumple ninguna de las dos condiciones (no es respuesta reconocida y no dispara
+  el asunto), se notifica al Administrador para registro manual (FR-011) en vez de crear o descartar el
+  correo. Esta es una decisión de implementación razonable ante la ambigüedad original del requisito —
+  ajustable si la plantilla real de la cuenta de correo oficial exige otra regla.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Recepción y registro de solicitudes de cotización desde correo (Priority: P1)
@@ -133,9 +150,9 @@ verificando que el historial de costos queda registrado en `COMPRAS`/`DETALLE_CO
 - Mecanismo técnico de recepción/envío de correo: resuelto — IMAP polling (ver Clarifications). El envío
   saliente usa SMTP estándar de Laravel (Mail), consistente con el proveedor de correo de la cuenta
   oficial.
-- Identificación automática del cliente remitente: [NEEDS CLARIFICATION: ¿se matchea por dominio/correo
-  exacto contra `CLIENTES.correo`, o requiere selección manual si el remitente no está registrado? — punto
-  aún abierto, no crítico para bloquear `/speckit-plan`, puede resolverse durante el diseño técnico].
+- Identificación automática del cliente remitente: resuelto — match exacto por `CLIENTES.correo`; sin
+  match, la Cotización queda sin cliente y el Administrador lo asigna manualmente (ver Clarifications,
+  sesión 2026-09-26).
 
 ## Requirements *(mandatory)*
 

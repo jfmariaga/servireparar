@@ -48,6 +48,11 @@ class RolesSeeder extends Seeder
             // Administrador, normalizado a permiso (antes era un hasRole directo en la policy).
             'approve-ot-exit',
             'manage-ot-costeo',
+            // Umbrales editables de notificaciones/alertas (spec 008, T003-T006)
+            'manage-configuraciones',
+            // Cotizaciones a clientes y Compras a proveedores (spec 006)
+            'manage-cotizaciones',
+            'manage-compras',
         ];
 
         foreach ($permisos as $permiso) {

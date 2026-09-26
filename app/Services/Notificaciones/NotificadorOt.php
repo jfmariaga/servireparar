@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Notification;
  */
 class NotificadorOt
 {
+    public function __construct(private readonly DestinatariosPorRolService $destinatarios) {}
+
     public function otCreada(OrdenTrabajo $ot): void
     {
         $this->aRoles([RolPrioridad::JefeDeTaller->value], new OtNotificacion(
@@ -187,7 +189,7 @@ class NotificadorOt
     /** @param  array<int, string>  $roles */
     private function aRoles(array $roles, OtNotificacion $notificacion): void
     {
-        $this->enviar(User::query()->where('estado', 'activo')->role($roles)->get(), $notificacion);
+        $this->enviar($this->destinatarios->resolver($roles), $notificacion);
     }
 
     /**
@@ -196,10 +198,7 @@ class NotificadorOt
      */
     private function aRolesYUsuarios(array $roles, array $usuarios, OtNotificacion $notificacion): void
     {
-        $destinos = User::query()->where('estado', 'activo')->role($roles)->get()
-            ->concat(collect($usuarios)->filter());
-
-        $this->enviar($destinos, $notificacion);
+        $this->enviar($this->destinatarios->resolver($roles, $usuarios), $notificacion);
     }
 
     /** @param  Collection<int, User>  $usuarios */

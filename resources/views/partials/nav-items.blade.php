@@ -69,6 +69,20 @@
             'icon' => 'M3 7h11v8H3z|M14 10h4l3 3v2h-7z|M7.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z|M17.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
         ],
         [
+            'route' => 'cotizaciones.tablero',
+            'activePattern' => 'cotizaciones.*',
+            'label' => 'Cotizaciones',
+            'ability' => 'manage-cotizaciones',
+            'icon' => 'M6 4h9l3 3v13a1 1 0 01-1 1H6a1 1 0 01-1-1V5a1 1 0 011-1z|M9 9h6|M9 13h6|M9 17h3',
+        ],
+        [
+            'route' => 'compras.tablero',
+            'activePattern' => 'compras.*',
+            'label' => 'Compras',
+            'ability' => 'manage-compras',
+            'icon' => 'M4 7h16l-1.5 10.5a1.5 1.5 0 01-1.5 1.5H7a1.5 1.5 0 01-1.5-1.5L4 7z|M8 7V5a4 4 0 018 0v2',
+        ],
+        [
             'route' => 'usuarios.index',
             'label' => 'Usuarios',
             'ability' => 'manage-usuarios',
@@ -79,6 +93,12 @@
             'label' => 'Auditoría',
             'ability' => 'view-auditoria',
             'icon' => 'M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z|M9.5 12l2 2 3.5-3.5',
+        ],
+        [
+            'route' => 'configuraciones.index',
+            'label' => 'Configuración',
+            'ability' => 'manage-configuraciones',
+            'icon' => 'M12 15a3 3 0 100-6 3 3 0 000 6z|M19.4 13a7.4 7.4 0 000-2l1.9-1.5-2-3.4-2.2.9a7.3 7.3 0 00-1.7-1l-.3-2.4h-4l-.3 2.4a7.3 7.3 0 00-1.7 1l-2.2-.9-2 3.4L4.6 11a7.4 7.4 0 000 2l-1.9 1.5 2 3.4 2.2-.9c.5.4 1.1.7 1.7 1l.3 2.4h4l.3-2.4c.6-.3 1.2-.6 1.7-1l2.2.9 2-3.4z',
         ],
     ];
 

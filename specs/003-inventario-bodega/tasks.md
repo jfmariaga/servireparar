@@ -404,6 +404,40 @@ firmada, compra externa trazada sin tocar stock. Requiere la Fase 8 de spec 001 
 
 ---
 
+## Phase 11: User Story 7 - Entrega con mensajero y firma física pendiente (Priority: P2)
+
+**Goal**: Cerrar la salida de bodega con solo la firma de quien entrega cuando el envío es por mensajero,
+y recuperar la firma del cliente en papel después.
+
+**Documentado retroactivamente (2026-09-26)**: implementada y probada en el commit `cff962b`
+(2026-09-25/26) sin pasar por `/speckit-tasks` en su momento.
+
+- [X] T081 [US7, FR-029] Migración `2026_09_25_100000_add_mensajero_a_solicitudes_despacho.php`: agrega el
+  estado `despachada` al enum, y las columnas `mensajero_nombre`, `despachada_por`, `despachada_en`,
+  `alertado_firma_pendiente_en`.
+- [X] T082 [US7, FR-030] Migración `2026_09_25_100001_add_firma_fisica_a_remisiones_entrega.php`: agrega
+  `firma_fisica_foto` y `firma_fisica_recibida_en` a `remisiones_entrega`.
+- [X] T083 [US7, FR-029] `DespachoService::confirmarSalidaMensajero()`: valida la firma de quien entrega,
+  descuenta stock (mismo camino que `confirmarEntrega()`, sin duplicar), pasa la solicitud a `despachada`.
+- [X] T084 [US7, FR-030] `DespachoService::confirmarFirmaFisica()`: adjunta la foto del papel firmado +
+  nombre/documento de quien recibe, pasa la solicitud a `entregada` sin mover stock de nuevo, dispara el
+  envío de la copia al correo del cliente (reusa `enviarCopiaAlCliente()`).
+- [X] T085 [US7, FR-031] `DespachoService::puedeAnularse()` excluye también el estado `despachada`.
+- [X] T086 [US7, FR-032] `app/Services/Inventario/FirmaFisicaPendienteService.php` +
+  `app/Console/Commands/RevisarFirmasPendientesDespacho.php`, agendado diario en `routes/console.php`
+  (`despacho:revisar-firmas-pendientes`); umbral `despachos.dias_alerta_firma_pendiente` editable en BD
+  desde spec 008 (`Configuracion`), con `config/despachos.php` como respaldo.
+- [X] T087 [US7] Componente `<x-file-input>` (`resources/views/components/file-input.blade.php`) para
+  subir la foto de la firma física en `despacho.entrega`.
+- [X] T088 [US7] Tests: `tests/Feature/Despacho/EntregaConMensajeroTest.php` (flujo completo mensajero →
+  firma física → entregada, stock descontado una sola vez, `despachada` no anulable) y
+  `tests/Feature/Notificaciones/ConfiguracionTest.php` (umbral configurable de la alerta).
+
+**Checkpoint**: US7 funcional de forma independiente — no depende de US6 en código aunque comparte
+`DespachoService`/`RemisionEntrega`.
+
+---
+
 ## Dependencies & Execution Order
 
 - **Setup + Foundational** bloquean todo — `MovimientoService` (atomicidad) es prerrequisito de cualquier

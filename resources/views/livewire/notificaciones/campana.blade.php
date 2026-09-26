@@ -74,5 +74,9 @@ new class extends Component
                 <p class="px-4 py-6 text-center text-xs text-slate-400">Sin notificaciones.</p>
             @endforelse
         </div>
+        <a href="{{ route('notificaciones.index') }}"
+           class="block text-center px-4 py-2.5 text-[11px] font-semibold text-brand-blue border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60">
+            Ver todas
+        </a>
     </div>
 </div>

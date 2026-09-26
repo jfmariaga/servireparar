@@ -3,26 +3,34 @@
 namespace App\Services\Inventario;
 
 use App\Enums\RolPrioridad;
+use App\Models\Configuracion;
 use App\Models\SolicitudDespacho;
-use App\Models\User;
 use App\Notifications\OtNotificacion as DespachoNotificacion;
+use App\Services\Notificaciones\DestinatariosPorRolService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Notification;
 
 /**
  * Avisa cuando una solicitud despachada con mensajero lleva demasiados días
- * sin que vuelva el papel firmado por el cliente (config `despachos.
- * dias_alerta_firma_pendiente`). Espejo de `VencimientoOtService` para OT.
+ * sin que vuelva el papel firmado por el cliente (umbral editable en
+ * `Configuracion`, clave `despachos.dias_alerta_firma_pendiente`; fallback en
+ * `config('despachos.dias_alerta_firma_pendiente')`). Espejo de
+ * `VencimientoOtService` para OT.
  */
 class FirmaFisicaPendienteService
 {
+    public function __construct(private readonly DestinatariosPorRolService $destinatarios) {}
+
     /**
      * @param  bool  $reenviar  vuelve a avisar aunque ya se haya alertado antes
      */
     public function revisar(bool $reenviar = false): int
     {
-        $umbral = (int) config('despachos.dias_alerta_firma_pendiente', 3);
+        $umbral = (int) Configuracion::obtener(
+            'despachos.dias_alerta_firma_pendiente',
+            config('despachos.dias_alerta_firma_pendiente', 3),
+        );
         $limite = Carbon::now()->subDays($umbral);
         $disparadas = 0;
 
@@ -56,8 +64,6 @@ class FirmaFisicaPendienteService
 
     private function destinatarios(): Collection
     {
-        return User::role([RolPrioridad::Almacenista->value, RolPrioridad::Vendedor->value])
-            ->where('estado', 'activo')
-            ->get();
+        return $this->destinatarios->resolver([RolPrioridad::Almacenista->value, RolPrioridad::Vendedor->value]);
     }
 }

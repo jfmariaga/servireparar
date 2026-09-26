@@ -3,6 +3,7 @@
 namespace App\Services\OrdenTrabajo;
 
 use App\Events\OtProximaAVencer;
+use App\Models\Configuracion;
 use App\Models\EstadoOt;
 use App\Models\OrdenTrabajo;
 use Illuminate\Support\Carbon;
@@ -10,7 +11,8 @@ use Illuminate\Support\Carbon;
 /**
  * Evalúa qué OT abiertas están próximas a vencer o vencidas respecto a su
  * tiempo estimado (spec 002, FR-010) y dispara OtProximaAVencer. El umbral en
- * días sale de `config/ot.php` (ajustable por el Administrador sin tocar código).
+ * días es editable por el Administrador en `Configuracion`
+ * (`ot.dias_umbral_vencimiento`), con `config/ot.php` como valor de respaldo.
  */
 class VencimientoOtService
 {
@@ -19,7 +21,7 @@ class VencimientoOtService
      */
     public function revisar(bool $reenviar = false): int
     {
-        $umbral = (int) config('ot.dias_umbral_vencimiento', 2);
+        $umbral = (int) Configuracion::obtener('ot.dias_umbral_vencimiento', config('ot.dias_umbral_vencimiento', 2));
         $hoy = Carbon::today();
         $disparadas = 0;
 

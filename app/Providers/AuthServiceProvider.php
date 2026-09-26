@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Models\AjusteAuditoria;
 use App\Models\AuditoriaInventario;
 use App\Models\Cliente;
+use App\Models\Compra;
 use App\Models\Contratista;
+use App\Models\Cotizacion;
 use App\Models\Equipo;
 use App\Models\Inventario;
 use App\Models\OrdenTrabajo;
@@ -15,7 +17,9 @@ use App\Models\Tecnico;
 use App\Models\User;
 use App\Policies\AuditoriaPolicy;
 use App\Policies\ClientePolicy;
+use App\Policies\CompraPolicy;
 use App\Policies\ContratistaPolicy;
+use App\Policies\CotizacionPolicy;
 use App\Policies\EquipoPolicy;
 use App\Policies\InventarioPolicy;
 use App\Policies\OrdenTrabajoPolicy;
@@ -50,6 +54,8 @@ class AuthServiceProvider extends ServiceProvider
         AjusteAuditoria::class => AuditoriaPolicy::class,
         SolicitudDespacho::class => SolicitudDespachoPolicy::class,
         OrdenTrabajo::class => OrdenTrabajoPolicy::class,
+        Cotizacion::class => CotizacionPolicy::class,
+        Compra::class => CompraPolicy::class,
     ];
 
     public function boot(): void

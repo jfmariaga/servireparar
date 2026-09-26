@@ -4,8 +4,8 @@ namespace App\Listeners;
 
 use App\Enums\RolPrioridad;
 use App\Events\MantenimientoPreventivoProximoAVencer;
-use App\Models\User;
 use App\Notifications\OtNotificacion;
+use App\Services\Notificaciones\DestinatariosPorRolService;
 use Illuminate\Support\Facades\Notification;
 
 /**
@@ -16,16 +16,18 @@ use Illuminate\Support\Facades\Notification;
  */
 class NotificarEventosEquipos
 {
+    public function __construct(private readonly DestinatariosPorRolService $destinatarios) {}
+
     public function mantenimientoProximoAVencer(MantenimientoPreventivoProximoAVencer $event): void
     {
         $mantenimiento = $event->mantenimiento;
         $equipo = $mantenimiento->equipo;
         $vencido = $mantenimiento->proxima_fecha->isPast();
 
-        $destinatarios = User::query()
-            ->where('estado', 'activo')
-            ->role([RolPrioridad::Administrador->value, RolPrioridad::JefeDeTaller->value])
-            ->get();
+        $destinatarios = $this->destinatarios->resolver([
+            RolPrioridad::Administrador->value,
+            RolPrioridad::JefeDeTaller->value,
+        ]);
 
         $descripcionEquipo = trim($equipo?->tipo.' '.$equipo?->marca.' '.$equipo?->modelo);
 

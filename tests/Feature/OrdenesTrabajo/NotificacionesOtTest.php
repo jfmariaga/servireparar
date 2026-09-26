@@ -92,7 +92,7 @@ class NotificacionesOtTest extends TestCase
         ]);
 
         $this->assertSame(1, $this->noLeidas($almacen->fresh()));
-        $this->assertSame('Solicitud de insumo reactivada', $almacen->fresh()->notifications()->first()->data['titulo']);
+        $this->assertSame('Solicitud de insumo reactivada', $almacen->fresh()->unreadNotifications()->sole()->data['titulo']);
     }
 
     public function test_entregar_insumo_avisa_al_tecnico_de_la_tarea(): void
@@ -144,7 +144,7 @@ class NotificacionesOtTest extends TestCase
         $salida->aprobar($ot->fresh(['estado']), $this->conRol(RolPrioridad::Administrador));
         $salida->confirmarEntrega($ot->fresh(['estado']), $jefe, 'Firma');
 
-        Mail::assertSent(OtEntregadaCliente::class, fn ($m) => $m->hasTo('cliente@ejemplo.com'));
+        Mail::assertQueued(OtEntregadaCliente::class, fn ($m) => $m->hasTo('cliente@ejemplo.com'));
         $this->assertTrue($creador->fresh()->notifications()->where('data->titulo', 'OT entregada')->exists());
     }
 

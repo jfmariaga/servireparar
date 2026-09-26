@@ -170,6 +170,7 @@ class IndicadoresAgregadosService
                 ->with(['tecnico.usuario:id,name', 'prerrequisitos', 'solicitudesInsumo']),
             ])
             ->orderBy('created_at')
+            ->orderBy('id')
             ->get();
     }
 

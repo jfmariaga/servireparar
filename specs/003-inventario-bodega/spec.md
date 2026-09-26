@@ -122,6 +122,26 @@ el cliente.
   correo registrado, la entrega se confirma igual y se avisa que no se envió copia; un fallo de correo no
   revierte la entrega.
 
+### Session 2026-09-26 (entrega con mensajero: firma física pendiente, documentado retroactivamente)
+
+> Esta sección documenta funcionalidad que ya estaba construida y en producción (commit `cff962b`,
+> 2026-09-25/26) sin haber pasado por `/speckit-clarify` — se registra aquí para que el spec refleje el
+> comportamiento real del sistema.
+
+- Q: Cuando el envío es por mensajero (no entrega en mostrador), ¿el cliente firma en pantalla igual que en
+  US6? → A: No siempre es posible — el mensajero puede no tener el dispositivo del cliente a mano. Se agrega
+  un tercer flujo: la solicitud puede salir de bodega con **solo la firma de quien entrega** (Bodega),
+  quedando en un estado intermedio `despachada`; el papel físico firmado por el cliente se recoge después y
+  se sube como foto para cerrar la entrega.
+- Q: ¿El stock se descuenta al salir con el mensajero, o al volver la firma? → A: Al salir (`despachada`),
+  igual que en la entrega en mostrador — nunca se descuenta dos veces. Por eso `despachada` también se
+  excluye de los estados que pueden anularse (`puedeAnularse()`): una vez salió con el mensajero, ya afectó
+  el inventario.
+- Q: ¿Qué pasa si el papel firmado no vuelve en varios días? → A: Se agrega una alerta automática
+  (`despachos:revisar-firmas-pendientes`, diaria) a Bodega y Vendedor cuando pasan
+  `despachos.dias_alerta_firma_pendiente` días (configurable en BD, spec 008) sin que la solicitud
+  `despachada` reciba su foto de firma física.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Atender solicitudes de insumos generadas desde una OT (Priority: P1)
@@ -310,6 +330,38 @@ tocar el inventario, y que la remisión firmada queda consultable.
     y "Recibe" con firma, y SIN exponer la etiqueta "No disponible en almacén", el proveedor externo ni
     costos (trazabilidad interna).
 
+### User Story 7 - Entrega con mensajero y firma física pendiente (Priority: P2)
+
+Cuando el Almacenista despacha una solicitud por mensajero en vez de entregarla en mostrador, el cliente no
+firma en pantalla en el momento; el mensajero recoge la firma en un papel físico que vuelve después. El
+sistema permite cerrar la salida de bodega con la sola firma de quien entrega, y avisa si el papel firmado
+tarda demasiado en volver.
+
+**Why this priority**: Cubre un caso operativo real (entregas a domicilio/mensajería) que la US6 no
+contemplaba al asumir que el cliente firma en pantalla en el momento de la entrega.
+
+**Independent Test**: Una solicitud remisionada se despacha con mensajero (solo firma de quien entrega);
+verificar que el stock se descuenta y la solicitud queda en `despachada`. Días después se sube la foto del
+papel firmado; verificar que pasa a `entregada`. Si pasan más días del umbral configurado sin esa foto,
+verificar que Bodega/Vendedor reciben una alerta.
+
+**Acceptance Scenarios**:
+
+1. **Given** una solicitud de despacho en estado `remisionada`, **When** el Almacenista la despacha con
+   mensajero capturando solo la firma de quien entrega (y opcionalmente el nombre del mensajero), **Then**
+   el sistema descuenta stock y aplica costeo FIFO (igual que en mostrador), y la solicitud pasa a
+   `despachada`.
+2. **Given** una solicitud en estado `despachada`, **When** el Almacenista sube la foto del papel firmado
+   por el cliente junto con su nombre y documento, **Then** el sistema la marca `entregada`, sin generar un
+   segundo movimiento de inventario, y dispara el envío de la copia de la remisión al correo del cliente
+   (igual que en US6).
+3. **Given** una solicitud `despachada` sin foto de firma física durante más de
+   `despachos.dias_alerta_firma_pendiente` días, **When** corre la revisión diaria automática, **Then** el
+   sistema notifica a Bodega y Vendedor, sin repetir el aviso para la misma solicitud salvo que se fuerce
+   un reenvío.
+4. **Given** una solicitud en estado `despachada`, **When** se intenta anular, **Then** el sistema lo
+   impide — el stock ya fue descontado al salir con el mensajero.
+
 ### Edge Cases
 
 - ¿Qué ocurre si dos solicitudes concurrentes intentan reservar el mismo stock limitado de un consumible?
@@ -431,6 +483,21 @@ tocar el inventario, y que la remisión firmada queda consultable.
   (`enviada_al_cliente_en`). Si el cliente no tiene correo, la entrega se confirma igual y el sistema lo
   informa; un fallo en el envío de correo NO DEBE revertir la entrega ya confirmada.
 
+- **FR-029**: El sistema DEBE permitir despachar una solicitud `remisionada` mediante un tercer flujo de
+  entrega ("con mensajero"): captura solo la firma digital de quien entrega (Bodega) y opcionalmente el
+  nombre del mensajero, descuenta stock y aplica costeo FIFO en ese momento (igual que FR-024), y deja la
+  solicitud en estado `despachada` en vez de `entregada`.
+- **FR-030**: El sistema DEBE permitir cerrar una solicitud `despachada` adjuntando una foto del papel
+  firmado por el cliente junto con su nombre y documento; al hacerlo, la solicitud pasa a `entregada` sin
+  generar un segundo movimiento de inventario, y DEBE disparar el envío de la copia de la remisión al
+  correo del cliente (FR-027).
+- **FR-031**: El estado `despachada` NO DEBE poder anularse — el stock ya se descontó al salir con el
+  mensajero (extiende la restricción de FR-022, que solo cubría hasta `entregada`).
+- **FR-032**: El sistema DEBE alertar diariamente a Bodega y Vendedor sobre solicitudes `despachada` que
+  llevan más de un umbral configurable de días (`despachos.dias_alerta_firma_pendiente`, editable en BD
+  desde spec 008) sin recibir la foto de firma física, sin repetir el aviso para la misma solicitud salvo
+  reenvío forzado.
+
 ### Key Entities
 
 - **Inventario** (`INVENTARIO`): id, código (con prefijo por tipo), nombre, tipo (Herramienta/Consumible),
@@ -449,9 +516,11 @@ tocar el inventario, y que la remisión firmada queda consultable.
   estado (`abierta` / `cerrada` / `cancelada`, ver FR-017).
 - **Solicitud de Despacho** (`SOLICITUDES_DESPACHO`): id, numero (`SD-####`), cliente_id (spec 000),
   vendedor_id (usuario con rol Vendedor), sede (sigla IATA de la ciudad, FR-028), estado (`borrador` /
-  `solicitada` / `recibida` / `remisionada` / `entregada` / `anulada`), observaciones, fecha_solicitud,
-  recibida_por, remisionada_por, entregada_en. Canal de salida sin OT (US6), distinto de las salidas por
-  OT (spec 002) y de las salidas manuales directas previas.
+  `solicitada` / `recibida` / `remisionada` / `despachada` / `entregada` / `anulada`, `despachada` agregada
+  en FR-029), observaciones, fecha_solicitud, recibida_por, remisionada_por, mensajero_nombre (solo entrega
+  con mensajero, FR-029), despachada_por, despachada_en, entregada_en, alertado_firma_pendiente_en
+  (FR-032). Canal de salida sin OT (US6/US7), distinto de las salidas por OT (spec 002) y de las salidas
+  manuales directas previas.
 - **Detalle de Solicitud de Despacho** (`DETALLE_SOLICITUD_DESPACHO`): id, solicitud_id, origen
   (`inventario` / `compra_externa`), inventario_id (nulo si compra externa), descripcion (texto libre para
   compra externa), cantidad, costo_unitario (referencia), proveedor_externo (solo compra externa),
@@ -459,10 +528,11 @@ tocar el inventario, y que la remisión firmada queda consultable.
 - **Remisión de Entrega** (`REMISIONES_ENTREGA`): id, numero (`REM-####`), solicitud_id (1:1),
   generada_por, entregado_por_nombre (quien entrega físicamente, FR-026), fecha, recibido_por_nombre,
   recibido_por_documento, firma (trazo de quien recibe), firma_entrega (trazo de quien entrega, FR-024),
-  nota_entrega (narración libre, FR-026), entregada_en,
+  firma_fisica_foto (foto del papel firmado por el cliente cuando la entrega fue con mensajero, FR-030),
+  firma_fisica_recibida_en, nota_entrega (narración libre, FR-026), entregada_en,
   enviada_al_cliente_en (marca de envío de la copia PDF al correo del cliente,
-  FR-027). Documento imprimible que respalda la entrega física (US6) y reproduce el formato de la remisión
-  física del taller.
+  FR-027). Documento imprimible que respalda la entrega física (US6/US7) y reproduce el formato de la
+  remisión física del taller.
 
 ## Success Criteria *(mandatory)*
 

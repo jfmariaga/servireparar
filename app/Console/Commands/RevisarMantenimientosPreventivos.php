@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Configuracion;
 use App\Services\Equipos\MantenimientoPreventivoService;
 use Illuminate\Console\Command;
 
@@ -13,7 +14,8 @@ class RevisarMantenimientosPreventivos extends Command
 
     public function handle(MantenimientoPreventivoService $service): int
     {
-        $disparadas = $service->revisarVencimientos();
+        $diasAntelacion = (int) Configuracion::obtener('equipos.dias_antelacion_mantenimiento', 7);
+        $disparadas = $service->revisarVencimientos($diasAntelacion);
 
         $this->info("Alertas de mantenimiento preventivo disparadas: {$disparadas}");
 

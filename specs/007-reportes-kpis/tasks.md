@@ -129,6 +129,29 @@ archivo coincide exactamente con lo filtrado en pantalla
 
 ---
 
+## Phase 5b: User Story 4 - Auditoría de actividad reciente (Priority: P3)
+
+**Documentado retroactivamente (2026-09-26)**: implementado en los commits `66eb2f4`/`cff962b`
+(2026-09-25/26) sin pasar por `/speckit-tasks` en su momento.
+
+- [X] T022 [US4, FR-009] Drill-downs del panel de operación: `livewire/reportes/panel-operacion.blade.php`
+  (embebido en `dashboard.blade.php` para Administrador/Jefe de Taller) — cada tarjeta agregada abre un
+  modal con el listado real (OT por categoría, herramientas pendientes, préstamos sin devolver, stock
+  bajo, técnicos libres/ocupados, OT estancadas, despachos pendientes) vía `abrirOt()`/`abrirSimple()`.
+- [X] T023 [US4, FR-009] Drill-down de desempeño inline: `abrirDesempeno()`/`verTecnico()` en el mismo
+  componente, reusando `DesempenoTecnicoService` (spec 004, US3) sin duplicar el cálculo.
+- [X] T024 [US4, FR-010] Pantalla `livewire/reportes/auditoria.blade.php`, ruta `/reportes/auditoria`
+  (`middleware('role:Administrador')`, `routes/web.php`), permiso `view-auditoria`: unifica `ot_eventos`
+  (spec 002) de todas las OT con filtros por tipo, usuario y rango de fechas (`#[Url]` en los 4 campos),
+  paginado (`WithPagination`). Sin tabla nueva.
+- [X] T025 [US4] Tests: `tests/Feature/Reportes/PanelOperacionTest.php` (drill-downs, permisos por rol) y
+  cobertura de auditoría en la suite de Reportes.
+
+**Checkpoint**: US4 funcional de forma independiente — no depende de US1-US3 en código aunque comparte
+`IndicadoresAgregadosService`/`DesempenoTecnicoService`.
+
+---
+
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 - [x] T020 Verificar que ningún indicador usa caché ni WebSockets (FR-008 actualizado 2026-09-15): el único
