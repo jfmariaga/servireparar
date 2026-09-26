@@ -19,7 +19,9 @@ use Illuminate\Support\Facades\Notification;
  */
 class NotificadorOt
 {
-    public function __construct(private readonly DestinatariosPorRolService $destinatarios) {}
+    public function __construct(
+        private readonly DestinatariosPorRolService $destinatarios = new DestinatariosPorRolService(),
+    ) {}
 
     public function otCreada(OrdenTrabajo $ot): void
     {
