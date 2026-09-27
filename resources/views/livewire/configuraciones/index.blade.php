@@ -42,7 +42,7 @@ new #[Layout('components.layout', ['title' => 'Configuración'])] class extends 
     <x-breadcrumbs :items="[['label' => 'Configuración']]" />
 
     <p class="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-2xl">
-        Umbrales de alerta usados por el módulo de notificaciones (spec 008). Cambiarlos aquí no requiere
+        Umbrales de alerta usados por el módulo de notificaciones. Cambiarlos aquí no requiere
         despliegue de código.
     </p>
 

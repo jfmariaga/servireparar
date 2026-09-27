@@ -347,7 +347,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             @else
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <x-field label="Equipo registrado" class="sm:col-span-2 lg:col-span-4"
-                         hint="Si el equipo del cliente ya está registrado, selecciónalo para vincular esta OT a su historial técnico (spec 005). Si no, completa los datos manualmente abajo.">
+                         hint="Si el equipo del cliente ya está registrado, selecciónalo para vincular esta OT a su historial técnico. Si no, completa los datos manualmente abajo.">
                     <x-select wire:model.live="equipoId" :reset-key="'equipo-'.($clienteId ?? 'sin-cliente')" placeholder="Sin registrar (completar datos manualmente)">
                         @foreach ($equiposDelCliente as $eq)
                             <option value="{{ $eq->id }}">{{ $eq->tipo }}{{ trim(($eq->marca ?? '').' '.($eq->modelo ?? '')) ? ' — '.trim(($eq->marca ?? '').' '.($eq->modelo ?? '')) : '' }}{{ $eq->serie ? ' ('.$eq->serie.')' : '' }}</option>

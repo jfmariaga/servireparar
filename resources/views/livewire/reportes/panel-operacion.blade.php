@@ -136,7 +136,7 @@ new class extends Component
     <div>
         <h1 class="text-xl font-bold font-display">Indicadores de operación</h1>
         <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Hola, {{ auth()->user()->name }}. Se actualiza solo cada 5 s (spec 007).
+            Hola, {{ auth()->user()->name }}. Se actualiza solo cada 5 s.
         </p>
     </div>
 

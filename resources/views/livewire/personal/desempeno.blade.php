@@ -43,8 +43,8 @@ new #[Layout('components.layout', ['title' => 'Desempeño'])] class extends Comp
     @include('partials.usuarios-tabs')
 
     <p class="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-2xl">
-        Tiempo de ejecución, participación en Órdenes de Trabajo y cumplimiento de plazo por técnico
-        (spec 004, FR-003), calculado sobre tareas finalizadas en el rango de fechas seleccionado.
+        Tiempo de ejecución, participación en Órdenes de Trabajo y cumplimiento de plazo por técnico,
+        calculado sobre tareas finalizadas en el rango de fechas seleccionado.
     </p>
 
     <div class="flex flex-wrap items-end gap-4 mb-6">
