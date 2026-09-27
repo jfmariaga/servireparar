@@ -7,7 +7,7 @@ use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
-return Application::configure(basePath: dirname(__DIR__))
+$app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
@@ -24,3 +24,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();
+
+// Hostinger sirve `public_html` como raíz del dominio; el proyecto no tiene
+// una carpeta `public/` propia (su contenido vive directamente en
+// `public_html/`), así que hay que decirle a Laravel dónde quedó.
+if (is_dir(__DIR__.'/../public_html')) {
+    $app->usePublicPath(__DIR__.'/../public_html');
+}
+
+return $app;
