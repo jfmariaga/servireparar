@@ -84,6 +84,8 @@
             'activePattern' => 'compras.*',
             'label' => 'Compras',
             'ability' => 'manage-compras',
+            // En pulido (spec 006): solo visible en desarrollo hasta cerrar los flujos pendientes.
+            'soloDesarrollo' => true,
             'icon' => 'M4 7h16l-1.5 10.5a1.5 1.5 0 01-1.5 1.5H7a1.5 1.5 0 01-1.5-1.5L4 7z|M8 7V5a4 4 0 018 0v2',
         ],
         [
