@@ -66,6 +66,8 @@
             'activePattern' => 'despachos.*',
             'label' => 'Despachos',
             'ability' => 'manage-despachos',
+            // En pulido (spec 003/006): solo visible en desarrollo hasta cerrar los flujos pendientes.
+            'soloDesarrollo' => true,
             'icon' => 'M3 7h11v8H3z|M14 10h4l3 3v2h-7z|M7.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z|M17.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
         ],
         [
@@ -73,6 +75,8 @@
             'activePattern' => 'cotizaciones.*',
             'label' => 'Cotizaciones',
             'ability' => 'manage-cotizaciones',
+            // En pulido (spec 006): solo visible en desarrollo hasta cerrar los flujos pendientes.
+            'soloDesarrollo' => true,
             'icon' => 'M6 4h9l3 3v13a1 1 0 01-1 1H6a1 1 0 01-1-1V5a1 1 0 011-1z|M9 9h6|M9 13h6|M9 17h3',
         ],
         [
@@ -142,6 +146,7 @@
         };
     @endphp
     @continue(! $puedeVer)
+    @continue(($item['soloDesarrollo'] ?? false) && app()->isProduction())
     @php
         $isActive = request()->routeIs($item['activePattern'] ?? $item['route']);
         $badge = ($badges[$item['route']] ?? 0) > 0 ? $badges[$item['route']] : null;
