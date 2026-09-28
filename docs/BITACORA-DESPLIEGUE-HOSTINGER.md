@@ -163,6 +163,19 @@ sesiones. Cada entrada dice **qué se tocó, por qué, y qué vigilar**.
     elegir varias fotos de la galería en una sola selección — hay que
     repetir el botón por cada una — a cambio de que la cámara vuelva a
     funcionar y nada se borre.
+12. **Confirmado: sin `capture`, el celular del usuario no ofrece cámara en
+    absoluto (solo archivos/galería)** — no es un bug de código, es el
+    navegador/SO del dispositivo decidiendo qué mostrar en el selector
+    nativo cuando no hay `capture`. Como en HTML no existe una forma de
+    garantizar "cámara + galería en un mismo botón" en todos los
+    dispositivos, se volvió a separar en dos controles (mismo patrón del
+    punto 8, pero conservando el arreglo de "sumar" del punto 11): "Tomar
+    foto" (`fotoEntradaCamara`, `capture="environment"`) y "Subir archivo"
+    (`fotoEntradaArchivo`, sin `capture`), cada uno con su propio hook
+    `updatedFotoEntradaCamara()` / `updatedFotoEntradaArchivo()` que suma a
+    `fotosEntrada`. **Esta es la versión final** — si se vuelve a pedir "un
+    solo input", explicar este límite del navegador antes de revertir, ya
+    que ya se intentó dos veces.
 
 ### Cómo diagnosticar "algo dejó de verse" en producción, en orden
 Antes de asumir que un fix rompió otra cosa, revisar en este orden (más
