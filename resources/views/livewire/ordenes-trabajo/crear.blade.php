@@ -39,31 +39,21 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
     public array $fotosEntrada = [];
 
     /**
-     * Dos entradas separadas porque ningún input HTML por sí solo garantiza
-     * cámara y galería a la vez en todos los celulares: con "capture" la
-     * cámara se abre directo (sin opción de elegir galería); sin "capture"
-     * el navegador decide qué mostrar, y en algunos Android no ofrece
-     * cámara. Cada una suma su foto a fotosEntrada en vez de reemplazarla.
+     * Sin "accept" el navegador ofrece su selector completo (cámara, video,
+     * archivos) en vez de restringirse solo a galería — el filtro de "debe
+     * ser imagen" lo hace la validación del servidor. Cada foto elegida se
+     * suma a fotosEntrada en vez de reemplazar la anterior.
      */
-    public $fotoEntradaCamara = null;
-    public $fotoEntradaArchivo = null;
+    public $fotoEntradaNueva = null;
 
     /** @var array<int, array<string, mixed>> */
     public array $tareas = [];
 
-    public function updatedFotoEntradaCamara(): void
+    public function updatedFotoEntradaNueva(): void
     {
-        if ($this->fotoEntradaCamara) {
-            $this->fotosEntrada[] = $this->fotoEntradaCamara;
-            $this->fotoEntradaCamara = null;
-        }
-    }
-
-    public function updatedFotoEntradaArchivo(): void
-    {
-        if ($this->fotoEntradaArchivo) {
-            $this->fotosEntrada[] = $this->fotoEntradaArchivo;
-            $this->fotoEntradaArchivo = null;
+        if ($this->fotoEntradaNueva) {
+            $this->fotosEntrada[] = $this->fotoEntradaNueva;
+            $this->fotoEntradaNueva = null;
         }
     }
 
@@ -432,17 +422,9 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                                 @endforeach
                             </div>
                         @endif
-                        <div class="grid sm:grid-cols-2 gap-3">
-                            <div class="flex flex-col gap-1">
-                                <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Tomar foto</span>
-                                <x-file-input accept="image/*" capture="environment" wire:model="fotoEntradaCamara" class="w-full" />
-                                <div wire:loading wire:target="fotoEntradaCamara" class="text-xs text-slate-400">Cargando…</div>
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Subir archivo</span>
-                                <x-file-input accept="image/*" wire:model="fotoEntradaArchivo" class="w-full" />
-                                <div wire:loading wire:target="fotoEntradaArchivo" class="text-xs text-slate-400">Cargando…</div>
-                            </div>
+                        <div class="flex-1 min-w-0">
+                            <x-file-input wire:model="fotoEntradaNueva" class="w-full" />
+                            <div wire:loading wire:target="fotoEntradaNueva" class="text-xs text-slate-400 mt-1">Cargando previsualización…</div>
                         </div>
                     </div>
                     @error('fotosEntrada') <x-slot:error>{{ $message }}</x-slot:error> @enderror

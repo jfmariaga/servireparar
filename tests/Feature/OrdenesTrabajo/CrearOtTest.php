@@ -310,7 +310,7 @@ class CrearOtTest extends TestCase
         $this->assertSame(3, $ot->evidencias()->where('tipo_registro', 'entrada')->count());
     }
 
-    public function test_camara_y_subir_archivo_suman_a_las_anteriores_sin_reemplazar(): void
+    public function test_cada_foto_del_input_unico_se_suma_a_las_anteriores(): void
     {
         Storage::fake('public');
         $cliente = Cliente::factory()->create();
@@ -320,15 +320,15 @@ class CrearOtTest extends TestCase
             ->test('ordenes-trabajo.crear')
             ->set('clienteId', $cliente->id)
             ->set('equipoDescripcion', 'Compresor')
-            ->set('fotoEntradaCamara', UploadedFile::fake()->image('camara.jpg'));
+            ->set('fotoEntradaNueva', UploadedFile::fake()->image('foto1.jpg'));
 
         $this->assertCount(1, $componente->get('fotosEntrada'));
-        $this->assertNull($componente->get('fotoEntradaCamara'));
+        $this->assertNull($componente->get('fotoEntradaNueva'));
 
-        $componente->set('fotoEntradaArchivo', UploadedFile::fake()->image('archivo.jpg'));
+        $componente->set('fotoEntradaNueva', UploadedFile::fake()->image('foto2.jpg'));
 
-        $this->assertCount(2, $componente->get('fotosEntrada'), 'La foto de "subir archivo" debe sumarse, no reemplazar la de cámara');
-        $this->assertNull($componente->get('fotoEntradaArchivo'));
+        $this->assertCount(2, $componente->get('fotosEntrada'), 'La segunda foto debe sumarse, no reemplazar la primera');
+        $this->assertNull($componente->get('fotoEntradaNueva'));
 
         $componente->set('descripcion', 'Servicio')
             ->set('tareas', [

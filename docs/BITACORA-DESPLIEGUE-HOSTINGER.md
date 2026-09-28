@@ -187,6 +187,25 @@ sesiones. Cada entrada dice **qué se tocó, por qué, y qué vigilar**.
     `fotosEntrada`. **Esta es la versión final** — si se vuelve a pedir "un
     solo input", explicar este límite del navegador antes de revertir, ya
     que ya se intentó dos veces.
+    **CORRECCIÓN, más tarde el mismo día**: el punto 12 estaba mal
+    diagnosticado. El usuario probó otra app Livewire (AdminLTE) en el
+    MISMO celular/navegador y sí mostraba cámara+galería+video con un
+    input sin más — la diferencia real es que ese input **no tenía
+    `accept="image/*"`**. Con `accept="image/*"`, ese Android/Chrome
+    específico restringe el selector a solo archivos (sin cámara); sin
+    `accept`, Android ofrece su selector completo (Foto/Video/Archivos)
+    que sí incluye cámara. Se volvió a un solo input
+    (`fotoEntradaNueva`, con el hook de "sumar" del punto 11) **sin
+    `accept`** — el filtro de "debe ser imagen" lo sigue haciendo la
+    validación del servidor (`'fotosEntrada.*' => 'image|max:5120'`), así
+    que si alguien elige un video por error simplemente le sale el error
+    de validación. Se aplicó el mismo cambio (quitar `accept="image/*"`)
+    en los otros 3 puntos de evidencia (`detalle.blade.php` evidencia de
+    tarea y de proceso, `despacho/entrega.blade.php` foto de firma
+    física). **Aprendizaje**: antes de asumir que algo es un límite
+    inherente del navegador, comparar contra una app real que sí
+    funcione en el mismo dispositivo, en vez de razonar solo desde teoría
+    de qué "debería" pasar con `capture`/`multiple`/`accept`.
 13. **"Variables técnicas" no aparecía en una OT que sí tenía equipo
     (OTSV-00002)** — no era una regresión de esta sesión ni de la OT en sí;
     era una inconsistencia que ya existía en `detalle.blade.php`: el bloque
