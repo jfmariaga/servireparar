@@ -122,15 +122,47 @@ sesiones. Cada entrada dice **qué se tocó, por qué, y qué vigilar**.
    `https` (por `APP_URL`) pero Laravel las valida contra el esquema que
    *cree* haber recibido (`http`) → la firma nunca coincide → 401 siempre,
    incluso con sesión activa y `APP_KEY` correcto. Se agregó
-   `$middleware->trustProxies(at: '*')` en `bootstrap/app.php`. **Esto NO
-   era un problema introducido por los fixes de esta sesión — ya estaba
-   ahí desde el principio, solo que no se había notado porque no se había
-   usado activamente una URL firmada en producción hasta ahora.**
-   **Vigilar:** si en el futuro aparece un 401 en cualquier link firmado
-   (`temporarySignedRoute`, links de "olvidé mi contraseña", etc.), esta es
-   la primera causa a revisar — confirmar con `php artisan route:list` que
-   la petición real llega como se espera, o revisar `$request->getScheme()`
-   en un log temporal.
+   `$middleware->trustProxies(at: '*')` en `bootstrap/app.php`. Buena
+   práctica igual, pero **resultó NO ser la causa real del 401** — ver
+   punto 10. Se dejó el cambio porque no hace daño y es correcto tenerlo
+   en cualquier hosting detrás de proxy/CDN.
+10. **CAUSA REAL del 401 persistente: "Optimización de imágenes
+    inteligentes" del CDN de Hostinger (hPanel → Rendimiento → CDN →
+    Administrar → servirepararsas.com → pestaña "Optimización del sitio
+    web")** — Hostinger intercepta automáticamente cualquier URL cuya
+    ruta termine en una extensión de imagen (`.png`, `.jpg`, etc.) y
+    trata de reprocesarla, **sin importar qué devuelva realmente el
+    servidor** (interceptaba incluso una ruta de diagnóstico que solo
+    devolvía JSON, con el mensaje "Invalid source image"). Como la ruta
+    de previsualización de Livewire es
+    `/livewire/preview-file/{filename}` y `{filename}` termina en la
+    extensión real del archivo subido (ej. `...xyz.png`), el CDN
+    interceptaba la petición y descartaba `?expires=...&signature=...`
+    antes de que llegara a Laravel — por eso la firma nunca coincidía,
+    con `APP_KEY`, esquema y todo lo demás perfectamente correctos. Se
+    **desactivó "Optimización de imágenes inteligentes"** en esa pantalla
+    (se dejó "Compresión de imágenes WebP" activa, esa no interceptaba la
+    ruta). Confirmado con un endpoint de diagnóstico temporal que
+    devolvía JSON: con `.png` al final fallaba, sin extensión funcionaba.
+    **Vigilar:** cualquier URL firmada futura cuya última parte termine en
+    una extensión de imagen puede volver a chocar con esto si alguien
+    reactiva esa opción en hPanel.
+11. **Registro fotográfico de entrada: cámara no aparecía y cada foto
+    nueva borraba la anterior (commit posterior a `6729827`)** — con
+    `multiple` en el input, Android/Chrome esconde la cámara (mismo
+    problema del punto 8, ya se había revertido a un solo input con
+    `multiple` a pedido del usuario, lo cual trajo de vuelta el problema
+    de cámara). Además, sin importar `multiple`, cada vez que el usuario
+    volvía a usar el mismo input, el navegador **reemplaza** la selección
+    anterior por la nueva (comportamiento nativo del `<input type=file>`,
+    no algo que dependa de Livewire). Solución final: el input ya NO tiene
+    `multiple` (para que el selector nativo ofrezca cámara+galería de
+    forma confiable) y se agregó `fotoEntradaNueva` + el hook
+    `updatedFotoEntradaNueva()` que **suma** cada foto elegida al array
+    `fotosEntrada` en vez de reemplazarlo. Costo aceptado: ya no se pueden
+    elegir varias fotos de la galería en una sola selección — hay que
+    repetir el botón por cada una — a cambio de que la cámara vuelva a
+    funcionar y nada se borre.
 
 ### Cómo diagnosticar "algo dejó de verse" en producción, en orden
 Antes de asumir que un fix rompió otra cosa, revisar en este orden (más
@@ -141,7 +173,10 @@ rápido a más lento):
    Tailwind que no se usaba antes en el proyecto? → falta
    `npm run build` + copiar a `public_html/build` (ver arriba).
 3. ¿El error es 401/403 en una URL con `?expires=...&signature=...`? →
-   revisar `trustProxies` (punto 9) y que `APP_KEY` no haya cambiado.
+   revisar primero la "Optimización de imágenes inteligentes" del CDN de
+   Hostinger si la ruta termina en extensión de imagen (punto 10); si no
+   aplica, revisar `trustProxies` (punto 9) y que `APP_KEY` no haya
+   cambiado.
 4. ¿El error es 404 en una imagen de `/storage/...`? → revisar que
    `public_html/storage` siga siendo symlink (`ls -la public_html/ | grep
    storage`, debe empezar con `l`) y que el archivo exista en

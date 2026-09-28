@@ -6,62 +6,6 @@ use App\Http\Controllers\RemisionEntregaController;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
-// TEMPORAL — diagnóstico del 401 en URLs firmadas (previsualización de Livewire) en
-// Hostinger. Quitar en cuanto se confirme la causa.
-// TEMPORAL — dump exacto de lo que Laravel recibe en una petición REAL a una
-// ruta firmada, para comparar contra lo que se firmó. Quitar junto con la de
-// arriba.
-Route::get('/debug-firma/{filename}', function (\Illuminate\Http\Request $request, $filename) {
-    return response()->json([
-        'filename_recibido' => $filename,
-        'query_completo_recibido' => $request->query(),
-        'full_url_recibida' => $request->fullUrl(),
-        'url_sin_query' => $request->url(),
-        'hasValidSignature' => $request->hasValidSignature(),
-        'path' => $request->path(),
-    ]);
-})->name('debug.firma');
-
-Route::get('/debug-generar-firma', function () {
-    return response()->json([
-        // Una termina en .png (como preview-file real) y la otra no, para
-        // aislar si el CDN de Hostinger intercepta por extensión de archivo.
-        'con_extension_png' => \Illuminate\Support\Facades\URL::temporarySignedRoute(
-            'debug.firma', now()->addMinutes(30), ['filename' => 'diagnostico-prueba.png']
-        ),
-        'sin_extension' => \Illuminate\Support\Facades\URL::temporarySignedRoute(
-            'debug.firma', now()->addMinutes(30), ['filename' => 'diagnostico-prueba-sin-extension']
-        ),
-    ]);
-});
-
-Route::get('/debug-scheme', function () {
-    // Genera una URL firmada real (mismo mecanismo que usa Livewire para
-    // previsualizar) y la valida en la MISMA petición, para descartar que
-    // el problema sea de tiempo/red entre generación y uso.
-    $urlFirmada = \Illuminate\Support\Facades\URL::temporarySignedRoute(
-        'livewire.preview-file', now()->addMinutes(30)->endOfHour(), ['filename' => 'diagnostico-prueba.png']
-    );
-    $subRequest = \Illuminate\Http\Request::create($urlFirmada, 'GET');
-
-    return response()->json([
-        'url_firmada_generada' => $urlFirmada,
-        'esa_misma_url_es_valida_recien_generada' => $subRequest->hasValidSignature(),
-        'route_cache_activo' => app()->routesAreCached(),
-        'config_cache_activo' => app()->configurationIsCached(),
-        'request_getScheme' => request()->getScheme(),
-        'request_isSecure' => request()->isSecure(),
-        'request_fullUrl' => request()->fullUrl(),
-        'server_HTTPS' => $_SERVER['HTTPS'] ?? null,
-        'server_X_FORWARDED_PROTO' => $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? null,
-        'server_SERVER_PORT' => $_SERVER['SERVER_PORT'] ?? null,
-        'app_url_config' => config('app.url'),
-        'trusted_proxies' => \Illuminate\Http\Request::getTrustedProxies(),
-        'now_server' => now()->toDateTimeString(),
-        'now_utc' => now('UTC')->toDateTimeString(),
-    ]);
-});
-
 Volt::route('/login', 'auth.login')->middleware('guest')->name('login');
 Route::post('/logout', LogoutController::class)->middleware('auth')->name('logout');
 

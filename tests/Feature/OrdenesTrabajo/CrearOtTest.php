@@ -310,6 +310,36 @@ class CrearOtTest extends TestCase
         $this->assertSame(3, $ot->evidencias()->where('tipo_registro', 'entrada')->count());
     }
 
+    public function test_cada_foto_del_input_unico_se_suma_a_las_anteriores(): void
+    {
+        Storage::fake('public');
+        $cliente = Cliente::factory()->create();
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+
+        $componente = Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.crear')
+            ->set('clienteId', $cliente->id)
+            ->set('equipoDescripcion', 'Compresor')
+            ->set('fotoEntradaNueva', UploadedFile::fake()->image('foto1.jpg'));
+
+        $this->assertCount(1, $componente->get('fotosEntrada'));
+        $this->assertNull($componente->get('fotoEntradaNueva'));
+
+        $componente->set('fotoEntradaNueva', UploadedFile::fake()->image('foto2.jpg'));
+
+        $this->assertCount(2, $componente->get('fotosEntrada'), 'La segunda foto debe sumarse, no reemplazar la primera');
+
+        $componente->set('descripcion', 'Servicio')
+            ->set('tareas', [
+                ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
+            ])
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $ot = OrdenTrabajo::first();
+        $this->assertSame(2, $ot->evidencias()->where('tipo_registro', 'entrada')->count());
+    }
+
     public function test_tecnico_no_puede_abrir_el_formulario_de_creacion(): void
     {
         $tecnicoUser = User::factory()->create(['estado' => 'activo']);
