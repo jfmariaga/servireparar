@@ -20,6 +20,14 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
+
+        // Hostinger termina el HTTPS en un proxy delante de PHP: sin esto,
+        // Laravel ve cada petición como http:// aunque el navegador use
+        // https://, y las URLs firmadas (ej. previsualización de subida de
+        // Livewire) quedan generadas en https pero se validan contra http,
+        // dando 401 siempre. "*" confía en el reenvío de cualquier proxy
+        // upstream, razonable aquí porque PHP-FPM no es accesible directo.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

@@ -102,20 +102,49 @@ sesiones. Cada entrada dice **qué se tocó, por qué, y qué vigilar**.
    ningún otro archivo) — el `public_html/build` de producción nunca se
    recompiló para incluirla. Ver la nota de "recompilar assets" arriba.
 
-### Pendiente de confirmar (en curso al cerrar esta entrada)
-- Recompilar y copiar el build para que `mx-auto` del logo del login surta
-  efecto.
-- Reporte del usuario: **"ahora no se ven las imágenes otra vez"** — hay que
-  diagnosticar si el `npm run build` / copia a `public_html/build` rompió
-  algo (por ejemplo, versionado de assets de Vite con hash que ya no
-  coincide con lo que Laravel espera si el manifest no se actualizó bien),
-  o si es una regresión distinta. Se pidió URL de la imagen rota y el
-  código de error para diagnosticar.
-- Corrigiendo: en "Registro fotográfico de entrada" (`crear.blade.php`),
-  el input combinaba `accept="image/*" multiple` sin `capture` — en varios
-  Android/Chrome, agregar `multiple` a un input de archivo hace que el
-  selector nativo **esconda la opción de cámara** y solo muestre la
-  galería. Se separa en dos controles: un botón "Tomar foto" (una a la vez,
-  `capture="environment"`, sin `multiple`) y un botón "Subir de galería"
-  (`multiple`, sin `capture`), ambos alimentando el mismo array
-  `fotosEntrada`.
+8. **Cámara y galería separadas en "Registro fotográfico de entrada"
+   (commit `183d85a`)** — el input combinaba `accept="image/*" multiple`
+   sin `capture`; en varios Android/Chrome, agregar `multiple` a un input
+   de archivo hace que el selector nativo **esconda la opción de cámara**
+   y solo muestre la galería. Se separó en dos controles: "Tomar foto"
+   (una a la vez, `capture="environment"`, sin `multiple`) y "Subir de
+   galería" (`multiple`, sin `capture`), ambos alimentando el mismo array
+   `fotosEntrada` vía los hooks `updatedFotoEntradaCamara` /
+   `updatedFotosEntradaGaleria`. No introdujo clases de Tailwind nuevas
+   (ya estaban compiladas), así que no requería rebuild.
+9. **`trustProxies` en `bootstrap/app.php` (commit pendiente de push al
+   cerrar esta entrada) — causa real de "previsualización rota" y
+   probablemente de futuros 401 en cualquier URL firmada** — Hostinger
+   termina el HTTPS en un proxy delante de PHP; sin `trustProxies`,
+   Laravel ve cada petición como `http://` aunque el navegador use
+   `https://`. Las URLs firmadas (ej. `livewire/preview-file/...`, usadas
+   para la previsualización de fotos antes de guardar la OT) se generan en
+   `https` (por `APP_URL`) pero Laravel las valida contra el esquema que
+   *cree* haber recibido (`http`) → la firma nunca coincide → 401 siempre,
+   incluso con sesión activa y `APP_KEY` correcto. Se agregó
+   `$middleware->trustProxies(at: '*')` en `bootstrap/app.php`. **Esto NO
+   era un problema introducido por los fixes de esta sesión — ya estaba
+   ahí desde el principio, solo que no se había notado porque no se había
+   usado activamente una URL firmada en producción hasta ahora.**
+   **Vigilar:** si en el futuro aparece un 401 en cualquier link firmado
+   (`temporarySignedRoute`, links de "olvidé mi contraseña", etc.), esta es
+   la primera causa a revisar — confirmar con `php artisan route:list` que
+   la petición real llega como se espera, o revisar `$request->getScheme()`
+   en un log temporal.
+
+### Cómo diagnosticar "algo dejó de verse" en producción, en orden
+Antes de asumir que un fix rompió otra cosa, revisar en este orden (más
+rápido a más lento):
+1. ¿El servidor ya tiene el último `git pull`? (`git log -1 --oneline`
+   local vs servidor).
+2. ¿El cambio tocó `resources/css` o `resources/js`, o agregó una clase de
+   Tailwind que no se usaba antes en el proyecto? → falta
+   `npm run build` + copiar a `public_html/build` (ver arriba).
+3. ¿El error es 401/403 en una URL con `?expires=...&signature=...`? →
+   revisar `trustProxies` (punto 9) y que `APP_KEY` no haya cambiado.
+4. ¿El error es 404 en una imagen de `/storage/...`? → revisar que
+   `public_html/storage` siga siendo symlink (`ls -la public_html/ | grep
+   storage`, debe empezar con `l`) y que el archivo exista en
+   `storage/app/public/...`.
+5. Si nada de lo anterior aplica, recién ahí buscar una regresión real en
+   el código del commit más reciente.
