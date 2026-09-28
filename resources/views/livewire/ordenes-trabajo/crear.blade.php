@@ -38,30 +38,8 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
     /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
     public array $fotosEntrada = [];
 
-    /** Captura de cámara: una foto a la vez (input aparte, sin "multiple"). */
-    public $fotoEntradaCamara = null;
-
-    /** Selección desde galería: varias a la vez (input aparte, con "multiple"). */
-    public array $fotosEntradaGaleria = [];
-
     /** @var array<int, array<string, mixed>> */
     public array $tareas = [];
-
-    public function updatedFotoEntradaCamara(): void
-    {
-        if ($this->fotoEntradaCamara) {
-            $this->fotosEntrada[] = $this->fotoEntradaCamara;
-            $this->fotoEntradaCamara = null;
-        }
-    }
-
-    public function updatedFotosEntradaGaleria(): void
-    {
-        foreach ($this->fotosEntradaGaleria as $foto) {
-            $this->fotosEntrada[] = $foto;
-        }
-        $this->fotosEntradaGaleria = [];
-    }
 
     public function quitarFotoEntrada(int $indice): void
     {
@@ -428,17 +406,9 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                                 @endforeach
                             </div>
                         @endif
-                        <div class="grid sm:grid-cols-2 gap-3">
-                            <div class="flex flex-col gap-1">
-                                <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Tomar foto</span>
-                                <x-file-input accept="image/*" capture="environment" wire:model="fotoEntradaCamara" class="w-full" />
-                                <div wire:loading wire:target="fotoEntradaCamara" class="text-xs text-slate-400">Cargando…</div>
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Subir de galería (varias a la vez)</span>
-                                <x-file-input accept="image/*" multiple wire:model="fotosEntradaGaleria" class="w-full" />
-                                <div wire:loading wire:target="fotosEntradaGaleria" class="text-xs text-slate-400">Cargando…</div>
-                            </div>
+                        <div class="flex-1 min-w-0">
+                            <x-file-input accept="image/*" multiple wire:model="fotosEntrada" class="w-full" />
+                            <div wire:loading wire:target="fotosEntrada" class="text-xs text-slate-400 mt-1">Cargando previsualización…</div>
                         </div>
                     </div>
                     @error('fotosEntrada') <x-slot:error>{{ $message }}</x-slot:error> @enderror

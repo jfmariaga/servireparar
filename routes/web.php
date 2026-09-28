@@ -6,6 +6,23 @@ use App\Http\Controllers\RemisionEntregaController;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
+// TEMPORAL — diagnóstico del 401 en URLs firmadas (previsualización de Livewire) en
+// Hostinger. Quitar en cuanto se confirme la causa.
+Route::get('/debug-scheme', function () {
+    return response()->json([
+        'request_getScheme' => request()->getScheme(),
+        'request_isSecure' => request()->isSecure(),
+        'request_fullUrl' => request()->fullUrl(),
+        'server_HTTPS' => $_SERVER['HTTPS'] ?? null,
+        'server_X_FORWARDED_PROTO' => $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? null,
+        'server_SERVER_PORT' => $_SERVER['SERVER_PORT'] ?? null,
+        'app_url_config' => config('app.url'),
+        'trusted_proxies' => \Illuminate\Http\Request::getTrustedProxies(),
+        'now_server' => now()->toDateTimeString(),
+        'now_utc' => now('UTC')->toDateTimeString(),
+    ]);
+});
+
 Volt::route('/login', 'auth.login')->middleware('guest')->name('login');
 Route::post('/logout', LogoutController::class)->middleware('auth')->name('logout');
 
