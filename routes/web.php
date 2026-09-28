@@ -24,8 +24,13 @@ Route::get('/debug-firma/{filename}', function (\Illuminate\Http\Request $reques
 
 Route::get('/debug-generar-firma', function () {
     return response()->json([
-        'url' => \Illuminate\Support\Facades\URL::temporarySignedRoute(
+        // Una termina en .png (como preview-file real) y la otra no, para
+        // aislar si el CDN de Hostinger intercepta por extensión de archivo.
+        'con_extension_png' => \Illuminate\Support\Facades\URL::temporarySignedRoute(
             'debug.firma', now()->addMinutes(30), ['filename' => 'diagnostico-prueba.png']
+        ),
+        'sin_extension' => \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'debug.firma', now()->addMinutes(30), ['filename' => 'diagnostico-prueba-sin-extension']
         ),
     ]);
 });
