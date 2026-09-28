@@ -6,6 +6,7 @@
             'ability' => null,
             'icon' => 'M4 11l8-7 8 7v9a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1v-9z',
         ],
+        // --- Comercial: clientes y cotizaciones ---
         [
             'route' => 'clientes.index',
             'label' => 'Clientes',
@@ -13,17 +14,15 @@
             'icon' => 'M5 20c0-3.9 3.1-6.5 7-6.5s7 2.6 7 6.5|M12 13a3.5 3.5 0 100-7 3.5 3.5 0 000 7z',
         ],
         [
-            'route' => 'proveedores.index',
-            'label' => 'Proveedores',
-            'ability' => 'manage-proveedores',
-            'icon' => 'M3.5 7.5L12 3l8.5 4.5V16L12 20.5 3.5 16z|M3.5 7.5L12 12l8.5-4.5M12 12v8.5',
+            'route' => 'cotizaciones.tablero',
+            'activePattern' => 'cotizaciones.*',
+            'label' => 'Cotizaciones',
+            'ability' => 'manage-cotizaciones',
+            // En pulido (spec 006): solo visible en desarrollo hasta cerrar los flujos pendientes.
+            'soloDesarrollo' => true,
+            'icon' => 'M6 4h9l3 3v13a1 1 0 01-1 1H6a1 1 0 01-1-1V5a1 1 0 011-1z|M9 9h6|M9 13h6|M9 17h3',
         ],
-        [
-            'route' => 'contratistas.index',
-            'label' => 'Contratistas',
-            'ability' => 'manage-contratistas',
-            'icon' => 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z',
-        ],
+        // --- Taller: órdenes de trabajo y equipos de clientes ---
         [
             'route' => 'ordenes-trabajo.tablero',
             'activePattern' => 'ordenes-trabajo.*',
@@ -40,6 +39,7 @@
             'ability' => 'manage-equipos',
             'icon' => 'M4 5h16a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z|M9 21h6|M12 17v4',
         ],
+        // --- Bodega: inventario, insumos/herramienta de OT, compras y despachos ---
         [
             'route' => 'inventario.dashboard',
             'activePattern' => 'inventario.*',
@@ -62,24 +62,6 @@
             'icon' => 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z',
         ],
         [
-            'route' => 'despachos.index',
-            'activePattern' => 'despachos.*',
-            'label' => 'Despachos',
-            'ability' => 'manage-despachos',
-            // En pulido (spec 003/006): solo visible en desarrollo hasta cerrar los flujos pendientes.
-            'soloDesarrollo' => true,
-            'icon' => 'M3 7h11v8H3z|M14 10h4l3 3v2h-7z|M7.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z|M17.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
-        ],
-        [
-            'route' => 'cotizaciones.tablero',
-            'activePattern' => 'cotizaciones.*',
-            'label' => 'Cotizaciones',
-            'ability' => 'manage-cotizaciones',
-            // En pulido (spec 006): solo visible en desarrollo hasta cerrar los flujos pendientes.
-            'soloDesarrollo' => true,
-            'icon' => 'M6 4h9l3 3v13a1 1 0 01-1 1H6a1 1 0 01-1-1V5a1 1 0 011-1z|M9 9h6|M9 13h6|M9 17h3',
-        ],
-        [
             'route' => 'compras.tablero',
             'activePattern' => 'compras.*',
             'label' => 'Compras',
@@ -88,6 +70,29 @@
             'soloDesarrollo' => true,
             'icon' => 'M4 7h16l-1.5 10.5a1.5 1.5 0 01-1.5 1.5H7a1.5 1.5 0 01-1.5-1.5L4 7z|M8 7V5a4 4 0 018 0v2',
         ],
+        [
+            'route' => 'despachos.index',
+            'activePattern' => 'despachos.*',
+            'label' => 'Despachos',
+            'ability' => 'manage-despachos',
+            // En pulido (spec 003/006): solo visible en desarrollo hasta cerrar los flujos pendientes.
+            'soloDesarrollo' => true,
+            'icon' => 'M3 7h11v8H3z|M14 10h4l3 3v2h-7z|M7.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z|M17.5 17.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
+        ],
+        // --- Terceros: proveedores y contratistas ---
+        [
+            'route' => 'proveedores.index',
+            'label' => 'Proveedores',
+            'ability' => 'manage-proveedores',
+            'icon' => 'M3.5 7.5L12 3l8.5 4.5V16L12 20.5 3.5 16z|M3.5 7.5L12 12l8.5-4.5M12 12v8.5',
+        ],
+        [
+            'route' => 'contratistas.index',
+            'label' => 'Contratistas',
+            'ability' => 'manage-contratistas',
+            'icon' => 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z',
+        ],
+        // --- Administración ---
         [
             'route' => 'usuarios.index',
             'label' => 'Usuarios',
