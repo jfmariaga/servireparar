@@ -21,21 +21,32 @@ sesiones. Cada entrada dice **qué se tocó, por qué, y qué vigilar**.
   a `public_html/` cuando esa carpeta existe (solo pasa en producción; en
   local con Laragon no existe `public_html/`, así que sigue usando `public/`
   normal).
-- **Cualquier cambio en `resources/css` o `resources/js` (incluye clases de
-  Tailwind nuevas, aunque sea solo en un `.blade.php`) requiere recompilar y
-  volver a copiar el build a mano**, porque `public_html/build` es una copia
-  física de `public/build`, no un symlink:
+- **El servidor de Hostinger NO tiene Node/npm disponible por SSH**
+  (`npm: command not found`, confirmado 2026-09-28). Por eso, a partir del
+  commit `a679d15`, **`public/build` SÍ se versiona en git** (se sacó de
+  `.gitignore`), al revés del default de Laravel. Cualquier cambio en
+  `resources/css` o `resources/js` (incluye clases de Tailwind nuevas,
+  aunque sea solo en un `.blade.php`) requiere compilar **en local** (esta
+  máquina, que sí tiene npm) y comitear el resultado:
+  ```
+  npm run build
+  git add public/build
+  git commit -m "..."
+  git push
+  ```
+  Y en el servidor, después del `git pull`, simplemente:
   ```
   cd ~/domains/servirepararsas.com
-  npm install
-  npm run build
-  rm -rf public_html/build
   cp -r public/build public_html/build
   php artisan view:clear
   ```
-  Si esto no se hace, el HTML ya tiene la clase nueva pero el CSS compilado
-  no la incluye (Tailwind solo compila las clases que detecta en el código
-  al momento del build) — el cambio "no se ve" aunque el código ya esté bien.
+  **Nunca correr `npm run build` en el servidor** — no existe el binario, y
+  si se encadena con `rm -rf public_html/build` antes en el mismo bloque de
+  comandos (sin `&&`), el `rm` se ejecuta igual aunque `npm` falle, dejando
+  el sitio sin CSS/JS en producción (pasó el 2026-09-28, ver incidente
+  abajo). Las instrucciones de "recompilar y copiar" de entradas anteriores
+  de esta bitácora asumían mal que el servidor tenía npm — están corregidas
+  aquí, no seguirlas tal cual.
 - El `.env` de producción se edita a mano (no está en git). Valores que
   deben estar así, no como los de desarrollo local:
   - `APP_URL=https://servirepararsas.com`
@@ -189,6 +200,30 @@ sesiones. Cada entrada dice **qué se tocó, por qué, y qué vigilar**.
     nada (solo de `ot_id`/`detalle_ot_id`), así que se relajó la condición
     para que use el mismo criterio que el encabezado. Cubierto con test
     nuevo en `VariableTecnicaTest`.
+14. **Íconos PWA no cuadrados impedían instalar la app** — `manifest.json`
+    solo declaraba un ícono de 1312×1199 (no cuadrado); Chrome exige al
+    menos un ícono cuadrado ≥192×192 para habilitar "Instalar" — sin eso
+    solo ofrece "Crear acceso directo". Se generaron `icon-192.png` /
+    `icon-512.png` (fondo transparente, con GD) y
+    `apple-touch-icon-180.png` (fondo blanco sólido, Apple no recomienda
+    transparencia ahí) a partir del logo existente (commit `a9fb557`).
+15. **INCIDENTE 2026-09-28: sitio sin CSS/JS en producción durante un rato
+    — causa: yo asumí mal que el servidor tenía npm.** Instruí correr
+    `npm run build` en el servidor seguido de `rm -rf public_html/build`
+    en el mismo bloque de comandos (separados por salto de línea, sin
+    `&&`). El servidor respondió `npm: command not found`, pero el `rm`
+    de la línea siguiente se ejecutó de todas formas, borrando el build
+    vigente sin dejar nada en su lugar. **Corrección de fondo**: el
+    servidor de Hostinger no tiene Node/npm por SSH, así que ya no tiene
+    sentido pedirle que compile nada. Se cambió la estrategia de raíz:
+    `public/build` ahora se versiona en git (se sacó de `.gitignore`,
+    commit `a679d15`) — se compila en la máquina local y se comitea el
+    resultado, y en el servidor el paso es solo `git pull` + `cp -r
+    public/build public_html/build`, sin npm de por medio. **Lección**:
+    nunca encadenar un comando destructivo (`rm -rf`) después de un
+    comando cuyo éxito no se ha confirmado, en el mismo bloque sin `&&`
+    — ver la sección "Ejecutando acciones con cuidado" de las
+    instrucciones del sistema.
 
 ### Cómo diagnosticar "algo dejó de verse" en producción, en orden
 Antes de asumir que un fix rompió otra cosa, revisar en este orden (más
