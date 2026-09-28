@@ -49,7 +49,7 @@ new class extends Component
     </button>
 
     <div x-show="open" x-cloak @click.stop
-         class="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-40 overflow-hidden">
+         class="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-40 overflow-hidden">
         <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
             <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Notificaciones</span>
             @if ($noLeidas > 0)
