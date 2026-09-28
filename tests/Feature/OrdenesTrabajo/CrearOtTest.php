@@ -15,7 +15,9 @@ use Database\Seeders\EstadosOtSeeder;
 use Database\Seeders\PrioridadesSeeder;
 use Database\Seeders\RolesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -280,6 +282,32 @@ class CrearOtTest extends TestCase
         }
 
         $this->assertSame(2, Equipo::count(), 'Sin modelo+serie no hay forma confiable de emparejar');
+    }
+
+    public function test_permite_subir_varias_fotos_de_entrada(): void
+    {
+        Storage::fake('public');
+        $cliente = Cliente::factory()->create();
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+
+        Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.crear')
+            ->set('clienteId', $cliente->id)
+            ->set('descripcion', 'Servicio')
+            ->set('equipoDescripcion', 'Compresor')
+            ->set('fotosEntrada', [
+                UploadedFile::fake()->image('entrada1.jpg'),
+                UploadedFile::fake()->image('entrada2.jpg'),
+                UploadedFile::fake()->image('entrada3.jpg'),
+            ])
+            ->set('tareas', [
+                ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
+            ])
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $ot = OrdenTrabajo::first();
+        $this->assertSame(3, $ot->evidencias()->where('tipo_registro', 'entrada')->count());
     }
 
     public function test_tecnico_no_puede_abrir_el_formulario_de_creacion(): void

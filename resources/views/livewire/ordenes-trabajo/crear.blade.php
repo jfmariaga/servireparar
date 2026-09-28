@@ -35,10 +35,17 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
     public string $equipoSerie = '';
     public string $equipoEstadoIngreso = '';
 
-    public $fotoEntrada = null;
+    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
+    public array $fotosEntrada = [];
 
     /** @var array<int, array<string, mixed>> */
     public array $tareas = [];
+
+    public function quitarFotoEntrada(int $indice): void
+    {
+        unset($this->fotosEntrada[$indice]);
+        $this->fotosEntrada = array_values($this->fotosEntrada);
+    }
 
     public function mount(): void
     {
@@ -194,7 +201,8 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'equipoModelo' => 'nullable|string|max:100',
             'equipoSerie' => 'nullable|string|max:100',
             'equipoEstadoIngreso' => 'nullable|string|max:255',
-            'fotoEntrada' => 'nullable|image|max:5120',
+            'fotosEntrada' => 'nullable|array|max:10',
+            'fotosEntrada.*' => 'image|max:5120',
             'tareas' => 'required|array|min:1',
             'tareas.*.descripcion' => 'required|string|max:1000',
             'tareas.*.tecnico_id' => 'required|exists:tecnicos,id',
@@ -255,17 +263,20 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             return;
         }
 
-        if ($this->fotoEntrada) {
-            $ruta = $this->fotoEntrada->store('evidencias-ot', 'public');
+        foreach ($this->fotosEntrada as $foto) {
+            $ruta = $foto->store('evidencias-ot', 'public');
             $ot->evidencias()->create([
                 'tipo_registro' => 'entrada',
-                'tipo_archivo' => $this->fotoEntrada->getMimeType(),
+                'tipo_archivo' => $foto->getMimeType(),
                 'url_archivo' => $ruta,
                 'descripcion' => 'Registro fotográfico de entrada',
                 'subida_por' => auth()->id(),
                 'fecha_subida' => now(),
             ]);
-            $ot->registrarEvento('evidencia', 'Registro fotográfico de entrada cargado.');
+        }
+
+        if (! empty($this->fotosEntrada)) {
+            $ot->registrarEvento('evidencia', 'Registro fotográfico de entrada cargado ('.count($this->fotosEntrada).' imagen(es)).');
         }
 
         session()->flash('ok', 'OT '.$ot->numero_ot.' creada.');
@@ -380,21 +391,28 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                 <x-field label="Estado de ingreso del equipo" class="sm:col-span-2 lg:col-span-3">
                     <x-input wire:model="equipoEstadoIngreso" placeholder="Cómo llegó el equipo (golpes, faltantes, etc.)" />
                 </x-field>
-                <x-field label="Registro fotográfico de entrada">
-                    <div class="flex items-start gap-3">
-                        @if ($fotoEntrada && str((string) $fotoEntrada->getMimeType())->startsWith('image/'))
-                            <div class="relative shrink-0">
-                                <img src="{{ $fotoEntrada->temporaryUrl() }}" class="h-20 w-20 rounded-xl object-cover border border-slate-200 dark:border-slate-700">
-                                <button type="button" wire:click="$set('fotoEntrada', null)"
-                                        class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-brand-red text-white text-[11px] font-bold flex items-center justify-center shadow">✕</button>
+                <x-field label="Registro fotográfico de entrada" class="sm:col-span-2 lg:col-span-4" hint="Puedes subir varias fotos.">
+                    <div class="flex flex-col gap-3">
+                        @if (! empty($fotosEntrada))
+                            <div class="flex flex-wrap gap-3">
+                                @foreach ($fotosEntrada as $i => $foto)
+                                    @if (str((string) $foto->getMimeType())->startsWith('image/'))
+                                        <div class="relative shrink-0" wire:key="foto-entrada-{{ $i }}">
+                                            <img src="{{ $foto->temporaryUrl() }}" class="h-20 w-20 rounded-xl object-cover border border-slate-200 dark:border-slate-700">
+                                            <button type="button" wire:click="quitarFotoEntrada({{ $i }})"
+                                                    class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-brand-red text-white text-[11px] font-bold flex items-center justify-center shadow">✕</button>
+                                        </div>
+                                    @endif
+                                @endforeach
                             </div>
                         @endif
                         <div class="flex-1 min-w-0">
-                            <x-file-input accept="image/*" wire:model="fotoEntrada" class="w-full" />
-                            <div wire:loading wire:target="fotoEntrada" class="text-xs text-slate-400 mt-1">Cargando previsualización…</div>
+                            <x-file-input accept="image/*" multiple wire:model="fotosEntrada" class="w-full" />
+                            <div wire:loading wire:target="fotosEntrada" class="text-xs text-slate-400 mt-1">Cargando previsualización…</div>
                         </div>
                     </div>
-                    @error('fotoEntrada') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                    @error('fotosEntrada') <x-slot:error>{{ $message }}</x-slot:error> @enderror
+                    @error('fotosEntrada.*') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                 </x-field>
             </div>
             @endif
