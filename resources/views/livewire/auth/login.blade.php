@@ -72,7 +72,7 @@ new #[Layout('components.layout')] class extends Component
 
     <div class="flex-1 flex items-center justify-center p-10">
         <div class="w-full max-w-sm">
-            <div class="lg:hidden mb-8 bg-white rounded-lg px-5 py-3 w-fit shadow-sm">
+            <div class="lg:hidden mb-8 mx-auto bg-white rounded-lg px-5 py-3 w-fit shadow-sm">
                 <img src="{{ asset('img/logo.png') }}" alt="ServiReparar" class="h-10 w-auto block">
             </div>
 

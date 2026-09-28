@@ -435,7 +435,7 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
                     </div>
                     <div class="sm:col-span-2">
                         <label class="block font-semibold text-slate-600 dark:text-slate-300 mb-1">Foto del papel firmado *</label>
-                        <x-file-input wire:model="fotoFirmaFisica" accept="image/*" capture="environment" class="w-full" />
+                        <x-file-input wire:model="fotoFirmaFisica" accept="image/*" class="w-full" />
                         <div wire:loading wire:target="fotoFirmaFisica" class="text-xs text-slate-400 mt-1">Subiendo foto…</div>
                         @if ($fotoFirmaFisica)
                             <img src="{{ $fotoFirmaFisica->temporaryUrl() }}" class="mt-2 max-h-40 rounded-lg border border-slate-200 dark:border-slate-700">

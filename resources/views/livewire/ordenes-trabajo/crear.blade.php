@@ -386,7 +386,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                             </div>
                         @endif
                         <div class="flex-1 min-w-0">
-                            <x-file-input accept="image/*" capture="environment" wire:model="fotoEntrada" class="w-full" />
+                            <x-file-input accept="image/*" wire:model="fotoEntrada" class="w-full" />
                             <div wire:loading wire:target="fotoEntrada" class="text-xs text-slate-400 mt-1">Cargando previsualización…</div>
                         </div>
                     </div>

@@ -957,7 +957,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                     @endif
                                     @if ($puedeSubirEvidencia)
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <x-file-input accept="image/*" capture="environment" wire:model="evidenciaTareaFile" wire:key="evtf-{{ $tarea->id }}" size="sm" />
+                                            <x-file-input accept="image/*" wire:model="evidenciaTareaFile" wire:key="evtf-{{ $tarea->id }}" size="sm" />
                                             <button wire:click="subirEvidenciaTarea({{ $tarea->id }})" wire:loading.attr="disabled" wire:target="subirEvidenciaTarea,evidenciaTareaFile"
                                                     class="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60">Subir imagen</button>
                                         </div>
@@ -1200,7 +1200,7 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                         </div>
                     @endif
                     <div class="flex-1 flex flex-col gap-2">
-                        <x-file-input accept="image/*" capture="environment" wire:model="evidencia" class="w-full" size="sm" />
+                        <x-file-input accept="image/*" wire:model="evidencia" class="w-full" size="sm" />
                         <div wire:loading wire:target="evidencia" class="text-xs text-slate-400">Cargando previsualización…</div>
                         <div class="flex gap-2">
                             <x-input wire:model="evidenciaDescripcion" placeholder="Descripción (opcional)" class="flex-1 !h-10 text-xs" />
