@@ -176,6 +176,19 @@ sesiones. Cada entrada dice **qué se tocó, por qué, y qué vigilar**.
     `fotosEntrada`. **Esta es la versión final** — si se vuelve a pedir "un
     solo input", explicar este límite del navegador antes de revertir, ya
     que ya se intentó dos veces.
+13. **"Variables técnicas" no aparecía en una OT que sí tenía equipo
+    (OTSV-00002)** — no era una regresión de esta sesión ni de la OT en sí;
+    era una inconsistencia que ya existía en `detalle.blade.php`: el bloque
+    "Equipo" del encabezado (línea ~792) se muestra si hay `equipo_id` **o**
+    `equipo_descripcion`/`equipo_marca` (el snapshot manual que se guarda
+    directo en la OT), pero el bloque de variables técnicas (línea ~971)
+    solo miraba `equipo_id`. Una OT creada antes de existir el Equipo
+    registrado (o donde el equipo se cargó a mano sin vincular el modelo
+    `Equipo`) muestra los datos del equipo en el encabezado pero no
+    variables técnicas. `VariableTecnica` no depende de `equipo_id` para
+    nada (solo de `ot_id`/`detalle_ot_id`), así que se relajó la condición
+    para que use el mismo criterio que el encabezado. Cubierto con test
+    nuevo en `VariableTecnicaTest`.
 
 ### Cómo diagnosticar "algo dejó de verse" en producción, en orden
 Antes de asumir que un fix rompió otra cosa, revisar en este orden (más

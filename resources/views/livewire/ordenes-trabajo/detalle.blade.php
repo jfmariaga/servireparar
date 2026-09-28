@@ -967,10 +967,15 @@ new #[Layout('components.layout', ['title' => 'Orden de trabajo'])] class extend
                                 </div>
                             @endif
 
-                            {{-- Variables técnicas del equipo, registradas al ejecutar la tarea (spec 005, US2) --}}
-                            @if ($ot->equipo_id && ($tarea->variablesTecnicas->isNotEmpty() || $puedeSubirEvidencia))
+                            {{-- Variables técnicas del equipo, registradas al ejecutar la tarea (spec 005, US2).
+                                 Mismo criterio que el bloque "Equipo" de arriba: una OT puede tener el equipo
+                                 vinculado por equipo_id (Equipo registrado) o solo por el snapshot manual
+                                 (equipo_descripcion/marca/...) cuando no había Equipo aún registrado — en
+                                 ambos casos la tarea puede llevar variables técnicas. --}}
+                            @php $tieneEquipo = $ot->equipo_id || $ot->equipo_descripcion || $ot->equipo_marca; @endphp
+                            @if ($tieneEquipo && ($tarea->variablesTecnicas->isNotEmpty() || $puedeSubirEvidencia))
                                 <div class="flex flex-col gap-1.5 pt-1">
-                                    <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Variables técnicas de {{ $ot->equipo?->tipo }}</span>
+                                    <span class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Variables técnicas de {{ $ot->equipo_descripcion ?? $ot->equipo?->tipo }}</span>
                                     @forelse ($tarea->variablesTecnicas as $variable)
                                         <div wire:key="var-{{ $variable->id }}" class="flex items-center justify-between gap-3 text-[12px] border-b border-slate-50 dark:border-slate-800/60 py-1">
                                             <span><span class="font-semibold">{{ $variable->nombre }}:</span> {{ $variable->valor }} {{ $variable->unidad }}</span>

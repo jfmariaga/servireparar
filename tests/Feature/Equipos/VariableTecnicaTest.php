@@ -110,4 +110,29 @@ class VariableTecnicaTest extends TestCase
             ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
             ->assertDontSee('Variables técnicas de');
     }
+
+    public function test_se_muestra_el_bloque_con_equipo_solo_a_mano_sin_equipo_id(): void
+    {
+        // OT creada antes de que el Equipo registrado fuera obligatorio (o donde
+        // el registro quedó solo como snapshot manual): equipo_id null pero
+        // equipo_descripcion sí tiene dato — debe seguir permitiendo variables.
+        $cliente = Cliente::factory()->create();
+        $usuario = User::factory()->create(['estado' => 'activo']);
+        $usuario->assignRole(RolPrioridad::Tecnico->value);
+        $tecnico = Tecnico::factory()->for($usuario, 'usuario')->create();
+
+        $ot = OrdenTrabajo::factory()->enEstado(EstadoOt::EN_CURSO)->create([
+            'cliente_id' => $cliente->id,
+            'equipo_id' => null,
+            'equipo_descripcion' => 'Compresor',
+        ]);
+        DetalleOt::factory()->for($ot, 'ordenTrabajo')->create([
+            'tecnico_id' => $tecnico->id,
+            'estado_tarea' => 'en_curso',
+        ]);
+
+        Volt::actingAs($usuario)
+            ->test('ordenes-trabajo.detalle', ['ordenTrabajo' => $ot])
+            ->assertSee('Variables técnicas de');
+    }
 }
