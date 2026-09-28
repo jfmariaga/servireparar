@@ -8,6 +8,28 @@ use Livewire\Volt\Volt;
 
 // TEMPORAL — diagnóstico del 401 en URLs firmadas (previsualización de Livewire) en
 // Hostinger. Quitar en cuanto se confirme la causa.
+// TEMPORAL — dump exacto de lo que Laravel recibe en una petición REAL a una
+// ruta firmada, para comparar contra lo que se firmó. Quitar junto con la de
+// arriba.
+Route::get('/debug-firma/{filename}', function (\Illuminate\Http\Request $request, $filename) {
+    return response()->json([
+        'filename_recibido' => $filename,
+        'query_completo_recibido' => $request->query(),
+        'full_url_recibida' => $request->fullUrl(),
+        'url_sin_query' => $request->url(),
+        'hasValidSignature' => $request->hasValidSignature(),
+        'path' => $request->path(),
+    ]);
+})->name('debug.firma');
+
+Route::get('/debug-generar-firma', function () {
+    return response()->json([
+        'url' => \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'debug.firma', now()->addMinutes(30), ['filename' => 'diagnostico-prueba.png']
+        ),
+    ]);
+});
+
 Route::get('/debug-scheme', function () {
     // Genera una URL firmada real (mismo mecanismo que usa Livewire para
     // previsualizar) y la valida en la MISMA petición, para descartar que
