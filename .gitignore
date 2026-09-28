@@ -14,7 +14,11 @@ Thumbs.db
 /storage/*.key
 /public/hot
 /public/storage
-/public/build
+# El servidor de producción (Hostinger) no tiene Node/npm disponible por SSH,
+# así que el build compilado SÍ se versiona (a diferencia del default de
+# Laravel) — es la única forma de llevarlo a public_html sin poder compilar
+# ahí. Cada vez que cambie resources/css o resources/js hay que correr
+# `npm run build` en local y comitear lo que cambie en public/build.
 /bootstrap/cache/*.php
 /storage/app/*
 !/storage/app/public
