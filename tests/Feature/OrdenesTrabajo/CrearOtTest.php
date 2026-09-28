@@ -46,6 +46,7 @@ class CrearOtTest extends TestCase
             ->test('ordenes-trabajo.crear')
             ->set('clienteId', $cliente->id)
             ->set('descripcion', 'Mantenimiento correctivo de compresor')
+            ->set('equipoDescripcion', 'Compresor')
             ->set('tareas', [
                 ['uid' => 'a', 'descripcion' => 'Desmontar cabezote', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
             ])
@@ -70,6 +71,7 @@ class CrearOtTest extends TestCase
                 ->test('ordenes-trabajo.crear')
                 ->set('clienteId', $cliente->id)
                 ->set('descripcion', 'Servicio')
+                ->set('equipoDescripcion', 'Compresor')
                 ->set('tareas', [
                     ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
                 ])
@@ -107,6 +109,7 @@ class CrearOtTest extends TestCase
             ->test('ordenes-trabajo.crear')
             ->set('clienteId', $cliente->id)
             ->set('descripcion', 'Cambio de sellos')
+            ->set('equipoDescripcion', 'Compresor')
             ->set('tareas', [
                 ['uid' => 'a', 'descripcion' => 'Reemplazo', 'tecnico_id' => $tecnico->id, 'insumos' => [['inventario_id' => $insumo->id, 'cantidad' => '4']]],
             ])
@@ -131,6 +134,7 @@ class CrearOtTest extends TestCase
             ->test('ordenes-trabajo.crear')
             ->set('clienteId', $cliente->id)
             ->set('descripcion', 'Servicio')
+            ->set('equipoDescripcion', 'Compresor')
             ->set('tareas', [
                 ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
             ])
@@ -180,7 +184,7 @@ class CrearOtTest extends TestCase
         $this->assertSame('SN-99', $ot->equipo_serie);
     }
 
-    public function test_sin_datos_de_equipo_la_ot_queda_sin_equipo_vinculado(): void
+    public function test_sin_datos_de_equipo_rechaza_la_creacion(): void
     {
         $cliente = Cliente::factory()->create();
         $tecnico = Tecnico::factory()->conSueldo()->create();
@@ -193,10 +197,9 @@ class CrearOtTest extends TestCase
                 ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
             ])
             ->call('guardar')
-            ->assertHasNoErrors();
+            ->assertHasErrors('equipoDescripcion');
 
-        $ot = OrdenTrabajo::first();
-        $this->assertNull($ot->equipo_id);
+        $this->assertSame(0, OrdenTrabajo::count());
         $this->assertSame(0, Equipo::count());
     }
 

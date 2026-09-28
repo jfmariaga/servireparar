@@ -189,6 +189,7 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'tiempoEstimadoDias' => 'nullable|numeric|min:0',
             'valorProyecto' => 'nullable|numeric|min:0',
             'equipoId' => 'nullable|exists:equipos,id',
+            'equipoDescripcion' => 'required_without:equipoId|string|max:100',
             'equipoMarca' => 'nullable|string|max:100',
             'equipoModelo' => 'nullable|string|max:100',
             'equipoSerie' => 'nullable|string|max:100',
@@ -205,10 +206,12 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             'tareas.*.prerrequisitos.*' => 'string',
         ], [
             'direccionServicio.required_if' => 'La dirección del servicio es obligatoria para OT a domicilio.',
+            'equipoDescripcion.required_without' => 'Selecciona un equipo registrado o indica el tipo de equipo (toda OT debe quedar vinculada a un equipo).',
         ], [
             'clienteId' => 'cliente',
             'prioridadId' => 'prioridad',
             'direccionServicio' => 'dirección del servicio',
+            'equipoDescripcion' => 'tipo de equipo',
             'tareas.*.descripcion' => 'descripción de la tarea',
             'tareas.*.tecnico_id' => 'técnico',
             'tareas.*.dias_cumplimiento' => 'plazo de la tarea',
@@ -347,8 +350,8 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
             @else
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <x-field label="Equipo registrado" class="sm:col-span-2 lg:col-span-4"
-                         hint="Si el equipo del cliente ya está registrado, selecciónalo para vincular esta OT a su historial técnico. Si no, completa los datos manualmente abajo.">
-                    <x-select wire:model.live="equipoId" :reset-key="'equipo-'.($clienteId ?? 'sin-cliente')" placeholder="Sin registrar (completar datos manualmente)">
+                         hint="Toda OT debe quedar vinculada a un equipo. Si el equipo del cliente ya está registrado, selecciónalo para vincular esta OT a su historial técnico. Si no, completa el tipo de equipo manualmente abajo.">
+                    <x-select wire:model.live="equipoId" :reset-key="'equipo-'.($clienteId ?? 'sin-cliente')" placeholder="Sin registrar (completar tipo de equipo abajo)">
                         @foreach ($equiposDelCliente as $eq)
                             <option value="{{ $eq->id }}">{{ $eq->tipo }}{{ trim(($eq->marca ?? '').' '.($eq->modelo ?? '')) ? ' — '.trim(($eq->marca ?? '').' '.($eq->modelo ?? '')) : '' }}{{ $eq->serie ? ' ('.$eq->serie.')' : '' }}</option>
                         @endforeach
@@ -360,8 +363,9 @@ new #[Layout('components.layout', ['title' => 'Nueva orden de trabajo'])] class 
                 </x-field>
 
                 @unless ($equipoId)
-                    <x-field label="Tipo de equipo">
+                    <x-field label="Tipo de equipo" required>
                         <x-input wire:model="equipoDescripcion" placeholder="Compresor, escalera…" />
+                        @error('equipoDescripcion') <x-slot:error>{{ $message }}</x-slot:error> @enderror
                     </x-field>
                     <x-field label="Marca">
                         <x-input wire:model="equipoMarca" placeholder="Marca" />
