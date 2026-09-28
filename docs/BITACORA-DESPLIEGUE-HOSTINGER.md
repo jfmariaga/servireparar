@@ -1,0 +1,121 @@
+# Bitácora de despliegue en Hostinger (servirepararsas.com)
+
+Registro de cambios hechos en producción y en el repo relacionados con el
+despliegue en Hostinger, para no repetir diagnósticos ni pisar cambios entre
+sesiones. Cada entrada dice **qué se tocó, por qué, y qué vigilar**.
+
+## Cómo está armado el servidor (importante, leer antes de tocar nada)
+
+- El proyecto completo (`app/`, `vendor/`, `storage/`, etc.) vive en
+  `~/domains/servirepararsas.com/` — es el repo git clonado ahí directo, sin
+  subcarpeta.
+- Hostinger sirve `~/domains/servirepararsas.com/public_html/` como raíz del
+  dominio. **`public_html` NO es parte del repo git** (está en `.gitignore`
+  implícito por no estar trackeado) — es una carpeta físicamente separada de
+  `public/`.
+- `public_html/storage` es un **symlink real** a `storage/app/public`
+  (creado con `php artisan storage:link`, ver entrada 2026-09-28 #3). No lo
+  borres ni lo reemplaces por una copia física — eso fue justo el bug que
+  causó imágenes rotas dos veces.
+- `bootstrap/app.php` tiene un `usePublicPath()` que redirige `public_path()`
+  a `public_html/` cuando esa carpeta existe (solo pasa en producción; en
+  local con Laragon no existe `public_html/`, así que sigue usando `public/`
+  normal).
+- **Cualquier cambio en `resources/css` o `resources/js` (incluye clases de
+  Tailwind nuevas, aunque sea solo en un `.blade.php`) requiere recompilar y
+  volver a copiar el build a mano**, porque `public_html/build` es una copia
+  física de `public/build`, no un symlink:
+  ```
+  cd ~/domains/servirepararsas.com
+  npm install
+  npm run build
+  rm -rf public_html/build
+  cp -r public/build public_html/build
+  php artisan view:clear
+  ```
+  Si esto no se hace, el HTML ya tiene la clase nueva pero el CSS compilado
+  no la incluye (Tailwind solo compila las clases que detecta en el código
+  al momento del build) — el cambio "no se ve" aunque el código ya esté bien.
+- El `.env` de producción se edita a mano (no está en git). Valores que
+  deben estar así, no como los de desarrollo local:
+  - `APP_URL=https://servirepararsas.com`
+  - `APP_ENV=production`
+- Flujo de deploy normal: se edita/commitea/pushea desde la máquina local →
+  en el servidor, por SSH: `git pull origin main` → si el pull trajo cambios
+  de `resources/css` o `resources/js`, repetir el build de arriba → limpiar
+  caché (`config:clear`, `cache:clear`, `view:clear`).
+
+## Registro de cambios
+
+### 2026-09-26/27 — Reorganización a public_html (403 en Hostinger)
+- Causa: el dominio apuntaba a la raíz del proyecto, no a `public/`. Se
+  resolvió moviendo el contenido de `public/` a `public_html/` (carpeta
+  fija que exige Hostinger) y agregando `usePublicPath()` en
+  `bootstrap/app.php` para que Laravel supiera dónde quedó su carpeta
+  pública real. Commit `2b5e860`.
+- Efecto colateral detectado después: `public_html/storage` quedó como
+  **copia física congelada** (el `public/storage` original ya era una
+  carpeta real, no un symlink, de una configuración previa) — cualquier
+  evidencia subida después de esa fecha no llegaba a `public_html/storage`.
+
+### 2026-09-28 — Sesión de arreglos post-producción
+1. **`.gitattributes` (commit `380b692`)** — cada `git pull` en el servidor
+   fallaba con "local changes would be overwritten" en archivos que nadie
+   había tocado a mano; el diagnóstico mostró que era ruido de fin de línea
+   (CRLF/LF), no contenido real. Se agregó `.gitattributes` con
+   `* text=auto eol=lf` para forzar LF en todo el repo sin importar la
+   plataforma. **Vigilar:** si vuelve a pasar un conflicto de pull con "todo
+   el archivo cambiado", es la misma causa — comparar con
+   `git diff --stat` (insertions == deletions en todo el archivo = ruido,
+   seguro descartar con `git checkout -- archivo`).
+2. **Cámara sin forzar en subida de evidencias (commit `a5c0019`)** — se
+   había agregado `capture="environment"` a 4 inputs de foto, lo que en
+   algunos móviles abre la cámara directo sin dar opción de elegir galería.
+   Se quitó para dejar el selector nativo del navegador (cámara o
+   archivos). **Corregido de nuevo el 2026-09-28 tarde** — ver entrada de
+   abajo, `multiple` + sin `capture` escondía la cámara en algunos
+   Android/Chrome.
+3. **Symlink real de `storage` (sin commit, cambio solo en servidor)** —
+   se respaldó `public_html/storage` (copia vieja) como
+   `storage_copia_vieja`, se corrió `php artisan storage:link` para crear
+   el symlink real a `storage/app/public`. Confirmado que no se perdió
+   ningún archivo (todo lo de la copia vieja ya estaba en el storage real).
+4. **`APP_URL` en producción** — seguía en `http://serviops.test` (valor de
+   desarrollo local) copiado al `.env` de producción por error. Se corrigió
+   a mano a `https://servirepararsas.com`. **Vigilar:** esto no está en git
+   (el `.env` nunca se versiona), así que si se regenera el `.env` desde
+   algún `.env.example` hay que volver a ponerlo a mano.
+5. **Equipo obligatorio al crear OT (commit `44d84df`)** — las variables
+   técnicas de una tarea solo se muestran si la OT tiene `equipo_id`, y el
+   formulario de creación permitía guardar sin equipo. Se hizo obligatorio
+   el campo "Tipo de equipo" (o elegir uno de la lista) en
+   `crear.blade.php`. **No afecta OT ya creadas sin equipo** — esas siguen
+   sin poder mostrar variables técnicas a menos que se les asigne un equipo
+   después.
+6. **Varias fotos en "Registro fotográfico de entrada" (commit `30c959f`)**
+   — `fotoEntrada` (un solo archivo) pasó a `fotosEntrada` (array, hasta
+   10 imágenes) con miniatura y botón de quitar por cada una.
+7. **Logo del login centrado en móvil (commit `a5c0019`)** — el logo
+   quedaba pegado a la izquierda por ser `w-fit` sin `mx-auto`. Se agregó
+   `mx-auto`. **No se vio reflejado en el servidor tras el pull** porque
+   `mx-auto` es una clase de Tailwind nueva en el proyecto (no usada en
+   ningún otro archivo) — el `public_html/build` de producción nunca se
+   recompiló para incluirla. Ver la nota de "recompilar assets" arriba.
+
+### Pendiente de confirmar (en curso al cerrar esta entrada)
+- Recompilar y copiar el build para que `mx-auto` del logo del login surta
+  efecto.
+- Reporte del usuario: **"ahora no se ven las imágenes otra vez"** — hay que
+  diagnosticar si el `npm run build` / copia a `public_html/build` rompió
+  algo (por ejemplo, versionado de assets de Vite con hash que ya no
+  coincide con lo que Laravel espera si el manifest no se actualizó bien),
+  o si es una regresión distinta. Se pidió URL de la imagen rota y el
+  código de error para diagnosticar.
+- Corrigiendo: en "Registro fotográfico de entrada" (`crear.blade.php`),
+  el input combinaba `accept="image/*" multiple` sin `capture` — en varios
+  Android/Chrome, agregar `multiple` a un input de archivo hace que el
+  selector nativo **esconda la opción de cámara** y solo muestre la
+  galería. Se separa en dos controles: un botón "Tomar foto" (una a la vez,
+  `capture="environment"`, sin `multiple`) y un botón "Subir de galería"
+  (`multiple`, sin `capture`), ambos alimentando el mismo array
+  `fotosEntrada`.

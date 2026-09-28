@@ -310,6 +310,37 @@ class CrearOtTest extends TestCase
         $this->assertSame(3, $ot->evidencias()->where('tipo_registro', 'entrada')->count());
     }
 
+    public function test_camara_y_galeria_alimentan_la_misma_lista_de_fotos(): void
+    {
+        Storage::fake('public');
+        $cliente = Cliente::factory()->create();
+        $tecnico = Tecnico::factory()->conSueldo()->create();
+
+        $componente = Volt::actingAs($this->jefeDeTaller())
+            ->test('ordenes-trabajo.crear')
+            ->set('clienteId', $cliente->id)
+            ->set('equipoDescripcion', 'Compresor')
+            ->set('fotoEntradaCamara', UploadedFile::fake()->image('camara.jpg'))
+            ->set('fotosEntradaGaleria', [
+                UploadedFile::fake()->image('galeria1.jpg'),
+                UploadedFile::fake()->image('galeria2.jpg'),
+            ]);
+
+        $this->assertCount(3, $componente->get('fotosEntrada'));
+        $this->assertNull($componente->get('fotoEntradaCamara'));
+        $this->assertCount(0, $componente->get('fotosEntradaGaleria'));
+
+        $componente->set('descripcion', 'Servicio')
+            ->set('tareas', [
+                ['uid' => 'a', 'descripcion' => 'Tarea', 'tecnico_id' => $tecnico->id, 'insumo_id' => null, 'cantidad_insumo' => ''],
+            ])
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $ot = OrdenTrabajo::first();
+        $this->assertSame(3, $ot->evidencias()->where('tipo_registro', 'entrada')->count());
+    }
+
     public function test_tecnico_no_puede_abrir_el_formulario_de_creacion(): void
     {
         $tecnicoUser = User::factory()->create(['estado' => 'activo']);
