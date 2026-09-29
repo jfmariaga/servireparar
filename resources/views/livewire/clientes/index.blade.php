@@ -83,12 +83,24 @@ new #[Layout('components.layout', ['title' => 'Clientes'])] class extends Compon
             }
         }
 
-        if ($this->correo) {
-            $existe = Cliente::where('correo', $this->correo)->when($this->editandoId, fn ($q) => $q->where('id', '!=', $this->editandoId))->exists();
+        foreach ($this->correosIngresados() as $correo) {
+            $existe = Cliente::conCorreo($correo)->when($this->editandoId, fn ($q) => $q->where('id', '!=', $this->editandoId))->exists();
             if ($existe) {
-                $this->advertenciaDuplicado = "Ya existe un cliente registrado con el correo {$this->correo}.";
+                $this->advertenciaDuplicado = "Ya existe un cliente registrado con el correo {$correo}.";
+
+                return;
             }
         }
+    }
+
+    /** @return array<int, string> Correos escritos en el campo, sin espacios ni vacíos. */
+    private function correosIngresados(): array
+    {
+        return collect(explode(',', $this->correo))
+            ->map(fn ($c) => trim($c))
+            ->filter()
+            ->values()
+            ->all();
     }
 
     public function guardar(): void
@@ -101,7 +113,13 @@ new #[Layout('components.layout', ['title' => 'Clientes'])] class extends Compon
             'nombre' => 'required|string|max:150',
             'nit' => 'nullable|string|max:20',
             'telefono' => 'nullable|string|max:20',
-            'correo' => 'nullable|email|max:150',
+            'correo' => ['nullable', 'string', 'max:500', function ($attributo, $valor, $fail) {
+                foreach ($this->correosIngresados() as $correo) {
+                    if (! filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+                        $fail("El correo \"{$correo}\" no es válido.");
+                    }
+                }
+            }],
             'direccion' => 'nullable|string|max:255',
             'estado' => 'required|in:activo,inactivo',
         ]);
@@ -180,7 +198,8 @@ new #[Layout('components.layout', ['title' => 'Clientes'])] class extends Compon
                 </div>
                 <div>
                     <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Correo</label>
-                    <input type="email" wire:model.blur="correo" wire:blur="verificarDuplicado" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+                    <input type="text" wire:model.blur="correo" wire:blur="verificarDuplicado" placeholder="correo@ejemplo.com, otro@ejemplo.com" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+                    <p class="text-[11.5px] text-slate-400 mt-1">Si hay varios contactos, sepáralos con coma.</p>
                     @error('correo') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                 </div>
                 <div>
@@ -226,7 +245,7 @@ new #[Layout('components.layout', ['title' => 'Clientes'])] class extends Compon
                             <td class="px-5 py-3 font-medium whitespace-nowrap">{{ $cliente->nombre }}</td>
                             <td class="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ $cliente->nit ?: '—' }}</td>
                             <td class="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ $cliente->telefono ?: '—' }}</td>
-                            <td class="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ $cliente->correo ?: '—' }}</td>
+                            <td class="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ $cliente->correo ? str_replace(',', ', ', $cliente->correo) : '—' }}</td>
                             <td class="px-5 py-3">
                                 <span class="inline-block px-2.5 py-1 rounded-full text-[11.5px] font-semibold whitespace-nowrap {{ $cliente->estado === 'activo' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10' : 'bg-slate-100 text-slate-500 dark:bg-slate-800' }}">
                                     {{ ucfirst($cliente->estado) }}

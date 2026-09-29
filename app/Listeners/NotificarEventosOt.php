@@ -28,9 +28,9 @@ class NotificarEventosOt
         $ot = $event->ordenTrabajo;
         $this->notificador->otEntregada($ot);
 
-        $correo = $ot->cliente?->correo;
-        if ($correo) {
-            Mail::to($correo)->send(new OtEntregadaCliente($ot));
+        $correos = $ot->cliente?->correosArray() ?? [];
+        if ($correos) {
+            Mail::to($correos)->send(new OtEntregadaCliente($ot));
         }
     }
 

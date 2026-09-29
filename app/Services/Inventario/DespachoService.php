@@ -288,13 +288,13 @@ class DespachoService
      */
     private function enviarCopiaAlCliente(SolicitudDespacho $solicitud): bool
     {
-        $correo = $solicitud->cliente->correo;
+        $correos = $solicitud->cliente->correosArray();
 
-        if (blank($correo)) {
+        if (empty($correos)) {
             return false;
         }
 
-        Mail::to($correo)->send(new RemisionEntregada($solicitud));
+        Mail::to($correos)->send(new RemisionEntregada($solicitud));
 
         $solicitud->remision->update(['enviada_al_cliente_en' => now()]);
 

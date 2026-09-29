@@ -59,13 +59,13 @@ class CotizacionService
             throw ValidationException::withMessages(['items' => 'Agrega al menos un ítem antes de enviar la cotización.']);
         }
 
-        $destinatario = $cotizacion->cliente?->correo;
+        $destinatarios = $cotizacion->cliente?->correosArray() ?? [];
 
-        if (! $destinatario) {
+        if (empty($destinatarios)) {
             throw ValidationException::withMessages(['cliente' => 'Asigna un cliente con correo antes de enviar la cotización.']);
         }
 
-        $messageId = $this->correoSaliente->enviar($cotizacion, $destinatario);
+        $messageId = $this->correoSaliente->enviar($cotizacion, $destinatarios);
 
         DB::transaction(function () use ($cotizacion, $actor, $messageId) {
             $cotizacion->update(['estado' => 'cotizada']);

@@ -15,12 +15,12 @@ use Illuminate\Support\Str;
  */
 class MailProveedorCorreoSaliente implements ProveedorCorreoSaliente
 {
-    public function enviar(Cotizacion $cotizacion, string $destinatario): string
+    public function enviar(Cotizacion $cotizacion, array $destinatarios): string
     {
         $host = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'serviops.local';
         $messageId = sprintf('<cot-%s-%s@%s>', $cotizacion->numero, (string) Str::uuid(), $host);
 
-        Mail::to($destinatario)->send(new CotizacionEnviada($cotizacion, $messageId));
+        Mail::to($destinatarios)->send(new CotizacionEnviada($cotizacion, $messageId));
 
         return $messageId;
     }

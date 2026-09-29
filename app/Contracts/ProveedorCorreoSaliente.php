@@ -13,5 +13,6 @@ use App\Models\Cotizacion;
  */
 interface ProveedorCorreoSaliente
 {
-    public function enviar(Cotizacion $cotizacion, string $destinatario): string;
+    /** @param  array<int, string>  $destinatarios */
+    public function enviar(Cotizacion $cotizacion, array $destinatarios): string;
 }

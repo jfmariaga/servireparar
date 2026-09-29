@@ -123,7 +123,7 @@ class ProcesarCorreoEntranteService
     private function crearCaso(MensajeCorreoEntrante $correo): Cotizacion
     {
         return DB::transaction(function () use ($correo) {
-            $cliente = Cliente::where('correo', $correo->remitente)->first();
+            $cliente = Cliente::conCorreo($correo->remitente)->first();
 
             $cotizacion = Cotizacion::create([
                 'numero' => (new ConsecutivoCotizacionService())->siguiente(),
