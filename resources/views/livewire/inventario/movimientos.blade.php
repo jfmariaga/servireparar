@@ -193,7 +193,7 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
                 Cada entrada queda registrada como su propio lote, con su cantidad y su costo. Al salir del inventario, se consume primero el lote más antiguo (FIFO), así el costo de cada salida es el costo real de lo que efectivamente salió.
             </p>
 
-            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
                 <div>
                     <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Ítem *</label>
                     <x-select wire:model="entradaInventarioId">
@@ -236,7 +236,7 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
             <h2 class="font-bold mb-4">Solicitud de insumo (sin orden de trabajo)</h2>
             <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Salida directa hacia un cliente externo, con su propia trazabilidad de costos.</p>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
                     <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Cliente *</label>
                     <x-select wire:model="clienteId">
@@ -273,7 +273,7 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
 
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 font-bold text-sm">Solicitudes manuales</div>
-            <div class="overflow-x-auto">
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="text-left border-b border-slate-100 dark:border-slate-800">
@@ -299,12 +299,26 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
                     </tbody>
                 </table>
             </div>
+            <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                @forelse ($solicitudesManuales as $mov)
+                    <div class="p-4 flex flex-col gap-1 text-[13px]">
+                        <div class="flex items-start justify-between gap-3">
+                            <span class="font-medium">{{ $mov->inventario->nombre }}</span>
+                            <span class="text-slate-400 whitespace-nowrap">{{ $mov->fecha->format('d/m/y') }}</span>
+                        </div>
+                        <div class="text-slate-500 dark:text-slate-400">Cliente: {{ $mov->cliente?->nombre ?? '—' }}</div>
+                        <div class="text-slate-500 dark:text-slate-400">Cant. {{ rtrim(rtrim(number_format((float) $mov->cantidad, 2), '0'), '.') }} · {{ \App\Support\Moneda::cop($mov->costo_unitario) }}</div>
+                    </div>
+                @empty
+                    <div class="px-5 py-8 text-center text-slate-400">Sin solicitudes manuales registradas.</div>
+                @endforelse
+            </div>
             <div class="px-5 py-3.5">{{ $solicitudesManuales->links() }}</div>
         </div>
 
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
             <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 font-bold text-sm">Herramientas pendientes de devolución</div>
-            <div class="overflow-x-auto">
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="text-left border-b border-slate-100 dark:border-slate-800">
@@ -342,6 +356,33 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
                     </tbody>
                 </table>
             </div>
+            <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                @forelse ($herramientasEnUso as $herramienta)
+                    <div class="p-4 flex flex-col gap-2 text-[13px]">
+                        <div class="flex items-start justify-between gap-3">
+                            <span class="font-medium">{{ $herramienta->nombre }}</span>
+                            <span class="font-mono text-[12px] text-slate-500 dark:text-slate-400">{{ $herramienta->codigo }}</span>
+                        </div>
+                        @if ($devolviendoId === $herramienta->id)
+                            <div class="flex flex-col gap-2">
+                                <x-select wire:model="nuevoEstadoHerramienta" :placeholder="null">
+                                    <option value="disponible">Disponible</option>
+                                    <option value="dañada">Dañada</option>
+                                    <option value="en_mantenimiento">En mantenimiento</option>
+                                </x-select>
+                                <div class="flex gap-2">
+                                    <button wire:click="confirmarDevolucion" class="text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-lg px-2.5 py-1.5">Confirmar</button>
+                                    <button wire:click="cancelarDevolucion" class="text-xs font-semibold text-slate-500 hover:underline">Cancelar</button>
+                                </div>
+                            </div>
+                        @else
+                            <button wire:click="iniciarDevolucion({{ $herramienta->id }})" class="text-xs font-semibold text-brand-blue hover:underline self-start">Registrar devolución</button>
+                        @endif
+                    </div>
+                @empty
+                    <div class="px-5 py-8 text-center text-slate-400">No hay herramientas pendientes de devolución.</div>
+                @endforelse
+            </div>
             <div class="px-5 py-3.5">{{ $herramientasEnUso->links() }}</div>
         </div>
 
@@ -349,7 +390,7 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
         <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 font-bold text-sm">Entradas recientes</div>
-        <div class="overflow-x-auto">
+        <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="text-left border-b border-slate-100 dark:border-slate-800">
@@ -374,6 +415,20 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
                     @endforelse
                 </tbody>
             </table>
+        </div>
+        <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+            @forelse ($entradasRecientes as $mov)
+                <div class="p-4 flex flex-col gap-1 text-[13px]">
+                    <div class="flex items-start justify-between gap-3">
+                        <span class="font-medium">{{ $mov->inventario->nombre }}</span>
+                        <span class="text-slate-400 whitespace-nowrap">{{ $mov->fecha->format('d/m/y') }}</span>
+                    </div>
+                    <div class="text-slate-500 dark:text-slate-400">Proveedor: {{ $mov->proveedor?->nombre ?? '—' }}</div>
+                    <div class="text-slate-500 dark:text-slate-400">Cant. {{ rtrim(rtrim(number_format((float) $mov->cantidad, 2), '0'), '.') }} · {{ \App\Support\Moneda::cop($mov->costo_unitario) }}</div>
+                </div>
+            @empty
+                <div class="px-5 py-8 text-center text-slate-400">Sin entradas registradas.</div>
+            @endforelse
         </div>
         <div class="px-5 py-3.5">{{ $entradasRecientes->links() }}</div>
     </div>

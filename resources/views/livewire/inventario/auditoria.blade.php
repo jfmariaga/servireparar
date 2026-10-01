@@ -183,7 +183,7 @@ new #[Layout('components.layout', ['title' => 'Auditoría de inventario'])] clas
     @if ($mostrarFormConteo)
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
             <h2 class="font-bold mb-4">Registrar conteo físico</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
                     <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Ítem *</label>
                     <x-select wire:model="inventarioId">
@@ -213,7 +213,7 @@ new #[Layout('components.layout', ['title' => 'Auditoría de inventario'])] clas
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
         <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 font-bold text-sm">Ajustes pendientes de aprobación</div>
-        <div class="overflow-x-auto">
+        <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="text-left border-b border-slate-100 dark:border-slate-800">
@@ -253,6 +253,33 @@ new #[Layout('components.layout', ['title' => 'Auditoría de inventario'])] clas
                     @endforelse
                 </tbody>
             </table>
+        </div>
+
+        <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+            @forelse ($ajustesPendientes as $ajuste)
+                <div class="p-4 flex flex-col gap-1.5 text-[13px]">
+                    <div class="font-medium">{{ $ajuste->inventario->nombre }}</div>
+                    <div class="text-slate-500 dark:text-slate-400">
+                        Sistema: {{ rtrim(rtrim(number_format((float) $ajuste->stock_sistema, 2), '0'), '.') }} ·
+                        Físico: <span class="font-semibold {{ $ajuste->diferencia() < 0 ? 'text-brand-red' : 'text-emerald-600' }}">{{ rtrim(rtrim(number_format((float) $ajuste->stock_fisico, 2), '0'), '.') }}</span>
+                    </div>
+                    <div class="text-slate-500 dark:text-slate-400">{{ $ajuste->motivo }}</div>
+                    @can('approve', \App\Models\AjusteAuditoria::class)
+                        <div class="flex items-center gap-2 mt-1">
+                            <button wire:click="aprobar({{ $ajuste->id }})" class="text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-lg px-2.5 py-1.5">Aprobar</button>
+                            <button
+                                x-on:click="Notify.confirmDanger({
+                                    title: '¿Rechazar ajuste?',
+                                    text: 'El stock del sistema no se modificará.',
+                                    confirmButtonText: 'Sí, rechazar',
+                                }).then((ok) => ok && $wire.rechazar({{ $ajuste->id }}))"
+                                class="text-xs font-semibold text-brand-red hover:underline">Rechazar</button>
+                        </div>
+                    @endcan
+                </div>
+            @empty
+                <div class="px-5 py-8 text-center text-slate-400">No hay ajustes pendientes.</div>
+            @endforelse
         </div>
         <div class="px-5 py-3.5">{{ $ajustesPendientes->links() }}</div>
     </div>

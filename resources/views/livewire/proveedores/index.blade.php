@@ -121,13 +121,13 @@ new #[Layout('components.layout', ['title' => 'Proveedores'])] class extends Com
         </x-icon-button>
     </div>
 
-    <div class="flex flex-col sm:flex-row gap-3 mb-5 text-sm">
-        <div class="relative flex-1 sm:flex-none">
+    <div class="flex flex-col md:flex-row gap-3 mb-5 text-sm">
+        <div class="relative flex-1 md:flex-none">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
             <input type="text" wire:model.live.debounce.400ms="busqueda" placeholder="Buscar por nombre..."
-                   class="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg pl-9 pr-3 py-2 w-full sm:w-64 outline-none focus:border-brand-blue">
+                   class="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg pl-9 pr-3 py-2 w-full md:w-64 outline-none focus:border-brand-blue">
         </div>
-        <div class="w-full sm:w-48">
+        <div class="w-full md:w-48">
             <x-select wire:model.live="filtroEstado" :placeholder="null">
                 <option value="activo">Activos</option>
                 <option value="inactivo">Inactivos</option>
@@ -146,8 +146,8 @@ new #[Layout('components.layout', ['title' => 'Proveedores'])] class extends Com
                 </div>
             @endif
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div class="sm:col-span-2">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div class="md:col-span-2">
                     <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Nombre *</label>
                     <input type="text" wire:model="nombre" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
                     @error('nombre') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
@@ -168,7 +168,7 @@ new #[Layout('components.layout', ['title' => 'Proveedores'])] class extends Com
                         <option value="inactivo">Inactivo</option>
                     </x-select>
                 </div>
-                <div class="col-span-2">
+                <div class="md:col-span-2">
                     <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Dirección</label>
                     <input type="text" wire:model="direccion" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
                 </div>
@@ -182,7 +182,7 @@ new #[Layout('components.layout', ['title' => 'Proveedores'])] class extends Com
     @endif
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="text-left border-b border-slate-100 dark:border-slate-800">
@@ -233,6 +233,46 @@ new #[Layout('components.layout', ['title' => 'Proveedores'])] class extends Com
                 </tbody>
             </table>
         </div>
+
+        <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+            @forelse ($proveedores as $p)
+                <div class="p-4 flex flex-col gap-2">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="font-medium">{{ $p->nombre }}</div>
+                        <span class="inline-block px-2.5 py-1 rounded-full text-[11.5px] font-semibold whitespace-nowrap shrink-0 {{ $p->estado === 'activo' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10' : 'bg-slate-100 text-slate-500 dark:bg-slate-800' }}">
+                            {{ ucfirst($p->estado) }}
+                        </span>
+                    </div>
+                    <div class="text-[13px] text-slate-500 dark:text-slate-400 flex flex-col gap-0.5">
+                        <div>NIT: {{ $p->nit ?: '—' }}</div>
+                        <div class="break-all">{{ $p->correo ?: '—' }}</div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-1">
+                        <x-icon-button wire:click="editar({{ $p->id }})" title="Editar proveedor">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17h4l10-10-4-4L4 13v4z"/></svg>
+                        </x-icon-button>
+                        @if ($p->estado === 'activo')
+                            <x-icon-button
+                                x-on:click="Notify.confirmDanger({
+                                    title: '¿Inactivar proveedor?',
+                                    text: {{ Js::from($p->nombre.' dejará de estar disponible para nuevas operaciones.') }},
+                                    confirmButtonText: 'Sí, inactivar',
+                                }).then((ok) => ok && $wire.alternarEstado({{ $p->id }}))"
+                                title="Inactivar proveedor" variant="danger">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>
+                            </x-icon-button>
+                        @else
+                            <x-icon-button wire:click="alternarEstado({{ $p->id }})" title="Activar proveedor" variant="success">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>
+                            </x-icon-button>
+                        @endif
+                    </div>
+                </div>
+            @empty
+                <div class="px-5 py-8 text-center text-slate-400">Sin proveedores registrados.</div>
+            @endforelse
+        </div>
+
         <div class="px-5 py-3.5">{{ $proveedores->links() }}</div>
     </div>
 </div>

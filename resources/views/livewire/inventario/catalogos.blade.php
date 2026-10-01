@@ -162,7 +162,7 @@ new #[Layout('components.layout', ['title' => 'Categorías y unidades'])] class 
 
             @if ($mostrarFormCategoria)
                 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                         <div>
                             <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Nombre *</label>
                             <input type="text" wire:model="categoriaNombre" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
@@ -237,7 +237,7 @@ new #[Layout('components.layout', ['title' => 'Categorías y unidades'])] class 
 
             @if ($mostrarFormUnidad)
                 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                         <div>
                             <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Nombre *</label>
                             <input type="text" wire:model="unidadNombre" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">

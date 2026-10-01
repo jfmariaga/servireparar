@@ -204,7 +204,7 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
         @endforeach
     </div>
 
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl hidden md:block overflow-x-auto">
         <table class="w-full text-sm">
             <thead class="text-left text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                 <tr>
@@ -278,6 +278,70 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
                 @endforelse
             </tbody>
         </table>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+        @forelse ($prestamos as $p)
+            <div wire:key="prh-m-{{ $p->id }}" class="p-4 flex flex-col gap-2 text-[13px]">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="font-medium">{{ $p->tecnico?->usuario?->name ?? '—' }}</div>
+                        <div class="text-slate-500 dark:text-slate-400">{{ $p->inventario?->nombre }} <span class="text-xs text-slate-400">({{ $p->inventario?->codigo }})</span></div>
+                    </div>
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold shrink-0
+                        {{ $p->estado === 'entregada' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : ($p->estado === 'devuelta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : ($p->estado === 'rechazada' ? 'bg-red-100 text-brand-red dark:bg-red-900/30' : 'bg-slate-100 dark:bg-slate-800')) }}">
+                        {{ ucfirst($p->estado) }}
+                    </span>
+                </div>
+                <div class="text-slate-500 dark:text-slate-400">
+                    OT: {{ $p->ordenTrabajo?->numero_ot ?? '—' }} · Solicitada: {{ $p->solicitada_en?->format('d/m/Y H:i') }}
+                </div>
+                @if ($p->estado === 'rechazada' && $p->motivo_rechazo)
+                    <div class="text-xs text-brand-red">{{ $p->motivo_rechazo }}</div>
+                @endif
+                @if ($p->estado === 'devuelta' && $p->estado_devolucion)
+                    <div class="text-xs text-slate-400">{{ str($p->estado_devolucion)->replace('_', ' ') }}</div>
+                @endif
+
+                @if ($puedeAtender)
+                    @if ($p->estado === 'solicitada')
+                        @if ($rechazandoId === $p->id)
+                            <div class="flex flex-col gap-2">
+                                <input type="text" wire:model="motivoRechazo" placeholder="Motivo del rechazo" class="h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 px-3 text-xs outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10">
+                                <div class="flex gap-2">
+                                    <button wire:click="rechazar" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-brand-red text-brand-red">Confirmar</button>
+                                    <button wire:click="$set('rechazandoId', null)" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">Cancelar</button>
+                                </div>
+                                @error('motivoRechazo') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                            </div>
+                        @else
+                            <div class="flex flex-wrap gap-2">
+                                <button wire:click="entregar({{ $p->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Entregar</button>
+                                <button wire:click="$set('rechazandoId', {{ $p->id }})" class="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-brand-red">Rechazar</button>
+                            </div>
+                        @endif
+                    @elseif ($p->estado === 'entregada')
+                        @if ($devolviendoId === $p->id)
+                            <div class="flex flex-col gap-2">
+                                <select wire:model="estadoDevolucion" class="h-9 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xs px-2">
+                                    <option value="disponible">Disponible</option>
+                                    <option value="dañada">Dañada</option>
+                                    <option value="en_mantenimiento">En mantenimiento</option>
+                                </select>
+                                <div class="flex gap-2">
+                                    <button wire:click="registrarDevolucion" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar</button>
+                                    <button wire:click="$set('devolviendoId', null)" class="text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">Cancelar</button>
+                                </div>
+                            </div>
+                        @else
+                            <button wire:click="$set('devolviendoId', {{ $p->id }})" class="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 self-start">Registrar devolución</button>
+                        @endif
+                    @endif
+                @endif
+            </div>
+        @empty
+            <div class="px-4 py-10 text-center text-slate-400">Sin préstamos en este estado.</div>
+        @endforelse
     </div>
 
     <div>{{ $prestamos->links() }}</div>
