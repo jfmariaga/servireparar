@@ -519,11 +519,11 @@ new class extends Component
             <div class="flex flex-wrap items-end gap-4 mb-4">
                 <div>
                     <label class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Desde</label>
-                    <input type="date" wire:model.live="desde" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-blue">
+                    <x-input-date wire:model.live="desde" />
                 </div>
                 <div>
                     <label class="block text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Hasta</label>
-                    <input type="date" wire:model.live="hasta" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-blue">
+                    <x-input-date wire:model.live="hasta" />
                 </div>
                 <button wire:click="limpiarFiltroDesempeno" class="text-[13.5px] font-semibold px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
                     Limpiar

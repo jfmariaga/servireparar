@@ -140,32 +140,32 @@ new #[Layout('components.layout', ['title' => 'Órdenes de trabajo'])] class ext
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-sm">
         <input type="text" wire:model.live.debounce.400ms="buscar" placeholder="Buscar N.º, descripción o cliente" class="sm:col-span-2 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
-        <select wire:model.live="estado" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+        <x-select wire:model.live="estado" :placeholder="null">
             <option value="">Todos los estados</option>
             @foreach ($estados as $e)
                 <option value="{{ $e->slug }}">{{ $e->nombre }}</option>
             @endforeach
-        </select>
-        <select wire:model.live="cliente" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+        </x-select>
+        <x-select wire:model.live="cliente" :placeholder="null">
             <option value="">Todos los clientes</option>
             @foreach ($clientes as $c)
                 <option value="{{ $c->id }}">{{ $c->nombre }}</option>
             @endforeach
-        </select>
-        <select wire:model.live="tipo" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+        </x-select>
+        <x-select wire:model.live="tipo" :placeholder="null">
             <option value="">Taller y domicilio</option>
             <option value="taller">Taller</option>
             <option value="domicilio">Domicilio</option>
-        </select>
-        <select wire:model.live="tecnico" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+        </x-select>
+        <x-select wire:model.live="tecnico" :placeholder="null">
             <option value="">Todos los técnicos</option>
             @foreach ($tecnicos as $t)
                 <option value="{{ $t['id'] }}">{{ $t['nombre'] }}</option>
             @endforeach
-        </select>
+        </x-select>
         <div class="flex items-center gap-2">
-            <input type="date" wire:model.live="desde" title="Creada desde" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-2 py-2 outline-none focus:border-brand-blue text-xs">
-            <input type="date" wire:model.live="hasta" title="Creada hasta" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-2 py-2 outline-none focus:border-brand-blue text-xs">
+            <x-input-date wire:model.live="desde" title="Creada desde" />
+            <x-input-date wire:model.live="hasta" title="Creada hasta" />
         </div>
     </div>
 

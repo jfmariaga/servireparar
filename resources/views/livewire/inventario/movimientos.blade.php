@@ -267,6 +267,7 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
         </div>
     @endif
 
+    @unless ($mostrarForm || $mostrarFormEntrada)
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
@@ -430,4 +431,5 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
         </div>
         <div class="px-5 py-3.5">{{ $entradasRecientes->links() }}</div>
     </div>
+    @endunless
 </div>

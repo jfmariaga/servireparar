@@ -1,0 +1,154 @@
+/* Tema propio de Flatpickr para que los selectores de fecha se vean como el
+   resto de controles de la app (mismo patrón que select.css para Tom Select). */
+
+.flatpickr-alt-input {
+    @apply w-full min-h-[38px] border border-slate-200 dark:border-slate-700 dark:bg-slate-900 bg-white rounded-lg px-3.5 py-2 outline-none transition text-slate-800 dark:text-slate-100 cursor-pointer text-sm;
+}
+
+.flatpickr-alt-input:focus {
+    @apply border-brand-blue ring-4 ring-brand-blue/10;
+}
+
+.flatpickr-alt-input[readonly] {
+    background: inherit;
+}
+
+.flatpickr-calendar {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.05);
+    font-family: inherit;
+}
+
+html.dark .flatpickr-calendar {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+.flatpickr-calendar.arrowTop:before,
+.flatpickr-calendar.arrowTop:after,
+.flatpickr-calendar.arrowBottom:before,
+.flatpickr-calendar.arrowBottom:after {
+    display: none;
+}
+
+.flatpickr-months .flatpickr-month {
+    color: #1e293b;
+}
+
+html.dark .flatpickr-months .flatpickr-month {
+    color: #f1f5f9;
+}
+
+.flatpickr-current-month {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.flatpickr-current-month input.cur-year,
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+    font-weight: 600;
+}
+
+html.dark .flatpickr-current-month input.cur-year {
+    color: #f1f5f9;
+}
+
+html.dark .flatpickr-current-month .flatpickr-monthDropdown-months {
+    color: #f1f5f9;
+    background: transparent;
+}
+
+html.dark .flatpickr-current-month .flatpickr-monthDropdown-months .flatpickr-monthDropdown-month {
+    background-color: #1e293b;
+}
+
+.flatpickr-months .flatpickr-prev-month svg,
+.flatpickr-months .flatpickr-next-month svg {
+    fill: #94a3b8;
+}
+
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+    fill: #2648d6;
+}
+
+.flatpickr-weekdays {
+    background: transparent;
+}
+
+span.flatpickr-weekday {
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+
+html.dark span.flatpickr-weekday {
+    color: #64748b;
+}
+
+.flatpickr-day {
+    color: #1e293b;
+    border-radius: 0.5rem;
+}
+
+html.dark .flatpickr-day {
+    color: #e2e8f0;
+}
+
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+    color: #cbd5e1;
+}
+
+html.dark .flatpickr-day.prevMonthDay,
+html.dark .flatpickr-day.nextMonthDay {
+    color: #475569;
+}
+
+.flatpickr-day:hover,
+.flatpickr-day:focus {
+    background: #eef1fd;
+    border-color: #eef1fd;
+}
+
+html.dark .flatpickr-day:hover,
+html.dark .flatpickr-day:focus {
+    background: #334155;
+    border-color: #334155;
+}
+
+.flatpickr-day.today {
+    border-color: #2648d6;
+}
+
+.flatpickr-day.today:hover,
+.flatpickr-day.today:focus {
+    border-color: #2648d6;
+    background: #eef1fd;
+    color: #1e293b;
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
+    background: #2648d6;
+    border-color: #2648d6;
+    color: #fff;
+}
+
+.flatpickr-day.inRange {
+    background: #eef1fd;
+    border-color: #eef1fd;
+    box-shadow: -5px 0 0 #eef1fd, 5px 0 0 #eef1fd;
+}
+
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.flatpickr-disabled:hover {
+    color: #cbd5e1;
+}

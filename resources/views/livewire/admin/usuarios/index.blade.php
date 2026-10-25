@@ -256,6 +256,7 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
         <div class="mb-4 rounded-lg bg-brand-red-tint text-brand-red text-sm px-3.5 py-2.5">{{ $errorDesactivar }}</div>
     @endif
 
+    @unless ($mostrarForm)
     <div class="flex flex-col sm:flex-row gap-3 mb-5 text-sm">
         <div class="relative flex-1 sm:flex-none">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
@@ -278,6 +279,7 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
             </x-select>
         </div>
     </div>
+    @endunless
 
     @if ($mostrarForm)
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
@@ -352,15 +354,13 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
                         </div>
                         <div>
                             <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Vigente desde</label>
-                            <input type="date" wire:model="sueldoVigenteDesde"
-                                   class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+                            <x-input-date wire:model="sueldoVigenteDesde" :reset-key="'sueldo-vigente-'.($editandoId ?? 'nuevo')" />
                             @error('sueldoVigenteDesde') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                             <p class="text-xs text-slate-400 mt-1">Valor día ({{ $diasMes }}): <span class="font-semibold text-slate-600 dark:text-slate-300">{{ $this->valorDiaPreview() }}</span></p>
                         </div>
                         <div>
                             <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Fecha de ingreso</label>
-                            <input type="date" wire:model="fechaIngreso"
-                                   class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+                            <x-input-date wire:model="fechaIngreso" :reset-key="'fecha-ingreso-'.($editandoId ?? 'nuevo')" />
                             @error('fechaIngreso') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                         </div>
                         <div>
@@ -453,6 +453,7 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
         </div>
     @endif
 
+    @unless ($mostrarForm)
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
@@ -516,4 +517,5 @@ new #[Layout('components.layout', ['title' => 'Usuarios'])] class extends Compon
         </div>
         <div class="px-5 py-3.5">{{ $usuarios->links() }}</div>
     </div>
+    @endunless
 </div>

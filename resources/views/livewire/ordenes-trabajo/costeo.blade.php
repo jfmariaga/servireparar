@@ -148,10 +148,9 @@ new #[Layout('components.layout', ['title' => 'Costeo de OT'])] class extends Co
         @endforelse
         @if ($puedeEditar)
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-2">
-                <select wire:model="contratistaId" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
-                    <option value="">Contratista…</option>
+                <x-select wire:model="contratistaId" placeholder="Contratista…" :reset-key="'contratista-'.$ot->manoObraContratistas->count()">
                     @foreach ($contratistas as $c)<option value="{{ $c->id }}">{{ $c->nombre }}</option>@endforeach
-                </select>
+                </x-select>
                 <input type="text" wire:model="especialidad" placeholder="Especialidad" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
                 <input type="number" step="0.01" min="0.01" wire:model="cantidad" placeholder="Cant." class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">
                 <input type="number" step="1" min="0" wire:model="valor" placeholder="Valor" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-2">

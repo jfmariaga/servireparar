@@ -113,6 +113,7 @@ new #[Layout('components.layout', ['title' => 'Contratistas'])] class extends Co
         <x-btn-nuevo wire:click="nuevo" label="Nuevo contratista" />
     </div>
 
+    @unless ($mostrarForm)
     <div class="flex flex-col sm:flex-row gap-3 mb-5 text-sm">
         <div class="relative flex-1 sm:flex-none">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
@@ -127,6 +128,7 @@ new #[Layout('components.layout', ['title' => 'Contratistas'])] class extends Co
             </x-select>
         </div>
     </div>
+    @endunless
 
     @if ($mostrarForm)
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
@@ -173,6 +175,7 @@ new #[Layout('components.layout', ['title' => 'Contratistas'])] class extends Co
         </div>
     @endif
 
+    @unless ($mostrarForm)
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
@@ -227,4 +230,5 @@ new #[Layout('components.layout', ['title' => 'Contratistas'])] class extends Co
         </div>
         <div class="px-5 py-3.5">{{ $contratistas->links() }}</div>
     </div>
+    @endunless
 </div>

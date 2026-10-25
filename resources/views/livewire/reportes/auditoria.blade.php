@@ -77,20 +77,20 @@ new #[Layout('components.layout', ['title' => 'Auditoría'])] class extends Comp
     </div>
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
-        <select wire:model.live="tipo" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+        <x-select wire:model.live="tipo" :placeholder="null">
             <option value="">Todos los tipos</option>
             @foreach ($tipos as $t)
                 <option value="{{ $t }}">{{ str($t)->replace('_', ' ')->ucfirst() }}</option>
             @endforeach
-        </select>
-        <select wire:model.live="usuario" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+        </x-select>
+        <x-select wire:model.live="usuario" :placeholder="null">
             <option value="">Todos los usuarios</option>
             @foreach ($usuarios as $u)
                 <option value="{{ $u->id }}">{{ $u->name }}</option>
             @endforeach
-        </select>
-        <input type="date" wire:model.live="desde" title="Desde" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
-        <input type="date" wire:model.live="hasta" title="Hasta" class="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
+        </x-select>
+        <x-input-date wire:model.live="desde" title="Desde" />
+        <x-input-date wire:model.live="hasta" title="Hasta" />
     </div>
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto">

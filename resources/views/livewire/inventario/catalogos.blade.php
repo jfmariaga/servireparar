@@ -182,6 +182,7 @@ new #[Layout('components.layout', ['title' => 'Categorías y unidades'])] class 
                 </div>
             @endif
 
+            @unless ($mostrarFormCategoria)
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
                 <table class="w-full text-sm">
                     <thead>
@@ -223,6 +224,7 @@ new #[Layout('components.layout', ['title' => 'Categorías y unidades'])] class 
                     </tbody>
                 </table>
             </div>
+            @endunless
         </div>
 
         <div class="flex flex-col gap-4">
@@ -252,6 +254,7 @@ new #[Layout('components.layout', ['title' => 'Categorías y unidades'])] class 
                 </div>
             @endif
 
+            @unless ($mostrarFormUnidad)
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
                 <table class="w-full text-sm">
                     <thead>
@@ -293,6 +296,7 @@ new #[Layout('components.layout', ['title' => 'Categorías y unidades'])] class 
                     </tbody>
                 </table>
             </div>
+            @endunless
         </div>
 
     </div>

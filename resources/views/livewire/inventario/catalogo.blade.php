@@ -203,13 +203,14 @@ new #[Layout('components.layout', ['title' => 'Inventario'])] class extends Comp
         <x-btn-nuevo wire:click="nuevo" label="Nuevo ítem" />
     </div>
 
-    <div class="flex flex-col md:flex-row gap-3 mb-5 text-sm">
-        <div class="relative flex-1 md:flex-none">
+    @unless ($mostrarForm)
+    <div class="flex flex-col md:flex-row md:items-start gap-3 mb-5 text-sm">
+        <div class="relative w-full md:w-72 md:shrink-0">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
             <input type="text" wire:model.live.debounce.400ms="busqueda" placeholder="Buscar por nombre o código..."
-                   class="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg pl-9 pr-3 py-2 w-full md:w-72 outline-none focus:border-brand-blue">
+                   class="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg pl-9 pr-3 py-2 w-full outline-none focus:border-brand-blue">
         </div>
-        <div class="w-full md:w-56">
+        <div class="w-full md:w-60 md:shrink-0">
             <x-select wire:model.live="filtroCategoria" :placeholder="null">
                 <option value="todas">Todas las categorías</option>
                 @foreach ($categorias as $categoria)
@@ -217,14 +218,14 @@ new #[Layout('components.layout', ['title' => 'Inventario'])] class extends Comp
                 @endforeach
             </x-select>
         </div>
-        <div class="w-full md:w-56">
+        <div class="w-full md:w-72 md:shrink-0">
             <x-select wire:model.live="filtroTipo" :placeholder="null">
                 <option value="todos">Herramientas y consumibles</option>
                 <option value="herramienta">Herramientas</option>
                 <option value="consumible">Consumibles</option>
             </x-select>
         </div>
-        <div class="flex items-center gap-2 flex-wrap md:ml-auto">
+        <div class="flex items-center gap-2 flex-wrap md:shrink-0">
             <button wire:click="exportarExcel" class="text-[12.5px] font-semibold px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
                 Exportar Excel
             </button>
@@ -233,6 +234,7 @@ new #[Layout('components.layout', ['title' => 'Inventario'])] class extends Comp
             </button>
         </div>
     </div>
+    @endunless
 
     @if ($mostrarForm)
         <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 mb-6">
@@ -294,6 +296,7 @@ new #[Layout('components.layout', ['title' => 'Inventario'])] class extends Comp
         </div>
     @endif
 
+    @unless ($mostrarForm)
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
         <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-sm">
@@ -395,4 +398,5 @@ new #[Layout('components.layout', ['title' => 'Inventario'])] class extends Comp
 
         <div class="px-5 py-3.5">{{ $items->links() }}</div>
     </div>
+    @endunless
 </div>

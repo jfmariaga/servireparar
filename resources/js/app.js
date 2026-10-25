@@ -1,7 +1,11 @@
 import './bootstrap';
 import Notify from './notify';
 import TomSelect from 'tom-select';
+import flatpickr from 'flatpickr';
+import { Spanish } from 'flatpickr/dist/l10n/es.js';
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Legend, Tooltip } from 'chart.js';
+
+flatpickr.localize(Spanish);
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Legend, Tooltip);
 
@@ -47,6 +51,36 @@ window.ServiopsSelect = {
                 ts.setValue(select.value, true);
             }
         }, 0);
+    },
+};
+
+/**
+ * Convención: todo campo de fecha de la app usa el componente <x-input-date>
+ * (resources/views/components/input-date.blade.php) en vez de un
+ * <input type="date"> plano, para que todos tengan el mismo calendario
+ * desplegable (Flatpickr) en vez del selector nativo del navegador.
+ * El input original (oculto por Flatpickr vía altInput) guarda el valor en
+ * formato Y-m-d, igual que el <input type="date"> nativo, así que el binding
+ * wire:model no cambia. Flatpickr no dispara eventos DOM al actualizar ese
+ * input oculto, así que los disparamos a mano para que Livewire se entere.
+ */
+window.ServiopsDatepicker = {
+    mount(input) {
+        if (!input || input._flatpickr) {
+            return;
+        }
+
+        flatpickr(input, {
+            altInput: true,
+            altFormat: 'd/m/Y',
+            dateFormat: 'Y-m-d',
+            allowInput: true,
+            altInputClass: 'flatpickr-alt-input pl-9',
+            onChange(selectedDates, dateStr, instance) {
+                instance.input.dispatchEvent(new Event('input', { bubbles: true }));
+                instance.input.dispatchEvent(new Event('change', { bubbles: true }));
+            },
+        });
     },
 };
 

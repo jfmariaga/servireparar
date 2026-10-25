@@ -211,6 +211,7 @@ new #[Layout('components.layout', ['title' => 'Auditoría de inventario'])] clas
         </div>
     @endif
 
+    @unless ($mostrarFormConteo)
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
         <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 font-bold text-sm">Ajustes pendientes de aprobación</div>
         <div class="hidden md:block overflow-x-auto">
@@ -283,4 +284,5 @@ new #[Layout('components.layout', ['title' => 'Auditoría de inventario'])] clas
         </div>
         <div class="px-5 py-3.5">{{ $ajustesPendientes->links() }}</div>
     </div>
+    @endunless
 </div>

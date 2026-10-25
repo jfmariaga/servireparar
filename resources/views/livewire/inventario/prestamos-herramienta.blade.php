@@ -257,11 +257,13 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
                             @elseif ($p->estado === 'entregada')
                                 @if ($devolviendoId === $p->id)
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <select wire:model="estadoDevolucion" class="h-8 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xs px-2">
-                                            <option value="disponible">Disponible</option>
-                                            <option value="dañada">Dañada</option>
-                                            <option value="en_mantenimiento">En mantenimiento</option>
-                                        </select>
+                                        <div class="w-44">
+                                            <x-select wire:model="estadoDevolucion" :placeholder="null">
+                                                <option value="disponible">Disponible</option>
+                                                <option value="dañada">Dañada</option>
+                                                <option value="en_mantenimiento">En mantenimiento</option>
+                                            </x-select>
+                                        </div>
                                         <button wire:click="registrarDevolucion" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar</button>
                                         <button wire:click="$set('devolviendoId', null)" class="text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">Cancelar</button>
                                     </div>
@@ -323,11 +325,11 @@ new #[Layout('components.layout', ['title' => 'Préstamos de herramienta'])] cla
                     @elseif ($p->estado === 'entregada')
                         @if ($devolviendoId === $p->id)
                             <div class="flex flex-col gap-2">
-                                <select wire:model="estadoDevolucion" class="h-9 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xs px-2">
+                                <x-select wire:model="estadoDevolucion" :placeholder="null">
                                     <option value="disponible">Disponible</option>
                                     <option value="dañada">Dañada</option>
                                     <option value="en_mantenimiento">En mantenimiento</option>
-                                </select>
+                                </x-select>
                                 <div class="flex gap-2">
                                     <button wire:click="registrarDevolucion" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Confirmar</button>
                                     <button wire:click="$set('devolviendoId', null)" class="text-[11px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">Cancelar</button>

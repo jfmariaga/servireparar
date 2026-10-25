@@ -115,6 +115,7 @@ new #[Layout('components.layout', ['title' => 'Servicios'])] class extends Compo
         </div>
     @endif
 
+    @unless ($mostrarForm)
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-w-3xl">
         <table class="w-full text-sm">
             <thead>
@@ -156,4 +157,5 @@ new #[Layout('components.layout', ['title' => 'Servicios'])] class extends Compo
             </tbody>
         </table>
     </div>
+    @endunless
 </div>
