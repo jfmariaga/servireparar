@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\CotizacionPdfController;
 use App\Http\Controllers\InventarioEtiquetaController;
 use App\Http\Controllers\RemisionEntregaController;
 use Illuminate\Support\Facades\Route;
@@ -80,13 +81,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:manage-cotizaciones')->group(function () {
         Volt::route('/cotizaciones', 'cotizaciones.tablero')->name('cotizaciones.tablero');
         Volt::route('/cotizaciones/servicios', 'cotizaciones.servicios-maestra')->name('cotizaciones.servicios');
+        Route::get('/cotizaciones/{cotizacion}/pdf', CotizacionPdfController::class)->name('cotizaciones.pdf');
         Volt::route('/cotizaciones/{cotizacion}', 'cotizaciones.gestionar')->name('cotizaciones.gestionar');
-    });
-
-    // Compras a proveedores (spec 006, US4)
-    Route::middleware('permission:manage-compras')->group(function () {
-        Volt::route('/compras', 'compras.tablero')->name('compras.tablero');
-        Volt::route('/compras/nueva', 'compras.form')->name('compras.nueva');
-        Volt::route('/compras/{compra}', 'compras.gestionar')->name('compras.gestionar');
     });
 });

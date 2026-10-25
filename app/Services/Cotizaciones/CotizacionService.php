@@ -22,6 +22,29 @@ class CotizacionService
     public function __construct(private readonly ProveedorCorreoSaliente $correoSaliente) {}
 
     /**
+     * Crea una Cotización en blanco desde la UI (sin correo entrante de por
+     * medio). Queda en `en_revision`, sin cliente ni ítems, para completarse
+     * en la pantalla de gestión igual que un caso recibido por correo.
+     */
+    public function crear(User $actor): Cotizacion
+    {
+        return DB::transaction(function () use ($actor) {
+            $sede = config('cotizaciones.sede_por_defecto');
+
+            $cotizacion = Cotizacion::create([
+                'numero' => (new ConsecutivoCotizacionService())->siguiente($sede),
+                'sede' => $sede,
+                'iva_porcentaje' => config('cotizaciones.iva_porcentaje'),
+                'estado' => 'en_revision',
+            ]);
+
+            $this->registrarEventoSistema($cotizacion, 'Cotización creada manualmente por '.$actor->name.'.');
+
+            return $cotizacion;
+        });
+    }
+
+    /**
      * @param  array<int, array{tipo_item: string, servicio_id?: int|null, inventario_id?: int|null, cantidad: float}>  $items
      */
     public function guardarItems(Cotizacion $cotizacion, array $items): Cotizacion
@@ -51,8 +74,74 @@ class CotizacionService
         return $cotizacion->fresh(['detalles']);
     }
 
+    /**
+     * @param  array{sede: string, descuento_porcentaje: float|string}  $datos
+     */
+    public function guardarCabecera(Cotizacion $cotizacion, array $datos): Cotizacion
+    {
+        $this->exigirEstado($cotizacion, ['en_revision'], 'Solo una cotización en revisión puede cambiar de sede o descuento.');
+
+        DB::transaction(function () use ($cotizacion, $datos) {
+            if ($datos['sede'] !== $cotizacion->sede) {
+                $cotizacion->update([
+                    'sede' => $datos['sede'],
+                    'numero' => (new ConsecutivoCotizacionService())->siguiente($datos['sede']),
+                ]);
+            }
+
+            $cotizacion->update(['descuento_porcentaje' => $datos['descuento_porcentaje']]);
+            $cotizacion->refresh()->recalcularTotal();
+        });
+
+        return $cotizacion->fresh();
+    }
+
+    /**
+     * Marca manualmente la aceptación cuando el cliente confirmó por un
+     * canal distinto al hilo de correo (en persona, teléfono, cotización
+     * impresa) — la detección automática (ProcesarCorreoEntranteService)
+     * cubre solo las respuestas por correo dentro del hilo.
+     */
+    public function aceptar(Cotizacion $cotizacion, User $actor): Cotizacion
+    {
+        $this->exigirEstado($cotizacion, ['cotizada'], 'Solo una cotización enviada puede marcarse como aceptada.');
+
+        DB::transaction(function () use ($cotizacion, $actor) {
+            $cotizacion->update(['estado' => 'aceptada']);
+            $this->registrarEventoSistema($cotizacion, 'Cotización marcada como aceptada por '.$actor->name.'.');
+        });
+
+        return $cotizacion->fresh();
+    }
+
+    public function rechazar(Cotizacion $cotizacion, User $actor): Cotizacion
+    {
+        $this->exigirEstado($cotizacion, ['cotizada'], 'Solo una cotización enviada puede marcarse como rechazada.');
+
+        DB::transaction(function () use ($cotizacion, $actor) {
+            $cotizacion->update(['estado' => 'rechazada']);
+            $this->registrarEventoSistema($cotizacion, 'Cotización marcada como rechazada por '.$actor->name.'.');
+        });
+
+        return $cotizacion->fresh();
+    }
+
+    public function reabrir(Cotizacion $cotizacion, User $actor): Cotizacion
+    {
+        $this->exigirEstado($cotizacion, ['cotizada', 'rechazada'], 'Solo una cotización enviada o rechazada puede reabrirse para editarla.');
+
+        DB::transaction(function () use ($cotizacion, $actor) {
+            $cotizacion->update(['estado' => 'en_revision']);
+            $this->registrarEventoSistema($cotizacion, 'Cotización reabierta para edición por '.$actor->name.'.');
+        });
+
+        return $cotizacion->fresh();
+    }
+
     public function enviar(Cotizacion $cotizacion, User $actor): Cotizacion
     {
+        $this->exigirEstado($cotizacion, ['en_revision'], 'Solo una cotización en revisión puede enviarse.');
+
         $cotizacion->loadMissing('cliente', 'detalles');
 
         if ($cotizacion->detalles->isEmpty()) {
@@ -76,6 +165,34 @@ class CotizacionService
                 'contenido' => 'Cotización enviada al cliente.',
                 'message_id_correo' => $messageId,
             ]);
+        });
+
+        return $cotizacion->fresh();
+    }
+
+    /**
+     * Avanza una cotización de `en_revision` a `cotizada` sin enviarla por
+     * correo, para cuando se entrega impresa en mano. No exige correo del
+     * cliente (a diferencia de enviar()), pero sí un cliente asignado y al
+     * menos un ítem, para mantener la trazabilidad de a quién se le cotizó.
+     */
+    public function marcarCotizadaSinEnvio(Cotizacion $cotizacion, User $actor): Cotizacion
+    {
+        $this->exigirEstado($cotizacion, ['en_revision'], 'Solo una cotización en revisión puede marcarse como cotizada.');
+
+        $cotizacion->loadMissing('cliente', 'detalles');
+
+        if ($cotizacion->detalles->isEmpty()) {
+            throw ValidationException::withMessages(['items' => 'Agrega al menos un ítem antes de marcarla como cotizada.']);
+        }
+
+        if (! $cotizacion->cliente_id) {
+            throw ValidationException::withMessages(['cliente' => 'Asigna un cliente antes de marcarla como cotizada.']);
+        }
+
+        DB::transaction(function () use ($cotizacion, $actor) {
+            $cotizacion->update(['estado' => 'cotizada']);
+            $this->registrarEventoSistema($cotizacion, 'Cotización marcada como cotizada (entregada impresa, sin correo) por '.$actor->name.'.');
         });
 
         return $cotizacion->fresh();
@@ -115,6 +232,16 @@ class CotizacionService
         $this->registrarEventoSistema($cotizacion, 'Cotización marcada como facturada.');
 
         return $cotizacion->fresh();
+    }
+
+    /**
+     * @param  array<int, string>  $estados
+     */
+    private function exigirEstado(Cotizacion $cotizacion, array $estados, string $mensaje): void
+    {
+        if (! in_array($cotizacion->estado, $estados, true)) {
+            throw ValidationException::withMessages(['estado' => $mensaje]);
+        }
     }
 
     private function registrarEventoSistema(Cotizacion $cotizacion, string $contenido): void

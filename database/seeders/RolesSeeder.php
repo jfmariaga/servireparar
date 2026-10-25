@@ -50,9 +50,8 @@ class RolesSeeder extends Seeder
             'manage-ot-costeo',
             // Umbrales editables de notificaciones/alertas (spec 008, T003-T006)
             'manage-configuraciones',
-            // Cotizaciones a clientes y Compras a proveedores (spec 006)
+            // Cotizaciones a clientes (spec 006)
             'manage-cotizaciones',
-            'manage-compras',
         ];
 
         foreach ($permisos as $permiso) {

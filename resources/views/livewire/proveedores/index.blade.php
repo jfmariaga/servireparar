@@ -116,9 +116,7 @@ new #[Layout('components.layout', ['title' => 'Proveedores'])] class extends Com
     <x-breadcrumbs :items="[['label' => 'Proveedores']]" />
 
     <div class="flex items-center justify-end mb-6">
-        <x-icon-button wire:click="nuevo" title="Nuevo proveedor" variant="primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-        </x-icon-button>
+        <x-btn-nuevo wire:click="nuevo" label="Nuevo proveedor" />
     </div>
 
     <div class="flex flex-col md:flex-row gap-3 mb-5 text-sm">

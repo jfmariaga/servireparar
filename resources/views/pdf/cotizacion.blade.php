@@ -74,6 +74,18 @@ $logo = is_file($logoPath)
         @empty
             <tr><td colspan="4" class="muted">Sin ítems.</td></tr>
         @endforelse
+        <tr>
+            <td colspan="3" style="text-align:right;">Subtotal</td>
+            <td class="money">{{ \App\Support\Moneda::cop($cotizacion->subtotal) }}</td>
+        </tr>
+        <tr>
+            <td colspan="3" style="text-align:right;">Descuento ({{ $qty($cotizacion->descuento_porcentaje) }}%)</td>
+            <td class="money">− {{ \App\Support\Moneda::cop($cotizacion->descuento_valor) }}</td>
+        </tr>
+        <tr>
+            <td colspan="3" style="text-align:right;">IVA {{ $qty($cotizacion->iva_porcentaje) }}%</td>
+            <td class="money">{{ \App\Support\Moneda::cop($cotizacion->iva_valor) }}</td>
+        </tr>
         <tr class="total-row">
             <td colspan="3" style="text-align:right;">Total</td>
             <td class="money">{{ \App\Support\Moneda::cop($cotizacion->total) }}</td>

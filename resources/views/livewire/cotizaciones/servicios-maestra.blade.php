@@ -86,9 +86,7 @@ new #[Layout('components.layout', ['title' => 'Servicios'])] class extends Compo
     </p>
 
     <div class="flex items-center justify-end mb-6">
-        <x-icon-button wire:click="nueva" title="Nuevo servicio" variant="primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-        </x-icon-button>
+        <x-btn-nuevo wire:click="nueva" label="Nuevo servicio" />
     </div>
 
     @if ($mostrarForm)

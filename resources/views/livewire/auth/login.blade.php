@@ -93,10 +93,22 @@ new #[Layout('components.layout')] class extends Component
                     @error('nickuser') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                 </div>
 
-                <div>
+                <div x-data="{ mostrar: false }">
                     <label class="block text-[13px] font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Contraseña</label>
-                    <input type="password" wire:model="password" required
-                           class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue-tint dark:focus:ring-0">
+                    <div class="relative">
+                        <input :type="mostrar ? 'text' : 'password'" wire:model="password" required
+                               class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue-tint dark:focus:ring-0">
+                        <button type="button" @click="mostrar = !mostrar" tabindex="-1"
+                                class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                            <svg x-show="!mostrar" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-7.5 9.75-7.5 9.75 7.5 9.75 7.5-3.75 7.5-9.75 7.5S2.25 12 2.25 12z"/>
+                                <circle cx="12" cy="12" r="3" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <svg x-show="mostrar" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12c1.292 4.338 5.31 7.5 10.065 7.5a10.45 10.45 0 005.233-1.4m2.148-1.673A10.49 10.49 0 0022.066 12c-1.292-4.338-5.31-7.5-10.066-7.5a10.46 10.46 0 00-4.064.81M6.228 6.228l11.544 11.544M6.228 6.228L3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 10-4.243-4.243"/>
+                            </svg>
+                        </button>
+                    </div>
                     @error('password') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                 </div>
 

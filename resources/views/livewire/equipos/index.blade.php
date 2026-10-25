@@ -124,9 +124,7 @@ new #[Layout('components.layout', ['title' => 'Equipos'])] class extends Compone
     <x-breadcrumbs :items="[['label' => 'Equipos']]" />
 
     <div class="flex items-center justify-end mb-6">
-        <x-icon-button wire:click="nuevo" title="Nuevo equipo" variant="primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-        </x-icon-button>
+        <x-btn-nuevo wire:click="nuevo" label="Nuevo equipo" />
     </div>
 
     <div class="flex flex-col sm:flex-row gap-3 mb-5 text-sm">

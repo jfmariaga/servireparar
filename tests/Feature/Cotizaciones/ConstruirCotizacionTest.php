@@ -30,7 +30,8 @@ class ConstruirCotizacionTest extends TestCase
         ]);
 
         $this->assertSame(2, $servicio->detalles->count());
-        $this->assertEquals(160000, $cotizacion->fresh()->total);
+        $this->assertEquals(160000, $cotizacion->fresh()->subtotal);
+        $this->assertEquals(190400, $cotizacion->fresh()->total);
     }
 
     public function test_guardar_items_reemplaza_los_anteriores(): void
@@ -46,6 +47,6 @@ class ConstruirCotizacionTest extends TestCase
         ]);
 
         $this->assertSame(1, $cotizacion->fresh()->detalles->count());
-        $this->assertEquals(50000, $cotizacion->fresh()->total);
+        $this->assertEquals(59500, $cotizacion->fresh()->total);
     }
 }

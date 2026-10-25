@@ -39,10 +39,10 @@ class CotizacionesUiTest extends TestCase
     public function test_tablero_lista_cotizaciones(): void
     {
         $admin = $this->administrador();
-        Cotizacion::factory()->create(['numero' => 'COT-0001']);
+        Cotizacion::factory()->create(['numero' => 'BAQ-0001']);
 
         Volt::actingAs($admin)->test('cotizaciones.tablero')
-            ->assertSee('COT-0001');
+            ->assertSee('BAQ-0001');
     }
 
     public function test_servicios_maestra_crea_un_servicio(): void
@@ -75,7 +75,7 @@ class CotizacionesUiTest extends TestCase
             ->call('guardarItems')
             ->assertHasNoErrors();
 
-        $this->assertEquals(80000, $cotizacion->fresh()->total);
+        $this->assertEquals(95200, $cotizacion->fresh()->total);
 
         $comp->call('enviar')->assertHasNoErrors();
         $this->assertSame('cotizada', $cotizacion->fresh()->estado);

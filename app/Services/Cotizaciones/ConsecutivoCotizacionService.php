@@ -5,28 +5,27 @@ namespace App\Services\Cotizaciones;
 use App\Models\Cotizacion;
 
 /**
- * Consecutivo de Cotización con prefijo `COT-` (spec 006). Numeración global
- * corrida, mismo patrón que `ConsecutivoDespachoService`/`OtNumberGenerator`.
+ * Consecutivo de Cotización por sede: `BAQ-0446`, `CTG-0012`, etc. Cada sede
+ * lleva su propio correlativo.
  *
- * Debe invocarse dentro de la transacción que crea la Cotización; usa
- * `lockForUpdate()` sobre el último número para evitar colisiones bajo
- * concurrencia.
+ * Debe invocarse dentro de la transacción que crea o renumera la Cotización;
+ * usa `lockForUpdate()` sobre el último número de la sede para evitar colisiones.
  */
 class ConsecutivoCotizacionService
 {
-    public const PREFIJO = 'COT-';
-
-    public function siguiente(): string
+    public function siguiente(string $sede): string
     {
-        $ultimo = Cotizacion::where('numero', 'like', self::PREFIJO.'%')
+        $prefijo = $sede.'-';
+
+        $ultimo = Cotizacion::where('numero', 'like', $prefijo.'%')
             ->orderByDesc('id')
             ->lockForUpdate()
             ->value('numero');
 
         $consecutivo = $ultimo
-            ? ((int) substr($ultimo, strlen(self::PREFIJO))) + 1
+            ? ((int) substr($ultimo, strlen($prefijo))) + 1
             : 1;
 
-        return self::PREFIJO.str_pad((string) $consecutivo, 4, '0', STR_PAD_LEFT);
+        return $prefijo.str_pad((string) $consecutivo, 4, '0', STR_PAD_LEFT);
     }
 }

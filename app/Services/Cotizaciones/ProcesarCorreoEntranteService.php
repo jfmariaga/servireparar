@@ -125,8 +125,12 @@ class ProcesarCorreoEntranteService
         return DB::transaction(function () use ($correo) {
             $cliente = Cliente::conCorreo($correo->remitente)->first();
 
+            $sede = config('cotizaciones.sede_por_defecto');
+
             $cotizacion = Cotizacion::create([
-                'numero' => (new ConsecutivoCotizacionService())->siguiente(),
+                'numero' => (new ConsecutivoCotizacionService())->siguiente($sede),
+                'sede' => $sede,
+                'iva_porcentaje' => config('cotizaciones.iva_porcentaje'),
                 'cliente_id' => $cliente?->id,
                 'estado' => 'en_revision',
                 'correo_original_referencia' => $correo->messageId,

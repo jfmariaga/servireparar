@@ -155,9 +155,7 @@ new #[Layout('components.layout', ['title' => 'Categorías y unidades'])] class 
         <div class="flex flex-col gap-4">
             <div class="flex items-center justify-between">
                 <h2 class="font-bold text-sm">Categorías</h2>
-                <x-icon-button wire:click="nuevaCategoria" title="Nueva categoría" variant="primary">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-                </x-icon-button>
+                <x-btn-nuevo wire:click="nuevaCategoria" label="Nueva categoría" />
             </div>
 
             @if ($mostrarFormCategoria)
@@ -230,9 +228,7 @@ new #[Layout('components.layout', ['title' => 'Categorías y unidades'])] class 
         <div class="flex flex-col gap-4">
             <div class="flex items-center justify-between">
                 <h2 class="font-bold text-sm">Unidades de medida</h2>
-                <x-icon-button wire:click="nuevaUnidad" title="Nueva unidad" variant="primary">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-                </x-icon-button>
+                <x-btn-nuevo wire:click="nuevaUnidad" label="Nueva unidad" />
             </div>
 
             @if ($mostrarFormUnidad)

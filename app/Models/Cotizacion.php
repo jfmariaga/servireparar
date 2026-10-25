@@ -15,16 +15,27 @@ class Cotizacion extends Model
 
     protected $fillable = [
         'numero',
+        'sede',
         'cliente_id',
         'equipo_id',
         'estado',
         'correo_original_referencia',
+        'descuento_porcentaje',
+        'subtotal',
+        'descuento_valor',
+        'iva_porcentaje',
+        'iva_valor',
         'total',
     ];
 
     protected function casts(): array
     {
         return [
+            'descuento_porcentaje' => 'decimal:2',
+            'subtotal' => 'decimal:2',
+            'descuento_valor' => 'decimal:2',
+            'iva_porcentaje' => 'decimal:2',
+            'iva_valor' => 'decimal:2',
             'total' => 'decimal:2',
         ];
     }
@@ -51,6 +62,16 @@ class Cotizacion extends Model
 
     public function recalcularTotal(): void
     {
-        $this->update(['total' => $this->detalles()->sum('valor_total')]);
+        $subtotal = round((float) $this->detalles()->sum('valor_total'), 2);
+        $descuento = round($subtotal * ((float) $this->descuento_porcentaje) / 100, 2);
+        $base = $subtotal - $descuento;
+        $iva = round($base * ((float) $this->iva_porcentaje) / 100, 2);
+
+        $this->update([
+            'subtotal' => $subtotal,
+            'descuento_valor' => $descuento,
+            'iva_valor' => $iva,
+            'total' => round($base + $iva, 2),
+        ]);
     }
 }

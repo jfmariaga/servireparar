@@ -181,9 +181,7 @@ new #[Layout('components.layout', ['title' => 'Solicitudes de inventario'])] cla
         <x-icon-button wire:click="nuevaEntrada" title="Registrar entrada">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
         </x-icon-button>
-        <x-icon-button wire:click="nuevaSolicitud" title="Solicitud de insumo" variant="primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-        </x-icon-button>
+        <x-btn-nuevo wire:click="nuevaSolicitud" label="Solicitud de insumo" />
     </div>
 
     @if ($mostrarFormEntrada)

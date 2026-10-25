@@ -14,7 +14,7 @@ new #[Layout('components.layout', ['title' => 'Configuración'])] class extends 
 
     public function mount(): void
     {
-        $this->valores = Configuracion::query()->pluck('valor', 'clave')->all();
+        $this->valores = Configuracion::query()->pluck('valor', 'id')->all();
     }
 
     public function with(): array
@@ -30,8 +30,10 @@ new #[Layout('components.layout', ['title' => 'Configuración'])] class extends 
             'valores.*' => 'required|integer|min:0',
         ]);
 
-        foreach ($datos['valores'] as $clave => $valor) {
-            Configuracion::establecer($clave, (string) $valor);
+        $claves = Configuracion::query()->whereKey(array_keys($datos['valores']))->pluck('clave', 'id');
+
+        foreach ($datos['valores'] as $id => $valor) {
+            Configuracion::establecer($claves[$id], (string) $valor);
         }
 
         $this->notifySuccess('Configuración actualizada correctamente.');
@@ -61,9 +63,9 @@ new #[Layout('components.layout', ['title' => 'Configuración'])] class extends 
                             <p class="font-medium">{{ $config->descripcion }}</p>
                         </td>
                         <td class="px-5 py-3">
-                            <input type="number" min="0" wire:model="valores.{{ $config->clave }}"
+                            <input type="number" min="0" wire:model="valores.{{ $config->id }}"
                                    class="w-24 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
-                            @error('valores.'.$config->clave) <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                            @error('valores.'.$config->id) <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                         </td>
                     </tr>
                 @endforeach

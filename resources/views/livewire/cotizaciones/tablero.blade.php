@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Cotizacion;
+use App\Services\Cotizaciones\CotizacionService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -17,6 +18,15 @@ new #[Layout('components.layout', ['title' => 'Cotizaciones'])] class extends Co
     public function mount(): void
     {
         Gate::authorize('viewAny', Cotizacion::class);
+    }
+
+    public function crear(): void
+    {
+        Gate::authorize('manage', Cotizacion::class);
+
+        $cotizacion = app(CotizacionService::class)->crear(auth()->user());
+
+        $this->redirect(route('cotizaciones.gestionar', $cotizacion));
     }
 
     public function with(): array
@@ -54,7 +64,10 @@ new #[Layout('components.layout', ['title' => 'Cotizaciones'])] class extends Co
                 @endforeach
             </x-select>
         </div>
-        <a href="{{ route('cotizaciones.servicios') }}" class="text-sm font-semibold text-brand-blue hover:underline">Maestra de servicios</a>
+        <div class="flex items-center gap-4">
+            <a href="{{ route('cotizaciones.servicios') }}" class="text-sm font-semibold text-brand-blue hover:underline">Maestra de servicios</a>
+            <x-btn-nuevo wire:click="crear" label="Nueva cotización" />
+        </div>
     </div>
 
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">

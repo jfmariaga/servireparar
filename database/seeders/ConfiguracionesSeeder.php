@@ -18,12 +18,12 @@ class ConfiguracionesSeeder extends Seeder
             [
                 'clave' => 'ot.dias_umbral_vencimiento',
                 'valor' => (string) config('ot.dias_umbral_vencimiento', 2),
-                'descripcion' => 'Días de anticipación para marcar una OT como próxima a vencer (spec 002, FR-010).',
+                'descripcion' => 'Días de anticipación para marcar una OT como próxima a vencer.',
             ],
             [
                 'clave' => 'equipos.dias_antelacion_mantenimiento',
                 'valor' => '7',
-                'descripcion' => 'Días de anticipación para avisar de un mantenimiento preventivo próximo a vencer (spec 005, FR-006).',
+                'descripcion' => 'Días de anticipación para avisar de un mantenimiento preventivo próximo a vencer.',
             ],
             [
                 'clave' => 'despachos.dias_alerta_firma_pendiente',
