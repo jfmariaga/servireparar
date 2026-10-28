@@ -162,4 +162,39 @@ class FlujoEntregaFirmadaTest extends TestCase
         $this->assertNull($solicitud->fresh()->remision->enviada_al_cliente_en);
         $this->assertSame('entregada', $solicitud->fresh()->estado);
     }
+
+    /**
+     * El flag de completitud (KPI OTIF) queda `true` por default si no se
+     * pasa explícito, para no romper el comportamiento previo a este campo.
+     */
+    public function test_entrega_completa_queda_true_por_default_y_se_puede_marcar_false(): void
+    {
+        $despachos = app(DespachoService::class);
+        $movimientos = app(MovimientoService::class);
+        $almacen = $this->almacenista();
+
+        $cliente = Cliente::factory()->create(['correo' => null]);
+        $item = Inventario::factory()->create(['tipo' => 'consumible', 'stock_actual' => 0, 'costo_unitario' => 0]);
+        $movimientos->entrada($item, 20, $almacen, costoUnitario: 100);
+
+        $solicitud = $despachos->crear($this->vendedor(), $cliente->id, null, [
+            ['origen' => 'inventario', 'inventario_id' => $item->id, 'descripcion' => '', 'cantidad' => '2', 'proveedor_externo' => '', 'costo_compra_externa' => ''],
+        ]);
+        $despachos->recibir($solicitud, $almacen);
+        $despachos->generarRemision($solicitud, $almacen);
+
+        $despachos->confirmarEntrega($solicitud, $almacen, 'Cliente', '1', '', null, null, $this->firmaDummy());
+
+        $this->assertTrue($solicitud->fresh()->entrega_completa);
+
+        // Otra solicitud, marcada explícitamente como incompleta.
+        $solicitud2 = $despachos->crear($this->vendedor(), $cliente->id, null, [
+            ['origen' => 'inventario', 'inventario_id' => $item->id, 'descripcion' => '', 'cantidad' => '2', 'proveedor_externo' => '', 'costo_compra_externa' => ''],
+        ]);
+        $despachos->recibir($solicitud2, $almacen);
+        $despachos->generarRemision($solicitud2, $almacen);
+        $despachos->confirmarEntrega($solicitud2, $almacen, 'Cliente', '1', '', null, null, $this->firmaDummy(), entregaCompleta: false);
+
+        $this->assertFalse($solicitud2->fresh()->entrega_completa);
+    }
 }

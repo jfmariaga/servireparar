@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Cotizacion extends Model
 {
@@ -18,6 +19,7 @@ class Cotizacion extends Model
         'sede',
         'cliente_id',
         'equipo_id',
+        'fecha_promesa_entrega',
         'estado',
         'correo_original_referencia',
         'descuento_porcentaje',
@@ -31,6 +33,7 @@ class Cotizacion extends Model
     protected function casts(): array
     {
         return [
+            'fecha_promesa_entrega' => 'date',
             'descuento_porcentaje' => 'decimal:2',
             'subtotal' => 'decimal:2',
             'descuento_valor' => 'decimal:2',
@@ -58,6 +61,11 @@ class Cotizacion extends Model
     public function mensajes(): HasMany
     {
         return $this->hasMany(MensajeCotizacion::class)->orderBy('created_at');
+    }
+
+    public function solicitudDespacho(): HasOne
+    {
+        return $this->hasOne(SolicitudDespacho::class, 'cotizacion_id');
     }
 
     public function recalcularTotal(): void

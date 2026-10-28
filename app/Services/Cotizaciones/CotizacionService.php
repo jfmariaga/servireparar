@@ -8,7 +8,9 @@ use App\Models\Cotizacion;
 use App\Models\DetalleCotizacion;
 use App\Models\Inventario;
 use App\Models\Servicio;
+use App\Models\SolicitudDespacho;
 use App\Models\User;
+use App\Services\Inventario\DespachoService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -45,7 +47,14 @@ class CotizacionService
     }
 
     /**
-     * @param  array<int, array{tipo_item: string, servicio_id?: int|null, inventario_id?: int|null, cantidad: float}>  $items
+     * El costo del ítem viene siempre del catálogo (servicio o inventario),
+     * salvo para insumos: si la línea trae `costo_unitario`, es un ajuste
+     * manual que solo afecta esta cotización (nunca el costo maestro del
+     * insumo en `inventario`). `origen` (solo insumos) decide si la línea
+     * sale del almacén (descuenta stock al generar el despacho) o es compra
+     * externa (no descuenta nada).
+     *
+     * @param  array<int, array{tipo_item: string, servicio_id?: int|null, inventario_id?: int|null, origen?: string|null, costo_unitario?: float|string|null, cantidad: float}>  $items
      */
     public function guardarItems(Cotizacion $cotizacion, array $items): Cotizacion
     {
@@ -53,15 +62,21 @@ class CotizacionService
             $cotizacion->detalles()->delete();
 
             foreach ($items as $item) {
-                $costoUnitario = $item['tipo_item'] === 'servicio'
-                    ? (float) Servicio::findOrFail($item['servicio_id'])->costo_unitario
-                    : (float) Inventario::findOrFail($item['inventario_id'])->costo_unitario;
+                $esInsumo = $item['tipo_item'] === 'insumo';
+                $catalogo = $esInsumo
+                    ? Inventario::findOrFail($item['inventario_id'])
+                    : Servicio::findOrFail($item['servicio_id']);
+
+                $costoUnitario = $esInsumo && isset($item['costo_unitario']) && $item['costo_unitario'] !== ''
+                    ? (float) $item['costo_unitario']
+                    : (float) $catalogo->costo_unitario;
 
                 DetalleCotizacion::create([
                     'cotizacion_id' => $cotizacion->id,
                     'tipo_item' => $item['tipo_item'],
-                    'servicio_id' => $item['tipo_item'] === 'servicio' ? $item['servicio_id'] : null,
-                    'inventario_id' => $item['tipo_item'] === 'insumo' ? $item['inventario_id'] : null,
+                    'servicio_id' => $esInsumo ? null : $item['servicio_id'],
+                    'inventario_id' => $esInsumo ? $item['inventario_id'] : null,
+                    'origen' => $esInsumo ? ($item['origen'] ?? 'inventario') : null,
                     'cantidad' => $item['cantidad'],
                     'costo_unitario' => $costoUnitario,
                     'valor_total' => round($item['cantidad'] * $costoUnitario, 2),
@@ -75,7 +90,7 @@ class CotizacionService
     }
 
     /**
-     * @param  array{sede: string, descuento_porcentaje: float|string}  $datos
+     * @param  array{sede: string, descuento_porcentaje: float|string, fecha_promesa_entrega?: string|null}  $datos
      */
     public function guardarCabecera(Cotizacion $cotizacion, array $datos): Cotizacion
     {
@@ -89,7 +104,10 @@ class CotizacionService
                 ]);
             }
 
-            $cotizacion->update(['descuento_porcentaje' => $datos['descuento_porcentaje']]);
+            $cotizacion->update([
+                'descuento_porcentaje' => $datos['descuento_porcentaje'],
+                'fecha_promesa_entrega' => $datos['fecha_promesa_entrega'] ?? null,
+            ]);
             $cotizacion->refresh()->recalcularTotal();
         });
 
@@ -222,6 +240,24 @@ class CotizacionService
         return $cotizacion->fresh();
     }
 
+    /**
+     * Sincroniza la cotización cuando el despacho que generó (solicitarDespacho)
+     * queda `entregada` (DespachoService::confirmarEntrega/confirmarFirmaFisica):
+     * al usuario que cotizó solo le queda marcarla como facturada. Silenciosa si
+     * la cotización ya no está en `aceptada` (p. ej. ya la habían marcado
+     * entregada a mano) — nunca lanza error para no tumbar la confirmación de
+     * entrega del despacho, que ya quedó comprometida en su propia transacción.
+     */
+    public function sincronizarEntregaDesdeDespacho(Cotizacion $cotizacion): void
+    {
+        if ($cotizacion->estado !== 'aceptada') {
+            return;
+        }
+
+        $cotizacion->update(['estado' => 'entregada']);
+        $this->registrarEventoSistema($cotizacion, 'Cotización marcada como entregada automáticamente: el despacho que generó ya fue entregado al cliente.');
+    }
+
     public function marcarFacturada(Cotizacion $cotizacion): Cotizacion
     {
         if ($cotizacion->estado !== 'entregada') {
@@ -232,6 +268,75 @@ class CotizacionService
         $this->registrarEventoSistema($cotizacion, 'Cotización marcada como facturada.');
 
         return $cotizacion->fresh();
+    }
+
+    /**
+     * Genera la SolicitudDespacho del canal de mostrador (spec 003) a partir
+     * de una cotización aceptada, llevando ya cliente y sede: las líneas de
+     * insumo "sale del almacén" quedan como línea de inventario (descuentan
+     * stock al confirmarse la entrega del despacho, igual que cualquier
+     * otro despacho); las de "compra externa" quedan como línea de compra
+     * externa (no tocan inventario). Una sola solicitud por cotización.
+     */
+    public function solicitarDespacho(Cotizacion $cotizacion, User $actor, DespachoService $despachos): SolicitudDespacho
+    {
+        $this->exigirEstado($cotizacion, ['aceptada'], 'Solo una cotización aceptada puede generar un despacho.');
+
+        $cotizacion->loadMissing('detalles', 'solicitudDespacho');
+
+        if ($cotizacion->solicitudDespacho) {
+            throw ValidationException::withMessages(['despacho' => 'Esta cotización ya tiene una solicitud de despacho: '.$cotizacion->solicitudDespacho->numero.'.']);
+        }
+
+        if (! $cotizacion->cliente_id) {
+            throw ValidationException::withMessages(['cliente' => 'Asigna un cliente antes de solicitar el despacho.']);
+        }
+
+        $lineasInsumo = $cotizacion->detalles->where('tipo_item', 'insumo');
+
+        if ($lineasInsumo->isEmpty()) {
+            throw ValidationException::withMessages(['despacho' => 'Esta cotización no tiene insumos para despachar.']);
+        }
+
+        $lineas = $lineasInsumo->map(function (DetalleCotizacion $d) use ($cotizacion) {
+            if ($d->esCompraExterna()) {
+                return [
+                    'origen' => 'compra_externa',
+                    'descripcion' => $d->nombreItem(),
+                    'cantidad' => (float) $d->cantidad,
+                    'proveedor_externo' => 'Por definir — ver cotización '.$cotizacion->numero,
+                    'costo_compra_externa' => (float) $d->costo_unitario,
+                ];
+            }
+
+            return [
+                'origen' => 'inventario',
+                'inventario_id' => $d->inventario_id,
+                'cantidad' => (float) $d->cantidad,
+            ];
+        })->values()->all();
+
+        $sedesDespacho = array_keys(config('despachos.sedes', []));
+        $sede = in_array($cotizacion->sede, $sedesDespacho, true) ? $cotizacion->sede : null;
+
+        return DB::transaction(function () use ($cotizacion, $actor, $despachos, $lineas, $sede) {
+            $solicitud = $despachos->crear(
+                $actor,
+                $cotizacion->cliente_id,
+                'Generado desde cotización '.$cotizacion->numero.'.',
+                $lineas,
+                $sede,
+            );
+
+            $solicitud->update([
+                'cotizacion_id' => $cotizacion->id,
+                'fecha_promesa_entrega' => $cotizacion->fecha_promesa_entrega,
+            ]);
+
+            $this->registrarEventoSistema($cotizacion, 'Solicitud de despacho '.$solicitud->numero.' generada por '.$actor->name.'.');
+
+            return $solicitud;
+        });
     }
 
     /**

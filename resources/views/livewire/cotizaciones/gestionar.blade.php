@@ -5,7 +5,9 @@ use App\Models\Cliente;
 use App\Models\Cotizacion;
 use App\Models\Inventario;
 use App\Models\Servicio;
+use App\Models\SolicitudDespacho;
 use App\Services\Cotizaciones\CotizacionService;
+use App\Services\Inventario\DespachoService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
@@ -19,7 +21,7 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
 
     public ?int $clienteIdAsignar = null;
 
-    /** @var array<int, array{uid: string, tipo_item: string, servicio_id: ?int, inventario_id: ?int, cantidad: float}> */
+    /** @var array<int, array{uid: string, tipo_item: string, servicio_id: ?int, inventario_id: ?int, origen: ?string, costo_unitario: float|string|null, cantidad: float}> */
     public array $items = [];
 
     public string $comentario = '';
@@ -28,18 +30,21 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
 
     public string $descuentoPorcentaje = '0';
 
+    public string $fechaPromesaEntrega = '';
+
     public function mount(Cotizacion $cotizacion): void
     {
         Gate::authorize('view', $cotizacion);
         $this->cotizacion = $cotizacion;
         $this->sede = (string) $cotizacion->sede;
         $this->descuentoPorcentaje = (string) (float) $cotizacion->descuento_porcentaje;
+        $this->fechaPromesaEntrega = $cotizacion->fecha_promesa_entrega?->format('Y-m-d') ?? '';
         $this->cargarItemsDesdeDetalle();
     }
 
     public function with(): array
     {
-        $this->cotizacion->load(['cliente', 'detalles.servicio', 'detalles.inventario', 'mensajes.autor']);
+        $this->cotizacion->load(['cliente', 'detalles.servicio', 'detalles.inventario', 'mensajes.autor', 'solicitudDespacho']);
 
         return [
             'clientes' => Cliente::activos()->orderBy('nombre')->get(),
@@ -48,6 +53,9 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
             'sedes' => config('cotizaciones.sedes'),
             'puedeEditar' => $this->cotizacion->estado === 'en_revision',
             'puedeReabrir' => in_array($this->cotizacion->estado, ['cotizada', 'rechazada'], true),
+            'puedeSolicitarDespacho' => $this->cotizacion->estado === 'aceptada'
+                && ! $this->cotizacion->solicitudDespacho
+                && $this->cotizacion->detalles->contains('tipo_item', 'insumo'),
         ];
     }
 
@@ -56,11 +64,13 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
         $datos = $this->validate([
             'sede' => 'required|in:'.implode(',', array_keys(config('cotizaciones.sedes'))),
             'descuentoPorcentaje' => 'required|numeric|min:0|max:100',
-        ], [], ['sede' => 'sede', 'descuentoPorcentaje' => 'descuento']);
+            'fechaPromesaEntrega' => 'nullable|date',
+        ], [], ['sede' => 'sede', 'descuentoPorcentaje' => 'descuento', 'fechaPromesaEntrega' => 'fecha prometida de entrega']);
 
         $this->cotizacion = app(CotizacionService::class)->guardarCabecera($this->cotizacion, [
             'sede' => $datos['sede'],
             'descuento_porcentaje' => $datos['descuentoPorcentaje'],
+            'fecha_promesa_entrega' => $datos['fechaPromesaEntrega'] !== '' ? $datos['fechaPromesaEntrega'] : null,
         ]);
         $this->notifySuccess('Datos de la cotización actualizados. Número: '.$this->cotizacion->numero);
     }
@@ -91,6 +101,8 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
             'tipo_item' => $d->tipo_item,
             'servicio_id' => $d->servicio_id,
             'inventario_id' => $d->inventario_id,
+            'origen' => $d->origen ?? 'inventario',
+            'costo_unitario' => (float) $d->costo_unitario,
             'cantidad' => (float) $d->cantidad,
         ])->all();
     }
@@ -102,6 +114,8 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
             'tipo_item' => 'servicio',
             'servicio_id' => null,
             'inventario_id' => null,
+            'origen' => 'inventario',
+            'costo_unitario' => null,
             'cantidad' => 1,
         ];
     }
@@ -112,6 +126,35 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
         $this->items = array_values($this->items);
     }
 
+    /**
+     * Al elegir un insumo, prellena su precio de catálogo en la línea —
+     * sigue siendo editable después, solo afecta esta cotización.
+     */
+    public function updated(string $name, mixed $value): void
+    {
+        if (preg_match('/^items\.(\d+)\.inventario_id$/', $name, $m) && $value !== '' && $value !== null) {
+            $this->items[(int) $m[1]]['costo_unitario'] = (float) Inventario::find($value)?->costo_unitario;
+        }
+    }
+
+    /**
+     * Sugiere, en el hilo de comunicación, un comentario de control interno
+     * para una línea de compra externa. El usuario lo completa y lo envía
+     * desde el panel del hilo — nunca se refleja en la cotización.
+     */
+    public function sugerirComentarioControl(int $i): void
+    {
+        $item = $this->items[$i] ?? null;
+
+        if (! $item) {
+            return;
+        }
+
+        $nombre = $item['inventario_id'] ? Inventario::find($item['inventario_id'])?->nombre : null;
+
+        $this->comentario = 'Compra externa — '.($nombre ?? 'insumo').' (cant. '.($item['cantidad'] ?: 0).'): ';
+    }
+
     public function guardarItems(): void
     {
         $datos = $this->validate([
@@ -119,6 +162,8 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
             'items.*.tipo_item' => 'required|in:servicio,insumo',
             'items.*.servicio_id' => 'nullable|exists:servicios,id',
             'items.*.inventario_id' => 'nullable|exists:inventario,id',
+            'items.*.origen' => 'nullable|in:inventario,compra_externa',
+            'items.*.costo_unitario' => 'nullable|numeric|min:0',
             'items.*.cantidad' => 'required|numeric|min:0.01',
         ], [], ['items' => 'ítems']);
 
@@ -126,6 +171,15 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
         $this->cotizacion->refresh();
         $this->cargarItemsDesdeDetalle();
         $this->notifySuccess('Ítems guardados. Total: '.\App\Support\Moneda::cop($this->cotizacion->total));
+    }
+
+    public function solicitarDespacho(): void
+    {
+        Gate::authorize('create', SolicitudDespacho::class);
+
+        $solicitud = app(CotizacionService::class)->solicitarDespacho($this->cotizacion, auth()->user(), app(DespachoService::class));
+        $this->cotizacion->refresh();
+        $this->notifySuccess('Solicitud de despacho '.$solicitud->numero.' generada.');
     }
 
     public function asignarCliente(): void
@@ -229,7 +283,7 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
                                     @endforeach
                                 </x-select>
                             @else
-                                <x-select wire:model="items.{{ $i }}.inventario_id" :reset-key="'inv-'.$item['uid']">
+                                <x-select wire:model.live="items.{{ $i }}.inventario_id" :reset-key="'inv-'.$item['uid']">
                                     @foreach ($insumos as $ins)
                                         <option value="{{ $ins->id }}">{{ $ins->nombre }} — {{ \App\Support\Moneda::cop($ins->costo_unitario) }}</option>
                                     @endforeach
@@ -240,6 +294,30 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
                             <input type="number" step="0.01" min="0.01" wire:model="items.{{ $i }}.cantidad" placeholder="Cantidad" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-2 outline-none focus:border-brand-blue">
                         </div>
                     </div>
+
+                    @if (($item['tipo_item'] ?? 'servicio') === 'insumo')
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm items-center">
+                            <div class="sm:col-span-2 flex items-center gap-4">
+                                <label class="flex items-center gap-1.5">
+                                    <input type="radio" value="inventario" wire:model.live="items.{{ $i }}.origen"> Sale del almacén
+                                </label>
+                                <label class="flex items-center gap-1.5">
+                                    <input type="radio" value="compra_externa" wire:model.live="items.{{ $i }}.origen"> Compra externa
+                                </label>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Precio (solo esta cotización)</label>
+                                <x-input-money :wire-model="'items.'.$i.'.costo_unitario'" />
+                            </div>
+                        </div>
+
+                        @if (($item['origen'] ?? 'inventario') === 'compra_externa')
+                            <div class="flex items-center justify-between gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                                <p class="text-xs text-amber-700 dark:text-amber-300">Compra externa: no se descuenta del inventario. Deja un comentario de control interno en el hilo de comunicación (no se refleja en la cotización).</p>
+                                <button wire:click="sugerirComentarioControl({{ $i }})" type="button" class="shrink-0 text-xs font-semibold text-brand-blue hover:underline">Sugerir comentario</button>
+                            </div>
+                        @endif
+                    @endif
                 </div>
             @endforeach
 
@@ -251,7 +329,12 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
                 <tbody>
                     @foreach ($cotizacion->detalles as $d)
                         <tr class="border-b border-slate-100 dark:border-slate-800 last:border-0">
-                            <td class="py-2">{{ $d->nombreItem() }}</td>
+                            <td class="py-2">
+                                {{ $d->nombreItem() }}
+                                @if ($d->esCompraExterna())
+                                    <span class="ml-1.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Compra externa</span>
+                                @endif
+                            </td>
                             <td class="py-2 text-right">{{ rtrim(rtrim(number_format((float) $d->cantidad, 2), '0'), '.') }} × {{ \App\Support\Moneda::cop($d->costo_unitario) }}</td>
                             <td class="py-2 text-right font-semibold">{{ \App\Support\Moneda::cop($d->valor_total) }}</td>
                         </tr>
@@ -327,10 +410,28 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
                 Reabrir para editar
             </button>
         @endif
-        @if ($cotizacion->estado === 'aceptada')
+        @if ($cotizacion->estado === 'aceptada' && $cotizacion->solicitudDespacho)
+            <a href="{{ route('despachos.detalle', $cotizacion->solicitudDespacho) }}" wire:navigate class="border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-[13.5px] font-semibold px-4 py-2.5 rounded-lg transition">
+                Ver despacho {{ $cotizacion->solicitudDespacho->numero }}
+            </a>
+        @elseif ($puedeSolicitarDespacho)
+            <button type="button"
+                    x-on:click="Notify.confirmDanger({
+                        title: '¿Solicitar despacho para esta cotización?',
+                        text: 'Se creará una solicitud de despacho con el cliente y los insumos de esta cotización.',
+                        confirmButtonText: 'Sí, solicitar',
+                    }).then((ok) => ok && $wire.solicitarDespacho())"
+                    class="border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-[13.5px] font-semibold px-4 py-2.5 rounded-lg transition">
+                Solicitar despacho
+            </button>
+        @endif
+        @if ($cotizacion->estado === 'aceptada' && ! $cotizacion->solicitudDespacho)
             <button wire:click="marcarEntregada" class="bg-brand-blue hover:bg-brand-blue-dark text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg transition">
                 Marcar entregada
             </button>
+        @endif
+        @if ($cotizacion->estado === 'aceptada' && $cotizacion->solicitudDespacho)
+            <p class="w-full text-xs text-slate-400">Esta cotización pasará a "entregada" automáticamente cuando el almacén confirme la entrega del despacho.</p>
         @endif
         @if ($cotizacion->estado === 'entregada')
             <button wire:click="marcarFacturada" class="bg-brand-blue hover:bg-brand-blue-dark text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg transition">
@@ -360,6 +461,12 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
                                    class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-blue">
                             @error('descuentoPorcentaje') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                         </div>
+                        <div>
+                            <label class="text-xs font-semibold text-slate-500">Fecha prometida de entrega</label>
+                            <x-input-date wire:model="fechaPromesaEntrega" />
+                            <p class="text-[11px] text-slate-400 mt-1">Se usa para medir si la entrega llega a tiempo (KPI OTIF).</p>
+                            @error('fechaPromesaEntrega') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
+                        </div>
                         <button wire:click="guardarCabecera" type="button" class="bg-brand-blue hover:bg-brand-blue-dark text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg transition">
                             Guardar datos
                         </button>
@@ -367,6 +474,9 @@ new #[Layout('components.layout', ['title' => 'Cotización'])] class extends Com
                 @else
                     <p class="text-sm text-slate-600 dark:text-slate-300">
                         Sede: {{ $sedes[$cotizacion->sede] ?? '—' }} · Descuento: {{ rtrim(rtrim(number_format((float) $cotizacion->descuento_porcentaje, 2), '0'), '.') }}%
+                        @if ($cotizacion->fecha_promesa_entrega)
+                            · Prometida: {{ $cotizacion->fecha_promesa_entrega->format('d/m/Y') }}
+                        @endif
                     </p>
                 @endif
             </div>

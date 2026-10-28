@@ -83,6 +83,19 @@ class PrioridadUnoCotizacionTest extends TestCase
         $this->assertSame('MTR-0001', $actualizada->numero);
     }
 
+    public function test_guardar_cabecera_persiste_la_fecha_prometida_de_entrega(): void
+    {
+        $cotizacion = Cotizacion::factory()->create(['sede' => 'BAQ']);
+
+        $actualizada = app(CotizacionService::class)->guardarCabecera($cotizacion, [
+            'sede' => 'BAQ',
+            'descuento_porcentaje' => 0,
+            'fecha_promesa_entrega' => '2026-11-10',
+        ]);
+
+        $this->assertSame('2026-11-10', $actualizada->fecha_promesa_entrega->format('Y-m-d'));
+    }
+
     public function test_no_se_puede_cambiar_sede_una_vez_enviada(): void
     {
         $cotizacion = Cotizacion::factory()->create(['estado' => 'cotizada']);

@@ -17,6 +17,7 @@ class DetalleCotizacion extends Model
         'tipo_item',
         'servicio_id',
         'inventario_id',
+        'origen',
         'cantidad',
         'costo_unitario',
         'valor_total',
@@ -51,5 +52,10 @@ class DetalleCotizacion extends Model
         return $this->tipo_item === 'servicio'
             ? (string) $this->servicio?->nombre
             : (string) $this->inventario?->nombre;
+    }
+
+    public function esCompraExterna(): bool
+    {
+        return $this->tipo_item === 'insumo' && $this->origen === 'compra_externa';
     }
 }

@@ -16,6 +16,7 @@ new #[Layout('components.layout', ['title' => 'Nueva solicitud de despacho'])] c
     public ?int $clienteId = null;
     public string $sede = '';
     public string $observaciones = '';
+    public string $fechaPromesaEntrega = '';
 
     /** @var array<int, array<string, mixed>> */
     public array $lineas = [];
@@ -80,6 +81,7 @@ new #[Layout('components.layout', ['title' => 'Nueva solicitud de despacho'])] c
         $datos = $this->validate([
             'clienteId' => 'required|exists:clientes,id',
             'sede' => 'required|string|in:'.implode(',', array_keys(config('despachos.sedes', []))),
+            'fechaPromesaEntrega' => 'nullable|date',
             'lineas' => 'required|array|min:1',
             'lineas.*.origen' => 'required|in:inventario,compra_externa',
             'lineas.*.cantidad' => 'required|numeric|min:0.01',
@@ -103,6 +105,7 @@ new #[Layout('components.layout', ['title' => 'Nueva solicitud de despacho'])] c
                 $this->observaciones !== '' ? $this->observaciones : null,
                 $this->lineas,
                 $this->sede,
+                $datos['fechaPromesaEntrega'] !== '' ? $datos['fechaPromesaEntrega'] : null,
             );
         } catch (ValidationException $e) {
             foreach ($e->errors() as $campo => $mensajes) {
@@ -143,6 +146,11 @@ new #[Layout('components.layout', ['title' => 'Nueva solicitud de despacho'])] c
             <div>
                 <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Observaciones</label>
                 <input type="text" wire:model="observaciones" class="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg px-3.5 py-2 outline-none focus:border-brand-blue">
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-700 dark:text-slate-200 mb-1.5">Fecha prometida de entrega</label>
+                <x-input-date wire:model="fechaPromesaEntrega" />
+                @error('fechaPromesaEntrega') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
             </div>
         </div>
 

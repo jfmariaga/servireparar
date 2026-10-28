@@ -26,6 +26,7 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
     public string $firma = '';
     public string $mensajeroNombre = '';
     public string $motivoAnulacion = '';
+    public bool $entregaCompleta = true;
 
     /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
     public $fotoFirmaFisica = null;
@@ -91,6 +92,7 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
                 $this->entregadoPor,
                 $this->notaEntrega !== '' ? $this->notaEntrega : null,
                 $this->firmaEntrega,
+                $this->entregaCompleta,
             );
         } catch (ValidationException $e) {
             $this->notifyError(collect($e->errors())->flatten()->first() ?? 'No se pudo confirmar la entrega.');
@@ -99,7 +101,7 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
         }
 
         $this->solicitud->refresh();
-        $this->reset(['firma', 'firmaEntrega']);
+        $this->reset(['firma', 'firmaEntrega', 'entregaCompleta']);
 
         $this->notifySuccess($correoEnviado
             ? 'Entrega confirmada. Copia de la remisión enviada a '.$this->solicitud->cliente->correo.'.'
@@ -165,6 +167,7 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
                 $this->recibidoPorNombre,
                 $this->recibidoPorDocumento,
                 $ruta,
+                $this->entregaCompleta,
             );
         } catch (ValidationException $e) {
             $this->notifyError(collect($e->errors())->flatten()->first() ?? 'No se pudo registrar la firma física.');
@@ -173,7 +176,7 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
         }
 
         $this->solicitud->refresh();
-        $this->reset(['recibidoPorNombre', 'recibidoPorDocumento', 'fotoFirmaFisica']);
+        $this->reset(['recibidoPorNombre', 'recibidoPorDocumento', 'fotoFirmaFisica', 'entregaCompleta']);
 
         $this->notifySuccess($correoEnviado
             ? 'Firma física registrada. Copia de la remisión enviada a '.$this->solicitud->cliente->correo.'.'
@@ -364,6 +367,14 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
                     <p class="text-xs text-slate-400">Al confirmar, se envía una copia del PDF al correo del cliente
                         @if ($solicitud->cliente->correo) ({{ $solicitud->cliente->correo }}) @else (el cliente no tiene correo registrado) @endif.</p>
 
+                    <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        <input type="checkbox" wire:model="entregaCompleta" class="rounded border-slate-300 dark:border-slate-600">
+                        Entrega completa, sin daños ni faltantes
+                    </label>
+                    @unless ($entregaCompleta)
+                        <p class="text-xs text-amber-600 dark:text-amber-400 -mt-1">Documenta la incidencia (daño, faltante, error) en la descripción de la entrega — se usa para el KPI OTIF.</p>
+                    @endunless
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                         <div wire:key="firma-entrega-mostrador" x-data="firmaPad($wire, 'firmaEntrega')" class="flex flex-col gap-2">
                             <label class="block font-semibold text-slate-600 dark:text-slate-300">Firma de quien entrega *</label>
@@ -443,6 +454,14 @@ new #[Layout('components.layout', ['title' => 'Solicitud de despacho'])] class e
                         @error('fotoFirmaFisica') <span class="text-brand-red text-xs">{{ $message }}</span> @enderror
                     </div>
                 </div>
+
+                <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    <input type="checkbox" wire:model="entregaCompleta" class="rounded border-slate-300 dark:border-slate-600">
+                    Entrega completa, sin daños ni faltantes
+                </label>
+                @unless ($entregaCompleta)
+                    <p class="text-xs text-amber-600 dark:text-amber-400 -mt-1">Documenta la incidencia (daño, faltante, error) en la descripción de la entrega — se usa para el KPI OTIF.</p>
+                @endunless
 
                 <button wire:click="confirmarFirmaFisica" class="self-start bg-emerald-600 hover:bg-emerald-700 text-white text-[13.5px] font-semibold px-4 py-2.5 rounded-lg">Registrar firma física recibida</button>
             @endif

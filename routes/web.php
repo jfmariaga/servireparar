@@ -81,6 +81,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:manage-cotizaciones')->group(function () {
         Volt::route('/cotizaciones', 'cotizaciones.tablero')->name('cotizaciones.tablero');
         Volt::route('/cotizaciones/servicios', 'cotizaciones.servicios-maestra')->name('cotizaciones.servicios');
+        Volt::route('/cotizaciones/otif', 'cotizaciones.otif')->name('cotizaciones.otif');
         Route::get('/cotizaciones/{cotizacion}/pdf', CotizacionPdfController::class)->name('cotizaciones.pdf');
         Volt::route('/cotizaciones/{cotizacion}', 'cotizaciones.gestionar')->name('cotizaciones.gestionar');
     });

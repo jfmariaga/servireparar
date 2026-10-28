@@ -118,6 +118,18 @@ class EntregaConMensajeroTest extends TestCase
         $this->assertCount(1, MovimientoInventario::where('origen', 'despacho')->get());
     }
 
+    public function test_registrar_firma_fisica_acepta_marcar_entrega_incompleta(): void
+    {
+        [$despachos, $almacen, $solicitud] = $this->solicitudRemisionada();
+        $despachos->confirmarSalidaMensajero($solicitud, $almacen, $this->firmaDummy(), null, 'Pedro Mensajero');
+
+        $foto = UploadedFile::fake()->image('firma-fisica.jpg')->store('remisiones', 'public');
+
+        $despachos->confirmarFirmaFisica($solicitud, $almacen, 'Juan Cliente', '12345678', $foto, entregaCompleta: false);
+
+        $this->assertFalse($solicitud->fresh()->entrega_completa);
+    }
+
     public function test_no_se_puede_registrar_firma_fisica_sin_haber_despachado_con_mensajero(): void
     {
         [$despachos, $almacen, $solicitud] = $this->solicitudRemisionada();

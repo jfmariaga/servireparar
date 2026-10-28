@@ -65,6 +65,7 @@ new #[Layout('components.layout', ['title' => 'Cotizaciones'])] class extends Co
             </x-select>
         </div>
         <div class="flex items-center gap-4">
+            <a href="{{ route('cotizaciones.otif') }}" class="text-sm font-semibold text-brand-blue hover:underline">Ver OTIF</a>
             <a href="{{ route('cotizaciones.servicios') }}" class="text-sm font-semibold text-brand-blue hover:underline">Maestra de servicios</a>
             <x-btn-nuevo wire:click="crear" label="Nueva cotización" />
         </div>

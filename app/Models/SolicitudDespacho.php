@@ -30,11 +30,13 @@ class SolicitudDespacho extends Model
     protected $fillable = [
         'numero',
         'cliente_id',
+        'cotizacion_id',
         'vendedor_id',
         'sede',
         'estado',
         'observaciones',
         'fecha_solicitud',
+        'fecha_promesa_entrega',
         'recibida_por',
         'recibida_en',
         'remisionada_por',
@@ -43,6 +45,7 @@ class SolicitudDespacho extends Model
         'despachada_por',
         'despachada_en',
         'entregada_en',
+        'entrega_completa',
         'alertado_firma_pendiente_en',
         'anulada_por',
         'motivo_anulacion',
@@ -52,10 +55,12 @@ class SolicitudDespacho extends Model
     {
         return [
             'fecha_solicitud' => 'datetime',
+            'fecha_promesa_entrega' => 'date',
             'recibida_en' => 'datetime',
             'remisionada_en' => 'datetime',
             'despachada_en' => 'datetime',
             'entregada_en' => 'datetime',
+            'entrega_completa' => 'boolean',
             'alertado_firma_pendiente_en' => 'datetime',
         ];
     }
@@ -63,6 +68,11 @@ class SolicitudDespacho extends Model
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
+    public function cotizacion(): BelongsTo
+    {
+        return $this->belongsTo(Cotizacion::class, 'cotizacion_id');
     }
 
     public function vendedor(): BelongsTo
@@ -102,6 +112,28 @@ class SolicitudDespacho extends Model
     public function puedeAnularse(): bool
     {
         return ! in_array($this->estado, ['despachada', 'entregada', 'anulada'], true);
+    }
+
+    /**
+     * Días entre la fecha prometida y la entrega real (dias_diff del cálculo
+     * OTIF): negativo o cero si se entregó a tiempo o antes, positivo si
+     * llegó tarde. Null si falta la fecha prometida o aún no se entregó.
+     */
+    public function diasDiferenciaEntrega(): ?int
+    {
+        if (! $this->fecha_promesa_entrega || ! $this->entregada_en) {
+            return null;
+        }
+
+        return $this->fecha_promesa_entrega->copy()->startOfDay()
+            ->diffInDays($this->entregada_en->copy()->startOfDay(), false);
+    }
+
+    public function entregaATiempo(): ?bool
+    {
+        $dias = $this->diasDiferenciaEntrega();
+
+        return $dias === null ? null : $dias <= 0;
     }
 
     public function scopeEnEstado(Builder $query, string $estado): Builder

@@ -8,6 +8,7 @@ use App\Models\Inventario;
 use App\Models\RemisionEntrega;
 use App\Models\SolicitudDespacho;
 use App\Models\User;
+use App\Services\Cotizaciones\CotizacionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -24,6 +25,7 @@ use Illuminate\Validation\ValidationException;
 class DespachoService
 {
     public function __construct(
+        private readonly CotizacionService $cotizaciones,
         private readonly ConsecutivoDespachoService $consecutivos = new ConsecutivoDespachoService(),
         private readonly MovimientoService $movimientos = new MovimientoService(),
     ) {}
@@ -31,7 +33,7 @@ class DespachoService
     /**
      * @param  array<int, array{origen:string, inventario_id:?int, descripcion:?string, cantidad:float|string, proveedor_externo:?string, costo_compra_externa:float|string|null}>  $lineas
      */
-    public function crear(User $vendedor, int $clienteId, ?string $observaciones, array $lineas, ?string $sede = null): SolicitudDespacho
+    public function crear(User $vendedor, int $clienteId, ?string $observaciones, array $lineas, ?string $sede = null, ?string $fechaPromesaEntrega = null): SolicitudDespacho
     {
         if ($lineas === []) {
             throw ValidationException::withMessages(['lineas' => 'Agrega al menos una línea a la solicitud.']);
@@ -40,7 +42,7 @@ class DespachoService
         $sedes = array_keys(config('despachos.sedes', []));
         $sede = in_array($sede, $sedes, true) ? $sede : config('despachos.sede_por_defecto', 'BAQ');
 
-        return DB::transaction(function () use ($vendedor, $clienteId, $observaciones, $lineas, $sede) {
+        return DB::transaction(function () use ($vendedor, $clienteId, $observaciones, $lineas, $sede, $fechaPromesaEntrega) {
             $solicitud = SolicitudDespacho::create([
                 'numero' => $this->consecutivos->siguienteSolicitud(),
                 'cliente_id' => $clienteId,
@@ -49,6 +51,7 @@ class DespachoService
                 'estado' => 'solicitada',
                 'observaciones' => $observaciones,
                 'fecha_solicitud' => now(),
+                'fecha_promesa_entrega' => $fechaPromesaEntrega,
             ]);
 
             foreach ($lineas as $linea) {
@@ -148,6 +151,7 @@ class DespachoService
         ?string $entregadoPorNombre = null,
         ?string $notaEntrega = null,
         string $firmaEntrega = '',
+        bool $entregaCompleta = true,
     ): bool {
         $this->asegurarEstado($solicitud, 'remisionada');
 
@@ -155,7 +159,7 @@ class DespachoService
             throw ValidationException::withMessages(['firmaEntrega' => 'La firma de quien entrega es obligatoria para confirmar la entrega.']);
         }
 
-        DB::transaction(function () use ($solicitud, $almacenista, $recibidoPorNombre, $recibidoPorDocumento, $firma, $firmaEntrega, $entregadoPorNombre, $notaEntrega) {
+        DB::transaction(function () use ($solicitud, $almacenista, $recibidoPorNombre, $recibidoPorDocumento, $firma, $firmaEntrega, $entregadoPorNombre, $notaEntrega, $entregaCompleta) {
             $this->descontarStock($solicitud, $almacenista);
 
             $solicitud->remision->update([
@@ -171,7 +175,10 @@ class DespachoService
             $solicitud->update([
                 'estado' => 'entregada',
                 'entregada_en' => now(),
+                'entrega_completa' => $entregaCompleta,
             ]);
+
+            $this->sincronizarCotizacion($solicitud);
         });
 
         return $this->enviarCopiaAlCliente($solicitud->fresh(['cliente', 'vendedor', 'detalles.inventario', 'remision.generadaPor']));
@@ -227,6 +234,7 @@ class DespachoService
         string $recibidoPorNombre,
         string $recibidoPorDocumento,
         string $fotoFirma,
+        bool $entregaCompleta = true,
     ): bool {
         $this->asegurarEstado($solicitud, 'despachada');
 
@@ -234,7 +242,7 @@ class DespachoService
             throw ValidationException::withMessages(['fotoFirma' => 'Adjunta la foto del papel firmado por el cliente.']);
         }
 
-        DB::transaction(function () use ($solicitud, $recibidoPorNombre, $recibidoPorDocumento, $fotoFirma) {
+        DB::transaction(function () use ($solicitud, $recibidoPorNombre, $recibidoPorDocumento, $fotoFirma, $entregaCompleta) {
             $solicitud->remision->update([
                 'recibido_por_nombre' => $recibidoPorNombre,
                 'recibido_por_documento' => $recibidoPorDocumento,
@@ -246,7 +254,10 @@ class DespachoService
             $solicitud->update([
                 'estado' => 'entregada',
                 'entregada_en' => now(),
+                'entrega_completa' => $entregaCompleta,
             ]);
+
+            $this->sincronizarCotizacion($solicitud);
         });
 
         return $this->enviarCopiaAlCliente($solicitud->fresh(['cliente', 'vendedor', 'detalles.inventario', 'remision.generadaPor']));
@@ -299,6 +310,21 @@ class DespachoService
         $solicitud->remision->update(['enviada_al_cliente_en' => now()]);
 
         return true;
+    }
+
+    /**
+     * Si esta solicitud nació de "Solicitar despacho" en una cotización
+     * aceptada, avanza esa cotización a `entregada` ahora que el despacho
+     * mismo quedó entregado — al usuario que cotizó solo le queda marcarla
+     * como facturada.
+     */
+    private function sincronizarCotizacion(SolicitudDespacho $solicitud): void
+    {
+        $solicitud->loadMissing('cotizacion');
+
+        if ($solicitud->cotizacion) {
+            $this->cotizaciones->sincronizarEntregaDesdeDespacho($solicitud->cotizacion);
+        }
     }
 
     public function anular(SolicitudDespacho $solicitud, User $actor, ?string $motivo = null): void
